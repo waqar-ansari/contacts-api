@@ -3,6 +3,8 @@ const app = express();
 const path = require("path");
 const mongoose = require("mongoose");
 const v1Router = express.Router();
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocs = require("./swaggerConfig");
 const userRoutes = require("./routes/userRoutes");
 const editProfileRoutes = require("./routes/editProfileRoutes");
 const contactRoutes = require("./routes/contactRoutes");
@@ -19,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
-
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 
 

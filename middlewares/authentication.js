@@ -3,7 +3,6 @@ const { validateToken } = require("../services/authentication");
 const checkForAuthentication = () => {
   return (req, res, next) => {
     const authHeader = req.headers["authorization"];
-    console.log(authHeader, "Authorization Header");
 
     if (!authHeader) {
       return res

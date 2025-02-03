@@ -2,6 +2,10 @@ const { Schema, model } = require("mongoose");
 
 const contactSchema = new Schema(
   {
+    contact_id: {
+      type: Number,
+      unique: true,
+    },
     firstname: {
       type: String,
       default: "Dummy Firstname",
@@ -10,12 +14,12 @@ const contactSchema = new Schema(
       type: String,
       default: "Dummy Lastname",
     },
-    email: {
-      type: String,
+    emailaddresses: {
+      type: [String],
       //   required: true,
       //   unique: true,
     },
-    mobilenumber: [
+    phonenumbers: [
       {
         countryCode: {
           type: String,
