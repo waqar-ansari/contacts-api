@@ -2,7 +2,6 @@ const User = require("../models/userModel");
 
 const editProfile = async (req, res) => {
   const { firstname, lastname, mobilenumber } = req.body;
-  console.log(req.user, "userid to edit profile");
 
   const userId = req.user._id;
 

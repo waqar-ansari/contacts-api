@@ -1,9 +1,9 @@
-const { Schema, model } = require("mongoose");
+const { Schema, model, mongoose } = require("mongoose");
 
 const contactSchema = new Schema(
   {
     contact_id: {
-      type: Number,
+      type: mongoose.Schema.Types.ObjectId,
       unique: true,
     },
     firstname: {
@@ -40,10 +40,10 @@ const contactSchema = new Schema(
     tags: {
       type: [String],
     },
-    createdBy:{
-        type: Schema.Types.ObjectId,
-        ref: 'User'
-    }
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true }
 );

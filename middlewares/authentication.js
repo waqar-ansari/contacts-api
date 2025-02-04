@@ -20,7 +20,6 @@ const checkForAuthentication = () => {
     try {
       const payload = validateToken(token);
       req.user = payload; // Attach user info from token to req.user
-      console.log(req.user, "requserr");
     } catch (error) {
       return res.status(401).json({ message: "Invalid or expired token" });
     }
