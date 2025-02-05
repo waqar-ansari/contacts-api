@@ -33,7 +33,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 v1Router.use("/edit-profile_api", checkForAuthentication(), editProfileRoutes);
 v1Router.use("/user", userRoutes);
 v1Router.use("/delete-contact_api", deleteContactRoutes);
-v1Router.use("/delete-user_api", deleteUserRoutes);
+v1Router.use("/delete-user_api",checkForAuthentication(), deleteUserRoutes);
 v1Router.use("/add-tag_api", checkForAuthentication(), addTagRoutes);
 v1Router.use("/get-tag_api", checkForAuthentication(), getTagRoutes);
 v1Router.use("/delete-tag_api", checkForAuthentication(), deleteTagRoutes);

@@ -19,15 +19,13 @@ const userSchema = new Schema(
     },
     tags: [
       {
-        _id: { type: Boolean, default: false },
+        _id: false,
         tag_id: {
           type: mongoose.Schema.Types.ObjectId,
-          required: true,
           unique: true,
         },
         tag: {
           type: String,
-          required: true,
         },
       },
     ],

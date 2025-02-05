@@ -1,11 +1,3 @@
-// const {Router} = require("express");
-// const { addEditContact } = require("../controllers/addEditContact");
-// const router = Router()
-
-// router.post("/",addEditContact)
-
-
-// module.exports=router
 const { Router } = require("express");
 const { addEditContact } = require("../controllers/addEditContact");
 const router = Router();
@@ -14,7 +6,8 @@ const router = Router();
  * @swagger
  * /add-edit-contact_api:
  *   post:
- *     summary: Add or update a contact
+ *     tags: [Contact]
+ *     summary: Add or update contact
  *     requestBody:
  *       required: true
  *       content:
@@ -22,23 +15,45 @@ const router = Router();
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               contact_id:
  *                 type: string
  *                 description: Name of the contact
- *                 example: John Doe
- *               email:
+ *                 example: "0"
+ *               firstname:
+ *                 type: string
+ *                 description: Firstname of the contact
+ *                 example: fname
+ *               lastname:
+ *                 type: string
+ *                 description: Lastname of the contact
+ *                 example: lname
+ *               emailaddresses:
  *                 type: string
  *                 description: Email of the contact
- *                 example: johndoe@example.com
- *               phone:
- *                 type: string
- *                 description: Phone number of the contact
- *                 example: +1234567890
+ *                 example: test@test.com
+ *               isFavourite:
+ *                 type: boolean
+ *                 description: Email of the contact
+ *                 example: false
+ *               phonenumbers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       countryCode:
+ *                         type: string
+ *                       number:
+ *                         type: string
+ *               tags:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       tag:
+ *                         type: string
  *     responses:
  *       201:
  *         description: Contact added or updated successfully
- *       400:
- *         description: Bad request or validation error
  */
 router.post("/", addEditContact);
 

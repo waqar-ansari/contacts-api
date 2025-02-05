@@ -1,5 +1,6 @@
 const { mongoose } = require("mongoose");
 const User = require("../models/userModel");
+
 const addTags = async (req, res) => {
   try {
     const { tag } = req.body;
@@ -13,16 +14,20 @@ const addTags = async (req, res) => {
     }
 
     const newTag = {
-      tag: tag,
+      tag,
       tag_id: new mongoose.Types.ObjectId(),
     };
+
+
+    
     user.tags.push(newTag);
 
+    
     await user.save();
 
-    res.status(200).json({ message: "Tag added successfully" });
-  } catch {
-    res.status(500).json({ message: "Error adding tag" });
+    res.status(200).json({ message: "Tag added successfully", tag: newTag });
+  } catch (error) {
+    res.status(500).json({ message: "Error adding tag", error: error.message });
   }
 };
 

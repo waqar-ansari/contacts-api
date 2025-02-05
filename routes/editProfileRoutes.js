@@ -14,25 +14,36 @@ const router = Router();
  * @swagger
  * /edit-profile_api:
  *   put:
- *     summary: Update user profile information
+ *     summary: Update user profile
+ *     tags: [User]
+ *     security:
+ *       - BearerAuth: []
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               firstname:
+ *                 type: string
+ *               lastname:
  *                 type: string
  *               email:
  *                 type: string
- *               phone:
+ *               phonenumbers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       countryCode:
+ *                         type: string
+ *                       number:
+ *                         type: string
+ *               profileImageURL:
  *                 type: string
  *     responses:
  *       200:
  *         description: Profile updated successfully
- *       400:
- *         description: Bad request or validation error
  */
 router.put("/", editProfile);
 

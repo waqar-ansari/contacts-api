@@ -14,9 +14,9 @@ const addEditContact = async (req, res) => {
   } = req.body;
 
   try {
-    let contact;
+    let data;
     if (contact_id === "0") {
-      contact = await Contact.create({
+      data = await Contact.create({
         firstname,
         lastname,
         emailaddresses,
@@ -26,21 +26,18 @@ const addEditContact = async (req, res) => {
         tags,
         createdBy: req.user._id,
       });
-      contact.contact_id = contact._id;
-      await contact.save();
-      // Populate the created contact
-      // const populatedContact = await Contact.findById(contact._id).populate(
-      //   "createdBy"
-      // );
+      data.contact_id = data._id;
+      await data.save();
+
       const newContact = {
-        contact_id: contact._id,
-        firstname: contact.firstname,
-        lastname: contact.lastname,
-        emailaddresses: contact.emailaddresses,
-        phonenumbers: contact.phonenumbers,
-        contactImageURL: contact.contactImageURL,
-        isFavourite: contact.isFavourite,
-        tags: contact.tags,
+        contact_id: data._id,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        emailaddresses: data.emailaddresses,
+        phonenumbers: data.phonenumbers,
+        contactImageURL: data.contactImageURL,
+        isFavourite: data.isFavourite,
+        tags: data.tags,
       };
       res.status(201).json({
         message: "Contact created successfully",
@@ -48,7 +45,7 @@ const addEditContact = async (req, res) => {
       });
     } else {
       // Update an existing contact
-      contact = await Contact.findOneAndUpdate(
+      data = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
         {
           firstname,
@@ -62,26 +59,26 @@ const addEditContact = async (req, res) => {
         { new: true } // Return the updated document
       ).populate("createdBy");
 
-      if (!contact) {
+      if (!data) {
         return res
           .status(404)
           .json({ message: "Contact not found or unauthorized access" });
       }
 
       const updatedContact = {
-        contact_id: contact._id,
-        firstname: contact.firstname,
-        lastname: contact.lastname,
-        emailaddresses: contact.emailaddresses,
-        phonenumbers: contact.phonenumbers,
-        contactImageURL: contact.contactImageURL,
-        isFavourite: contact.isFavourite,
-        tags: contact.tags,
+        contact_id: data._id,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        emailaddresses: data.emailaddresses,
+        phonenumbers: data.phonenumbers,
+        contactImageURL: data.contactImageURL,
+        isFavourite: data.isFavourite,
+        tags: data.tags,
       };
 
       res.status(200).json({
         message: "Contact updated successfully",
-        contact: updatedContact,
+        data: updatedContact,
       });
     }
   } catch (error) {

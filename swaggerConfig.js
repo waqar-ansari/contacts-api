@@ -6,15 +6,29 @@ const swaggerOptions = {
     info: {
       title: "Contacts Api",
       version: "1.0.0",
-      description: "API documentation for your Contacts App",
+      description: "API documentation for Contacts App",
     },
     servers: [
       {
-        url: "http://localhost:3000", // Replace with your server URL
+        url: "http://localhost:3000/api/v1",
+      },
+    ],
+    components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT", // Optional
+        },
+      },
+    },
+    security: [
+      {
+        BearerAuth: [],
       },
     ],
   },
-  apis: ["./routes/*.js"], // Adjust path as needed to point to your route files
+  apis: ["./routes/*.js"],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);

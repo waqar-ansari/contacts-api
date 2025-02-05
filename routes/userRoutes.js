@@ -1,23 +1,26 @@
-// const {Router} = require("express");
-// const { saveSignupData, processLoginData } = require("../controllers/userControllers");
-// const router = Router()
-
-
-// router.post("/signup",saveSignupData)
-// router.post("/login",processLoginData)
-
-// module.exports=router
-
-
 const { Router } = require("express");
-const { saveSignupData, processLoginData } = require("../controllers/userControllers");
+const {
+  saveSignupData,
+  processLoginData,
+} = require("../controllers/userControllers");
 const router = Router();
+
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     BearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ */
 
 /**
  * @swagger
  * /user/signup:
  *   post:
- *     summary: Register a new user
+ *     summary: Register new user
+ *     tags: [User]
  *     requestBody:
  *       required: true
  *       content:
@@ -40,6 +43,7 @@ router.post("/signup", saveSignupData);
  * /user/login:
  *   post:
  *     summary: User login
+ *     tags: [User]
  *     requestBody:
  *       required: true
  *       content:
@@ -49,8 +53,10 @@ router.post("/signup", saveSignupData);
  *             properties:
  *               email:
  *                 type: string
+ *                 example: "test@test.com"
  *               password:
  *                 type: string
+ *                 example: "asdfgh"
  *     responses:
  *       200:
  *         description: Login successful

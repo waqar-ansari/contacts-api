@@ -1,3 +1,4 @@
+const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 
 const deleteTag = async (req, res) => {
@@ -17,6 +18,10 @@ const deleteTag = async (req, res) => {
     }
 
     user.tags.pull({ tag_id });
+    await Contact.updateMany(
+      { "tags.tag_id": tag_id }, // Match contacts having this tag
+      { $pull: { tags: { tag_id } } } // Remove the tag from the tags array
+    );
     await user.save();
     res.json({ message: "Tag deleted successfully" });
   } catch {

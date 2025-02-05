@@ -3,7 +3,8 @@ const { Schema, model, mongoose } = require("mongoose");
 const contactSchema = new Schema(
   {
     contact_id: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
+      // type: mongoose.Schema.Types.ObjectId,
       unique: true,
     },
     firstname: {
@@ -16,11 +17,10 @@ const contactSchema = new Schema(
     },
     emailaddresses: {
       type: [String],
-      //   required: true,
-      //   unique: true,
     },
     phonenumbers: [
       {
+        _id: false,
         countryCode: {
           type: String,
         },
@@ -37,9 +37,17 @@ const contactSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    tags: {
-      type: [String],
-    },
+    tags: [
+      {
+        _id: false,
+        tag_id: {
+          type: Schema.Types.ObjectId,
+        },
+        tag: {
+          type: String,
+        },
+      },
+    ],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
