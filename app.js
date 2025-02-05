@@ -1,3 +1,4 @@
+require("dotenv").config()
 const express = require("express");
 const app = express();
 const path = require("path");
@@ -17,14 +18,14 @@ const deleteTagRoutes = require("./routes/deleteTagRoutes");
 const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 mongoose
-  .connect("mongodb://localhost:27017/contacts-api")
+  .connect(process.env.MONGO_URL)
   .then(() => {
     console.log("Connected to Database");
   })
   .catch((err) => {
     console.log(err);
   });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
