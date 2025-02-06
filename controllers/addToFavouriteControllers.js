@@ -6,7 +6,16 @@ const addToFavourite = async (req, res) => {
     const contact = await Contact.findOne({ contact_id });
     contact.isFavourite = !contact.isFavourite;
     await contact.save();
-    res.send({message:contact.isFavourite?"Added to Favourite":"Removed from Favourite"});
+    const favouriteCount = await Contact.countDocuments({
+      createdBy: req.user._id,
+      isFavourite: true,
+    });
+    res.send({
+      message: contact.isFavourite
+        ? "Added to Favourite"
+        : "Removed from Favourite",
+      favouriteCount,
+    });
   } catch {
     res.status(500).json({ message: "Favourite toggle failed" });
   }
