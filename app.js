@@ -16,6 +16,8 @@ const addTagRoutes = require("./routes/addTagRoutes");
 const getTagRoutes = require("./routes/getTagRoutes");
 const deleteTagRoutes = require("./routes/deleteTagRoutes");
 const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
+const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
+const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 mongoose
   .connect(process.env.MONGO_URL)
@@ -41,6 +43,8 @@ v1Router.use("/delete-tag_api", checkForAuthentication(), deleteTagRoutes);
 v1Router.use("/addtofavourite_api", checkForAuthentication(), addToFavouriteRoutes);
 v1Router.use("/get-contact_api", checkForAuthentication(), getContactRoutes);
 v1Router.use("/add-edit-contact_api", checkForAuthentication(), contactRoutes);
+v1Router.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
+v1Router.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 
 app.use("/api/v1", v1Router);
 

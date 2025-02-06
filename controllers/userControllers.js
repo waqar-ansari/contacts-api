@@ -23,15 +23,13 @@ const processLoginData = async (req, res) => {
       isFavourite: true,
     });
 
-    const tagCount = await User.aggregate([
+    const tagCountValue = await User.aggregate([
       { $match: { _id: user._id } },
       { $unwind: "$tags" },
       { $count: "tagCount" },
     ]);
 
-
-    const tagCountValue = tagCount.length > 0 ? tagCount[0].tagCount : 0;
-
+    const tagCount = tagCountValue.length > 0 ? tagCountValue[0].tagCount : 0;
 
     user.contactCount = contactCount;
     user.favouriteCount = favouriteCount;

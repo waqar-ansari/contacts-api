@@ -29,19 +29,8 @@ const addEditContact = async (req, res) => {
       data.contact_id = data._id;
       await data.save();
 
-      const newContact = {
-        contact_id: data._id,
-        firstname: data.firstname,
-        lastname: data.lastname,
-        emailaddresses: data.emailaddresses,
-        phonenumbers: data.phonenumbers,
-        contactImageURL: data.contactImageURL,
-        isFavourite: data.isFavourite,
-        tags: data.tags,
-      };
       res.status(201).json({
         message: "Contact created successfully",
-        contact: newContact,
       });
     } else {
       // Update an existing contact
@@ -65,20 +54,8 @@ const addEditContact = async (req, res) => {
           .json({ message: "Contact not found or unauthorized access" });
       }
 
-      const updatedContact = {
-        contact_id: data._id,
-        firstname: data.firstname,
-        lastname: data.lastname,
-        emailaddresses: data.emailaddresses,
-        phonenumbers: data.phonenumbers,
-        contactImageURL: data.contactImageURL,
-        isFavourite: data.isFavourite,
-        tags: data.tags,
-      };
-
       res.status(200).json({
         message: "Contact updated successfully",
-        data: updatedContact,
       });
     }
   } catch (error) {
