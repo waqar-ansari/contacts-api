@@ -29,21 +29,21 @@ mongoose
   .catch((err) => {
     console.log(err);
   });
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-app.use("/edit-profile_api", checkForAuthentication(), editProfileRoutes);
-app.use("/user", userRoutes);
-
-app.use("/check", (req,res)=>{
-  res.json({ message: "API checkPage" });
-});
 app.use("/", (req,res)=>{
   res.json({ message: "API HomePage" });
 });
+app.use("/edit-profile_api", checkForAuthentication(), editProfileRoutes);
+app.use("/check", (req,res)=>{
+  res.json({ message: "API checkPage" });
+});
+app.use("/user", userRoutes);
+
 app.use("/delete-contact_api", deleteContactRoutes);
 app.use("/delete-user_api",checkForAuthentication(), deleteUserRoutes);
 app.use("/add-tag_api", checkForAuthentication(), addTagRoutes);
@@ -57,7 +57,7 @@ app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 
 // app.use("/api/v1", v1Router);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-// module.exports.handler = serverless(app)
+// app.listen(PORT, () => {
+//   console.log(`Server is running on port ${PORT}`);
+// });
+module.exports.handler = serverless(app)
