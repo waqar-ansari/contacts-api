@@ -1,0 +1,31 @@
+# service: my-express-api
+
+# provider:
+#   name: aws
+#   runtime: nodejs14.x
+#   stage: dev
+#   region: eu-north-1
+
+# functions:
+#   api:
+#     handler: index.handler
+#     events:
+#       - http:
+#           path: /{proxy+}
+#           method: any
+#           cors: true
+
+
+service: my-express-api
+provider:
+  name: aws
+  runtime: nodejs18.x
+  environment:
+    MONGO_URL: mongodb+srv://contacts:Plastik%402025@cluster0.fxn38.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+functions:
+  app:
+    handler: index.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY

@@ -17,12 +17,25 @@ const userSchema = new Schema(
       required: true,
       unique: true,
     },
+    // tags: [
+    //   {
+    //     _id: false,
+    //     tag_id: {
+    //       type: mongoose.Schema.Types.ObjectId,
+    //       unique: true,
+    //     },
+    //     tag: {
+    //       type: String,
+    //     },
+    //   },
+    // ],
+
     tags: [
       {
-        _id: false,
+        _id: false, // No separate ID for tag objects
         tag_id: {
           type: mongoose.Schema.Types.ObjectId,
-          unique: true,
+          default: () => new mongoose.Types.ObjectId(), // Ensures a new ID is generated if not provided
         },
         tag: {
           type: String,
