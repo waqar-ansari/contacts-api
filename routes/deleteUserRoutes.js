@@ -4,7 +4,7 @@ const router = Router()
 
 /**
  * @swagger
- * /delete-user_api:
+ * /deleteUser:
  *   delete:
  *     summary: Delete user account
  *     tags: [User]

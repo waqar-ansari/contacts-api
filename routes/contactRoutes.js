@@ -4,7 +4,7 @@ const router = Router();
 
 /**
  * @swagger
- * /add-edit-contact_api:
+ * /addEditContact:
  *   post:
  *     tags: [Contact]
  *     summary: Add or update contact

@@ -5,7 +5,7 @@ const router = Router()
 
 /**
  * @swagger
- * /add-tag_api:
+ * /addTag:
  *   post:
  *     summary: Add tag to user
  *     tags: [Group]
