@@ -5,7 +5,7 @@ const router = Router();
 
 /**
  * @swagger
- * /delete-tag_api:
+ * /deleteTag:
  *   delete:
  *     summary: Delete tag
  *     tags: [Group]

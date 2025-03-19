@@ -4,7 +4,7 @@ const { addToFavourite } = require("../controllers/addToFavouriteControllers")
 const router = Router()
 /**
  * @swagger
- * /addtofavourite_api:
+ * /addToFavourite:
  *   post:
  *     summary: Add or Remove from favourite
  *     tags: [Contact]

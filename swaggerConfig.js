@@ -10,7 +10,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "http://localhost:3000/api/v1",
+        url: "https://100rjobf76.execute-api.eu-north-1.amazonaws.com",
       },
     ],
     components: {
@@ -29,6 +29,7 @@ const swaggerOptions = {
     ],
   },
   apis: ["./routes/*.js"],
+  // schemes: ["https"],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);

@@ -5,7 +5,7 @@ const router = Router();
 
 /**
  * @swagger
- * /delete-contact_api:
+ * /deleteContact:
  *   delete:
  *     summary: Delete contact
  *     tags: [Contact]

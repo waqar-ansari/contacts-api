@@ -29,16 +29,26 @@ const userSchema = new Schema(
         },
       },
     ],
-    phonenumbers: [
-      {
-        countryCode: {
-          type: String,
-        },
-        number: {
-          type: String,
-        },
+    // phonenumbers: [
+    //   {
+    //     countryCode: {
+    //       type: String,
+    //     },
+    //     number: {
+    //       type: String,
+    //     },
+    //   },
+    // ],
+    phonenumber: {
+      countryCode: {
+        type: String,
+        default: "",
       },
-    ],
+      number: {
+        type: String,
+        default: "",
+      },
+    },
     salt: {
       type: String,
       // required: true,

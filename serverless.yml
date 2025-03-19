@@ -1,0 +1,13 @@
+service: my-express-api
+provider:
+  name: aws
+  runtime: nodejs18.x
+  environment:
+    MONGO_URL: mongodb+srv://websuae:websuae@cluster0.wi8hj.mongodb.net/contacts_database?retryWrites=true&w=majority&appName=Cluster0
+functions:
+  app:
+    handler: index.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY

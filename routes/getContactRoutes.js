@@ -5,7 +5,7 @@ const router = Router();
 
 /**
  * @swagger
- * /get-contact_api:
+ * /getContact:
  *   get:
  *     summary: Get contact details
  *     tags: [User]

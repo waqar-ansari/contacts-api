@@ -13,42 +13,43 @@ const processLoginData = async (req, res) => {
     const { email, password } = req.body;
     const token = await User.matchPasswordAndGenerateToken(email, password);
 
-    const user = await User.findOne({ email })
+    const data = await User.findOne({ email })
       .select("-createdAt -updatedAt -__v -salt")
       .lean();
+    console.log(data, "data for login");
 
-    const contactCount = await Contact.countDocuments({ createdBy: user._id });
+    const contactCount = await Contact.countDocuments({ createdBy: data._id });
     const favouriteCount = await Contact.countDocuments({
-      createdBy: user._id,
+      createdBy: data._id,
       isFavourite: true,
     });
 
     const tagCountValue = await User.aggregate([
-      { $match: { _id: user._id } },
+      { $match: { _id: data._id } },
       { $unwind: "$tags" },
       { $count: "tagCount" },
     ]);
 
     const tagCount = tagCountValue.length > 0 ? tagCountValue[0].tagCount : 0;
 
-    user.contactCount = contactCount;
-    user.favouriteCount = favouriteCount;
-    user.tagCount = tagCount;
+    data.contactCount = contactCount;
+    data.favouriteCount = favouriteCount;
+    data.tagCount = tagCount;
 
-    user.token = token;
-    if (user) {
-      user.id = user._id;
-      delete user._id;
+    data.token = token;
+    if (data) {
+      data.id = data._id;
+      delete data._id;
     }
-    if (user && user.tags) {
-      user.tags.forEach((tag) => {
+    if (data && data.tags) {
+      data.tags.forEach((tag) => {
         delete tag._id;
       });
     }
     return res.json({
       status: "success",
       message: "Login successful.",
-      user,
+      data,
     });
   } catch (error) {
     return res.send({
