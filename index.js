@@ -24,7 +24,7 @@ const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
 const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
@@ -44,11 +44,6 @@ app.use("/addEditContact", checkForAuthentication(), contactRoutes);
 app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
 app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 
-// app.use("/api/v1", v1Router);
-// app.use("/", (req,res)=>{
-//   res.json({ message: "API HomePage" });
-// });
-
 app.use("/check", (req,res)=>{
   res.json({ message: "API checkPage" });
 });
@@ -59,9 +54,9 @@ app.use("/", (req,res)=>{
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }
 })();
-// module.exports.handler = serverless(app)
+module.exports.handler = serverless(app)

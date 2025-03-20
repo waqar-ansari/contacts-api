@@ -18,16 +18,13 @@ const addTags = async (req, res) => {
       tag_id: new mongoose.Types.ObjectId(),
     };
 
-
-    
     user.tags.push(newTag);
 
-    
     await user.save();
 
-    res.status(200).json({ message: "Tag added successfully", tag: newTag });
+    res.status(200).json({ message: "Tag added successfully", tag: newTag, status: "success" });
   } catch (error) {
-    res.status(500).json({ message: "Error adding tag", error: error.message });
+    res.status(500).json({ message: "Error adding tag", status: "error" });
   }
 };
 

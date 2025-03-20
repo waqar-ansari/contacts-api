@@ -21,6 +21,7 @@ const editProfile = async (req, res) => {
     await user.save();
 
     return res.status(201).json({
+      status: "success",
       message: "Profile updated successfully",
       data: {
         id: user._id,
@@ -32,7 +33,10 @@ const editProfile = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Server error, try again later" });
+    // return res.status(500).json({ message: "Server error, try again later" });
+    return res.send({
+      error: "Server error, try again later",
+    });
   }
 };
 

@@ -6,15 +6,15 @@ const deleteTag = async (req, res) => {
     const { tag_id } = req.body;
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found",status: "error" });
     }
 
     if (!tag_id) {
-      return res.status(404).json({ message: "Tag not found" });
+      return res.status(404).json({ message: "Tag not found",status: "error" });
     }
     const tag = user.tags.find((tag) => tag.tag_id.toString() === tag_id);
     if (!tag) {
-      return res.status(404).json({ message: "Tag not found" });
+      return res.status(404).json({ message: "Tag not found",status: "error" });
     }
 
     user.tags.pull({ tag_id });
@@ -23,9 +23,9 @@ const deleteTag = async (req, res) => {
       { $pull: { tags: { tag_id } } } // Remove the tag from the tags array
     );
     await user.save();
-    res.json({ message: "Tag deleted successfully" });
+    res.status(200).json({ message: "Tag deleted successfully",status: "success" });
   } catch {
-    res.status(500).send({ message: "Error deleting tag" });
+    res.status(500).send({ message: "Error deleting tag",status: "error" });
   }
 };
 

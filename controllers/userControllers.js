@@ -52,7 +52,7 @@ const processLoginData = async (req, res) => {
       data,
     });
   } catch (error) {
-    return res.send({
+    return res.json({
       error: "Invalid email or password",
     });
   }
