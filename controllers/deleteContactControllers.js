@@ -6,13 +6,13 @@ const deleteContact = async (req, res) => {
 
     const contact = await Contact.findOneAndDelete({_id:contact_id});
     if (!contact) {
-      return res.status(404).json({ message: "Contact not found", status: "error" });
+      return res.status(404).json({ status: "error", message: "Contact not found" });
     }
     res
       .status(200)
-      .json({ message: "Contact Deleted Successfully", status: "success" });
+      .json({ status: "success", message: "Contact Deleted Successfully" });
   } catch {
-    res.status(500).json({ message: "Error deleting contact", status: "error" });
+    res.status(500).json({ status: "error", message: "Error deleting contact" });
   }
 };
 

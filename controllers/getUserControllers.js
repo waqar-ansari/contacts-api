@@ -5,7 +5,6 @@ const getUserData = async (req, res) => {
   try {
     const data = await User.findById(req.user._id).select("-createdAt -updatedAt -__v -salt -password -tags")
     .lean();
-    console.log(data, "data for login");
     
     const contactCount = await Contact.countDocuments({ createdBy: data._id });
     const favouriteCount = await Contact.countDocuments({
@@ -39,7 +38,7 @@ const getUserData = async (req, res) => {
       data,
     });
   } catch {
-    res.status(500).json({ message: "Error fetching the User",status: "error" });
+    res.status(500).json({status: "error", message: "Error fetching the User" });
   }
 };
 

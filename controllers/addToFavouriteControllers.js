@@ -5,7 +5,9 @@ const addToFavourite = async (req, res) => {
     const { contact_id } = req.body;
     const contact = await Contact.findOne({ contact_id });
     if (!contact) {
-      return res.status(404).json({ message: "Contact not found",status: "error" });
+      return res
+        .status(404)
+        .json({ status: "error", message: "Contact not found" });
     }
     contact.isFavourite = !contact.isFavourite;
     await contact.save();
@@ -14,14 +16,16 @@ const addToFavourite = async (req, res) => {
       isFavourite: true,
     });
     res.status(200).json({
+      status: "success",
       message: contact.isFavourite
         ? "Added to Favourite"
         : "Removed from Favourite",
-      favouriteCount,
-      status:"success"
+      data: favouriteCount,
     });
-  } catch (error){
-    res.status(500).json({ message: "Favourite toggle failed",status: "error" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ status: "error", message: "Favourite toggle failed" });
   }
 };
 

@@ -4,16 +4,26 @@ const getTags = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" , status: "error"});
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
     }
     const userTags = user.tags.map((tag) => ({
       tag_id: tag.tag_id,
       tag: tag.tag,
     }));
 
-    res.status(200).json({ userTags, status: "success" });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Tags fetched sucessfully",
+        data: userTags,
+      });
   } catch {
-    res.status(500).json({ message: "Error fetching the tags",status: "error" });
+    res
+      .status(500)
+      .json({ status: "error", message: "Error fetching the tags" });
   }
 };
 

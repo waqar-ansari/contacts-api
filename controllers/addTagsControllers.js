@@ -5,12 +5,16 @@ const addTags = async (req, res) => {
   try {
     const { tag } = req.body;
     if (!tag) {
-      return res.status(400).json({ message: "Please provide a tag" });
+      return res
+        .status(400)
+        .json({ status: "error", message: "Please provide a tag" });
     }
 
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
     }
 
     const newTag = {
@@ -22,9 +26,15 @@ const addTags = async (req, res) => {
 
     await user.save();
 
-    res.status(200).json({ message: "Tag added successfully", tag: newTag, status: "success" });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Tag added successfully",
+        data: newTag,
+      });
   } catch (error) {
-    res.status(500).json({ message: "Error adding tag", status: "error" });
+    res.status(500).json({ status: "error", message: "Error adding tag" });
   }
 };
 

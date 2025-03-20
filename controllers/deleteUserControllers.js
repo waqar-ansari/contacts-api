@@ -8,15 +8,15 @@ const deleteUser = async (req, res) => {
     if (!user) {
       return res
         .status(404)
-        .json({ message: "User not found", status: "error" });
+        .json({ status: "error" , message: "User not found"});
     }
     res
       .status(200)
-      .json({ message: "User Deleted Successfully", status: "success" });
+      .json({ status: "success" , message: "User Deleted Successfully"});
   } catch {
     res
       .status(500)
-      .json({ message: "Error deleting contact", status: "error" });
+      .json({status: "error", message: "Error deleting contact" });
   }
 };
 

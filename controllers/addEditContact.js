@@ -30,8 +30,8 @@ const addEditContact = async (req, res) => {
       await data.save();
 
       res.status(201).json({
-        message: "Contact created successfully",
         status: "success",
+        message: "Contact created successfully",
       });
     } else {
       // Update an existing contact
@@ -52,18 +52,19 @@ const addEditContact = async (req, res) => {
       if (!data) {
         return res
           .status(404)
-          .json({ message: "Contact not found or unauthorized access" , status:"error"});
+          .json({
+            status: "error",
+            message: "Contact not found or unauthorized access",
+          });
       }
 
       res.status(200).json({
-        message: "Contact updated successfully",
         status: "success",
+        message: "Contact updated successfully",
       });
     }
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "An error occurred", error: error.message, status:"error" });
+    res.status(500).json({ status: "error", message: "An error occurred" });
   }
 };
 
