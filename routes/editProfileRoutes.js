@@ -22,11 +22,9 @@ const router = Router();
  *                 type: string
  *               email:
  *                 type: string
- *               phonenumbers:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
+ *               phonenumber:
+ *                   type: object
+ *                   properties:
  *                       countryCode:
  *                         type: string
  *                       number:

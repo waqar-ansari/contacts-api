@@ -1,7 +1,7 @@
 const User = require("../models/userModel");
 
 const editProfile = async (req, res) => {
-  const { firstname, lastname, mobilenumber } = req.body;
+  const { firstname, lastname, phonenumber } = req.body;
 
   const userId = req.user._id;
 
@@ -17,7 +17,7 @@ const editProfile = async (req, res) => {
     // Update the user profile fields
     user.firstname = firstname || user.firstname;
     user.lastname = lastname || user.lastname;
-    user.mobilenumber = mobilenumber || user.mobilenumber;
+    user.phonenumber = phonenumber || user.phonenumber;
 
     // Save the updated user
     await user.save();
@@ -30,7 +30,7 @@ const editProfile = async (req, res) => {
         firstname: user.firstname,
         lastname: user.lastname,
         email: user.email,
-        mobilenumber: user.mobilenumber,
+        phonenumber: user.phonenumber,
       },
     });
   } catch (error) {

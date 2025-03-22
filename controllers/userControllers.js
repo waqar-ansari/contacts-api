@@ -4,7 +4,7 @@ const { checkForAuthentication } = require("../middlewares/authentication");
 const { Schema } = require("mongoose");
 
 const saveSignupData = async (req, res) => {
-  const { email, password } = req.body;  
+  const { email, password } = req.body;
   await User.create({ email, password });
   res.status(201).json({ message: "User created successfully" });
 };
