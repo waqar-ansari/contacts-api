@@ -22,7 +22,7 @@ const editProfile = async (req, res) => {
     // Save the updated user
     await user.save();
 
-    return res.status(201).json({
+    return res.status(200).json({
       status: "success",
       message: "Profile updated successfully",
       data: {
@@ -35,7 +35,6 @@ const editProfile = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    // return res.status(500).json({ message: "Server error, try again later" });
     return res.status(500).send({
       status: "error",
       message: "Server error, try again later",
