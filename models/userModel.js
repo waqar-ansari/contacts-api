@@ -32,10 +32,10 @@ const userSchema = new Schema(
 
     tags: [
       {
-        _id: false, // No separate ID for tag objects
+        _id: false,
         tag_id: {
           type: mongoose.Schema.Types.ObjectId,
-          default: () => new mongoose.Types.ObjectId(), // Ensures a new ID is generated if not provided
+          default: () => new mongoose.Types.ObjectId(),
         },
         tag: {
           type: String,
@@ -98,16 +98,16 @@ userSchema.static(
   async function (email, password) {
     const user = await this.findOne({ email });
 
-    if (!user) throw new Error("User not found"); // it will return false if user not found
+    if (!user) throw new Error("User not found");
     const salt = user.salt;
     const hashedPassword = user.password;
     const userProvidedHash = createHmac("sha256", salt)
       .update(password)
       .digest("hex");
     if (hashedPassword !== userProvidedHash)
-      throw new Error("Password not matched"); // it will return false if password not matched
+      throw new Error("Password not matched");
     const token = createTokenforUser(user);
-    return token; // return token if password matched
+    return token;
   }
 );
 

@@ -2,12 +2,18 @@ const Contact = require("../models/contactModel");
 
 const getContact = async (req, res) => {
   try {
-
-
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search="" } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const contacts = await Contact.find({ createdBy: req?.user?._id })
+    const searchFilter = search
+    ? { 
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } }
+        ]
+      }
+    : {};
+  
+    const contacts = await Contact.find({ createdBy: req?.user?._id, ...searchFilter })
       .select("-_id -createdBy -createdAt -updatedAt -__v")
       .skip(skip)
       .limit(parseInt(limit))
@@ -15,7 +21,7 @@ const getContact = async (req, res) => {
 
     const formattedContacts = contacts.map((contact) => ({
       ...contact,
-      tags: contact.tags.map((tagObj) => tagObj.tag),//gives array of tags
+      tags: contact.tags.map((tagObj) => tagObj.tag),
     }));
 
     if (!formattedContacts) {

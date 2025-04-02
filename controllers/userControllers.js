@@ -21,9 +21,7 @@ const processLoginData = async (req, res) => {
       data:{token},
     });
   } catch (error) {
-    // return res.json({
-    //   error: "Invalid email or password",
-    // });
+
     return res.status(401).json({
       status: "error",
       message: "Invalid email or password",

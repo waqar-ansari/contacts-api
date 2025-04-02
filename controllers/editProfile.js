@@ -14,12 +14,12 @@ const editProfile = async (req, res) => {
         .json({ status: "error", message: "User not found" });
     }
 
-    // Update the user profile fields
+   
     user.firstname = firstname || user.firstname;
     user.lastname = lastname || user.lastname;
     user.phonenumber = phonenumber || user.phonenumber;
 
-    // Save the updated user
+   
     await user.save();
 
     return res.status(200).json({
