@@ -5,6 +5,7 @@ const app = express();
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
+const multer = require("multer");
 
 const mongoose = require("mongoose");
 // const v1Router = express.Router();
@@ -17,7 +18,6 @@ const editProfileRoutes = require("./routes/editProfileRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const getContactRoutes = require("./routes/getContactRoutes");
 const deleteContactRoutes = require("./routes/deleteContactRoutes");
-
 const deleteUserRoutes = require("./routes/deleteUserRoutes");
 const addTagRoutes = require("./routes/addTagRoutes");
 const getTagRoutes = require("./routes/getTagRoutes");
@@ -28,6 +28,7 @@ const signRoutes = require("./routes/signRoutes");
 const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
 const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
+const { error } = require("console");
 
 const PORT = process.env.PORT;
 
@@ -38,8 +39,8 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
-app.use("/deleteUser",checkForAuthentication(), deleteUserRoutes);
-app.use("/getUser",checkForAuthentication(), getUserRoutes);
+app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
+app.use("/getUser", checkForAuthentication(), getUserRoutes);
 app.use("/addTag", checkForAuthentication(), addTagRoutes);
 app.use("/getTag", checkForAuthentication(), getTagRoutes);
 app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
@@ -50,10 +51,14 @@ app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
 app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
 
-app.use("/check", (req,res)=>{
+
+
+app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });
-app.use("/", (req,res)=>{
+app.use("/", (req, res) => {
+  console.log("hello");
+
   res.json({ message: "API Homepage" });
 });
 (async () => {
@@ -65,4 +70,5 @@ app.use("/", (req,res)=>{
     console.error("Database connection failed:", err);
   }
 })();
-// module.exports.handler = serverless(app)
+module.exports.handler = serverless(app)
+
