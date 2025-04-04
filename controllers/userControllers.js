@@ -6,7 +6,10 @@ const { Schema } = require("mongoose");
 const saveSignupData = async (req, res) => {
   const { email, password } = req.body;
   await User.create({ email, password });
-  res.status(201).json({ message: "User created successfully" });
+  return res.status(201).json({
+    status: "success",
+    message: "User created successfully",
+  });
 };
 const processLoginData = async (req, res) => {
   try {
@@ -18,8 +21,10 @@ const processLoginData = async (req, res) => {
       data:{token},
     });
   } catch (error) {
-    return res.json({
-      error: "Invalid email or password",
+
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid email or password",
     });
   }
 };
