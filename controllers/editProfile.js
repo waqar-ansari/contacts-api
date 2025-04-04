@@ -39,8 +39,6 @@ const editProfile = async (req, res) => {
         }
         return res.status(500).json({ status: "error", message: "Image upload failed" });
       } else if (err) {
-        console.log(err);
-        
         return res.status(500).json({ status: "error", message: "Server error during file upload" });
       }
 
@@ -101,40 +99,6 @@ const editProfile = async (req, res) => {
   } catch (error) {
     console.error("Edit Profile Error:", error);
     return res.status(500).json({ status: "error", message: "Server error" });
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "User not found" });
-    }
-
-   
-    user.firstname = firstname || user.firstname;
-    user.lastname = lastname || user.lastname;
-    user.phonenumber = phonenumber || user.phonenumber;
-
-   
-    await user.save();
-
-    return res.status(200).json({
-      status: "success",
-      message: "Profile updated successfully",
-      data: {
-        id: user._id,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        email: user.email,
-        phonenumber: user.phonenumber,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send({
-      status: "error",
-      message: "Server error, try again later",
-    });
-
   }
 };
 
