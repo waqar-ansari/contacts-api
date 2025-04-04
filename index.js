@@ -37,7 +37,7 @@ app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 app.use("/user", userRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/userImages", express.static(path.join(__dirname, "userImages")));
 
 app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
