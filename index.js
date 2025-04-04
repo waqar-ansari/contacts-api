@@ -1,7 +1,11 @@
 require("dotenv").config()
 const express = require("express");
 const app = express();
+
+const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
+
 const mongoose = require("mongoose");
 // const v1Router = express.Router();
 const serverless = require("serverless-http");
@@ -20,6 +24,7 @@ const getTagRoutes = require("./routes/getTagRoutes");
 const getUserRoutes = require("./routes/getUserRoutes");
 const deleteTagRoutes = require("./routes/deleteTagRoutes");
 const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
+const signRoutes = require("./routes/signRoutes");
 const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
 const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
@@ -44,6 +49,7 @@ app.use("/getContact", checkForAuthentication(), getContactRoutes);
 app.use("/addEditContact", checkForAuthentication(), contactRoutes);
 app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
 app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
+app.use("/sign", checkForAuthentication(), signRoutes);
 
 app.use("/check", (req,res)=>{
   res.json({ message: "API checkPage" });

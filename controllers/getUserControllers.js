@@ -31,7 +31,7 @@ const getUserData = async (req, res) => {
             delete tag._id;
           });
         }
-    // res.status(200).json({ data });
+
     return res.json({
       status: "success",
       message: "User fetched successfully.",

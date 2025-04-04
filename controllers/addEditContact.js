@@ -34,7 +34,7 @@ const addEditContact = async (req, res) => {
         message: "Contact created successfully",
       });
     } else {
-      // Update an existing contact
+
       data = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
         {
@@ -46,7 +46,7 @@ const addEditContact = async (req, res) => {
           isFavourite,
           tags,
         },
-        { new: true } // Return the updated document
+        { new: true }
       ).populate("createdBy");
 
       if (!data) {

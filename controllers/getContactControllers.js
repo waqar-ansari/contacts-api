@@ -50,6 +50,34 @@ const getContact = async (req, res) => {
     const totalCount = await Contact.countDocuments(query);
 
     res.json({
+    const { page = 1, limit = 10, search="" } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const searchFilter = search
+    ? { 
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } }
+        ]
+      }
+    : {};
+  
+    const contacts = await Contact.find({ createdBy: req?.user?._id, ...searchFilter })
+      .select("-_id -createdBy -createdAt -updatedAt -__v")
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const formattedContacts = contacts.map((contact) => ({
+      ...contact,
+      tags: contact.tags.map((tagObj) => tagObj.tag),
+    }));
+
+    if (!formattedContacts) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "No contacts found" });
+    }
+    res.status(200).json({
       status: "success",
       message: "Contacts fetched successfully",
       data: contacts,
