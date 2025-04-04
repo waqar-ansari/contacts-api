@@ -32,6 +32,7 @@ const { error } = require("console");
 
 const PORT = process.env.PORT;
 
+
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 app.use("/user", userRoutes);
