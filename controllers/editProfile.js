@@ -1,35 +1,7 @@
-// Import required modules
-const express = require("express");
 const User = require("../models/userModel");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
-const app = express();
-
-// Increase the request size limit for Express
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ limit: "20mb", extended: true }));
-
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Folder to store images
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname); // Get file extension
-    cb(null, `${Date.now()}${ext}`); // Unique filename with timestamp
-  },
-});
-
-// Configure Multer upload with file size limit
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
-}).single("profileImage");
-
-// Edit Profile Controller
 const editProfile = async (req, res) => {
+
   try {
     upload(req, res, async (err) => {
       if (err instanceof multer.MulterError) {
@@ -58,10 +30,9 @@ const editProfile = async (req, res) => {
         return res.status(404).json({ status: "error", message: "User not found" });
       }
 
-      // Update user data
-      if (firstname) user.firstname = firstname;
-      if (lastname) user.lastname = lastname;
-      if (phonenumber) user.phonenumber = phonenumber;
+  const { firstname, lastname, phonenumber } = req.body;
+
+  const userId = req.user._id;
 
       // Handle profile image update
       if (req.file) {
@@ -99,8 +70,41 @@ const editProfile = async (req, res) => {
   } catch (error) {
     console.error("Edit Profile Error:", error);
     return res.status(500).json({ status: "error", message: "Server error" });
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
+
+   
+    user.firstname = firstname || user.firstname;
+    user.lastname = lastname || user.lastname;
+    user.phonenumber = phonenumber || user.phonenumber;
+
+   
+    await user.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Profile updated successfully",
+      data: {
+        id: user._id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        email: user.email,
+        phonenumber: user.phonenumber,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({
+      status: "error",
+      message: "Server error, try again later",
+    });
   }
 };
 
 module.exports = { editProfile };
-
