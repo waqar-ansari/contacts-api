@@ -2,25 +2,24 @@ const Contact = require("../models/contactModel");
 
 const getContact = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", tag } = req.body;
+    const { page = 1, limit = 10, search, tag } = req.body;
 
-    // Pagination options
     const skip = (page - 1) * limit;
 
-    // Build the search query
+    // Build the dynamic search query
     const query = {};
-    if (search) {
+
+    // Apply search filter if not empty
+    if (search && search.trim() !== "") {
       query.$or = [
-        { firstname: { $regex: search, $options: "i" } },  // Search in first name
-        { lastname: { $regex: search, $options: "i" } },    // Search in last name
+        { firstname: { $regex: search, $options: "i" } },
+        { lastname: { $regex: search, $options: "i" } },
         {
-          // Search in emailaddresses array
           emailaddresses: {
             $elemMatch: { $regex: search, $options: "i" },
           },
         },
         {
-          // Search in phonenumbers array of objects
           phonenumbers: {
             $elemMatch: {
               number: { $regex: search, $options: "i" },
@@ -29,24 +28,22 @@ const getContact = async (req, res) => {
         },
       ];
     }
-    // Handling tags
-    if (tag) {
-      if (Array.isArray(tag)) {
-        // Multiple tags filter
-        query.tags = { $elemMatch: { tag: { $in: tag } } };
-      } else {
-        // Single tag filter
-        query.tags = { $elemMatch: { tag: tag } };
-      }
+
+    // Apply tag filter only if it's a non-empty array or string
+    if (Array.isArray(tag) && tag.length > 0) {
+      query.tags = { $elemMatch: { tag: { $in: tag } } };
+    } else if (typeof tag === "string" && tag.trim() !== "") {
+      query.tags = { $elemMatch: { tag: tag.trim() } };
     }
 
-
-    // Fetching data with pagination and filtering
+    // Fetch data with filters + pagination
     const contacts = await Contact.find(query)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .select("-_id -createdBy -createdAt -updatedAt -__v"); // omit these fields
 
-    // Get total count for pagination
+
+    // Count total results for pagination info
     const totalCount = await Contact.countDocuments(query);
 
     res.json({
@@ -64,6 +61,5 @@ const getContact = async (req, res) => {
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };
-
 
 module.exports = { getContact };
