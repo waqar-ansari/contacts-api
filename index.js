@@ -37,8 +37,12 @@ app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 app.use("/user", userRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-app.use("/userImages", express.static(path.join(__dirname, "userImages")));
 
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
+
+// Serve static files (for accessing uploaded images)
+app.use("/userImages", express.static(path.join(__dirname, "userImages")));
 app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);

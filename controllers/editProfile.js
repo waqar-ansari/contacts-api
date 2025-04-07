@@ -1,37 +1,30 @@
-// Import required modules
-const express = require("express");
 const User = require("../models/userModel");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const app = express();
-
-// Increase the request size limit for Express
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ limit: "20mb", extended: true }));
-
-// Ensure userImages directory exists
-const uploadDir = path.join(__dirname, "../userImages");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Configure Multer for file uploads
+// Configure Multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir); // Folder to store images
+    const uploadDir = path.join(__dirname, "../userImages");
+
+    // Check if the folder exists, if not create it
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname); // Get file extension
-    cb(null, `${Date.now()}${ext}`); // Unique filename with timestamp
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}${ext}`);
   },
 });
 
-// Configure Multer upload with file size limit
+// Multer config with file size limit
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 }).single("profileImage");
 
 // Edit Profile Controller
@@ -44,10 +37,12 @@ const editProfile = async (req, res) => {
         }
         return res.status(500).json({ status: "error", message: "Image upload failed" });
       } else if (err) {
+        console.error(err);
         return res.status(500).json({ status: "error", message: "Server error during file upload" });
       }
 
       const { firstname, lastname, phonenumber } = req.body;
+
       if (!firstname && !lastname && !phonenumber && !req.file) {
         return res.status(400).json({ status: "error", message: "No data provided" });
       }
@@ -64,12 +59,15 @@ const editProfile = async (req, res) => {
 
       if (req.file) {
         const newImagePath = `/userImages/${req.file.filename}`;
+
+        // Remove old image if it's not the default
         if (user.profileImageURL && user.profileImageURL !== "/public/images/defaultUserPic.png") {
           const oldImagePath = path.join(__dirname, "..", user.profileImageURL);
           if (fs.existsSync(oldImagePath)) {
             fs.unlinkSync(oldImagePath);
           }
         }
+
         user.profileImageURL = newImagePath;
       } else if (!user.profileImageURL) {
         user.profileImageURL = "/public/images/defaultUserPic.png";
