@@ -14,7 +14,7 @@ const forgotPassword = async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString("hex");
     resetTokens.set(resetToken, email);
 
-    const resetLink = `http://localhost:3003/auth/reset-password?token=${resetToken}`;
+    const resetLink = `https://100rjobf76.execute-api.eu-north-1.amazonaws.com/auth/reset-password?token=${resetToken}`;
     console.log("🔗 Reset Link:", resetLink);
 
     // In production, send via email
