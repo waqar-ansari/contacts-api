@@ -27,6 +27,8 @@ const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
 const signRoutes = require("./routes/signRoutes");
 const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
 const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
+const forgotPasswordRoutes = require("./routes/forgotPasswordRoutes");
+const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 const { error } = require("console");
 
@@ -56,6 +58,8 @@ app.use("/addEditContact", checkForAuthentication(), contactRoutes);
 app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
 app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
+app.use("/auth", forgotPasswordRoutes); // ✅ Added route path for forgot/reset password
+app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
 
 
 
