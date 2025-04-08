@@ -37,11 +37,19 @@ const getContact = async (req, res) => {
     }
 
     // Fetch data with filters + pagination
-    const contacts = await Contact.find(query)
+    const rawContacts  = await Contact.find(query)
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -createdBy -createdAt -updatedAt -__v"); // omit these fields
 
+    // Transform tags from array of objects to array of strings
+    const contacts = rawContacts.map((contact) => {
+      const contactObj = contact.toObject();
+      if (Array.isArray(contactObj.tags)) {
+        contactObj.tags = contactObj.tags.map(tagObj => tagObj.tag);
+      }
+      return contactObj;
+    });
 
     // Count total results for pagination info
     const totalCount = await Contact.countDocuments(query);
