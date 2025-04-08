@@ -41,6 +41,6 @@ const router = Router();
  *       500:
  *         description: Error fetching contact details
  */
-router.get("/", getContact);
+router.post("/", getContact);
 
 module.exports = router;
