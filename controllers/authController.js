@@ -19,7 +19,7 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
 
     // Reset link
-    const resetLink = `http://localhost:3003/api/reset-password?token=${token}`;
+    const resetLink = `https://100rjobf76.execute-api.eu-north-1.amazonaws.com/api/reset-password?token=${token}`;
 
     const html = `
       <p>You requested a password reset.</p>
