@@ -41,11 +41,14 @@ const changePassword = async (req, res) => {
       { $set: { password: hashedNewPassword } }
     );
 
-    return res.status(200).json({ message: "Password changed successfully" });
+    return res.status(200).json({
+      status: "success",
+      message: "Password changed successfully"
+    });
 
   } catch (error) {
     console.error("Change password error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ status: "error", message: "Internal server error" });
   }
 };
 

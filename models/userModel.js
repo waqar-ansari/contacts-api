@@ -75,8 +75,8 @@ const userSchema = new Schema(
       type: String,
       default: "/images/defaultUserPic.png",
     },
-    resetPasswordToken: String,
-    resetPasswordExpires: Date,
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date }
   },
   { timestamps: true }
 );
