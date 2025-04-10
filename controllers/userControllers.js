@@ -20,96 +20,75 @@ const saveSignupData = async (req, res) => {
   }
 };
 
-const processLoginData = async (req, res) => {
+const unifiedLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const token = await User.matchPasswordAndGenerateToken(email, password);
-    return res.json({ status: "success", message: "Login successful", data: { token } });
-  } catch (error) {
-    return res.status(401).json({ status: "error", message: "Invalid email or password" });
-  }
-};
+    const { email, password, googleToken, appleToken } = req.body;
 
-const googleAuth = async (req, res) => {
-  try {
-    const { idToken } = req.body;
-    const ticket = await googleClient.verifyIdToken({
-      idToken, audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
-      maxExpiry: 3600, // in seconds (optional)
-    });
-    const { email, name } = ticket.getPayload();
-
-    let user = await User.findOne({ email });
-    if (!user) {
-      user = await User.create({ email, firstname: name, provider: "google" });
+    // 🔐 Email & Password Login
+    if (email && password && !googleToken && !appleToken) {
+      const token = await User.matchPasswordAndGenerateToken(email, password);
+      return res.json({ status: "success", message: "Login successful", data: { token } });
     }
 
-    const token = createTokenforUser(user);
-    return res.json({ status: "success", message: "Google login successful", data: { token } });
-  } catch (error) {
-    console.error("Google login error:", error);
-    return res.status(400).json({ status: "error", message: "Google login failed" });
-  }
-};
+    // 🔐 Google Login
+    if (googleToken && !email && !password && !appleToken) {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: googleToken,
+        audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
+      });
+      const { email, name } = ticket.getPayload();
 
-const appleAuth = async (req, res) => {
-  try {
-    let { id_token } = req.body;
+      let user = await User.findOne({ email });
+      if (!user) {
+        user = await User.create({ email, firstname: name, provider: "google" });
+      }
 
-    if (!id_token) {
-      return res.status(400).json({ message: "ID token is required" });
+      const token = createTokenforUser(user);
+      return res.json({ status: "success", message: "Google login successful", data: { token } });
     }
 
-    // 🔐 If it's base64 (no dot), decode to get actual JWT
-    if (!id_token.includes(".")) {
-      try {
+    // 🔐 Apple Login
+    if (appleToken && !email && !password && !googleToken) {
+      let id_token = appleToken;
+
+      if (!id_token.includes(".")) {
         const decoded = Buffer.from(id_token, 'base64').toString('utf8');
         if (!decoded.includes(".")) {
-          return res.status(400).json({ message: "Decoded token is not a valid JWT" });
+          return res.status(400).json({ message: "Invalid Apple token format" });
         }
         id_token = decoded;
-        console.log(decoded);
-        
-      } catch (decodeErr) {
-        return res.status(400).json({ message: "Invalid base64 encoding" });
       }
-    }
 
-    // ✅ Verify Apple ID token
-    const appleUser = await appleSignin.verifyIdToken(id_token, {
-      audience: "com.contactmanagement", // ✅ MUST match Apple Service ID
-      ignoreExpiration: true,
-    });
-
-    // ✅ Extract or fallback email
-    const email = appleUser.email || "noemail@apple.com";
-    const existingUser = await User.findOne({ email });
-
-    let user;
-    if (existingUser) {
-      user = existingUser;
-    } else {
-      user = await User.create({
-        email,
-        provider: "apple",
-        firstname: appleUser.firstName || "Apple",
-        lastname: appleUser.lastName || "User",
+      const appleUser = await appleSignin.verifyIdToken(id_token, {
+        audience: "com.contactmanagement",
+        ignoreExpiration: true,
       });
+
+      const email = appleUser.email || "noemail@apple.com";
+      let user = await User.findOne({ email });
+      if (!user) {
+        user = await User.create({
+          email,
+          provider: "apple",
+          firstname: appleUser.firstName || "Apple",
+          lastname: appleUser.lastName || "User",
+        });
+      }
+
+      const token = createTokenforUser(user);
+      return res.json({ status: "success", message: "Apple login successful", data: { token } });
     }
 
-    const token = createTokenforUser(user);
-    return res.json({ status: "success", message: "Apple login successful", data: { token } });
+    // ❌ If none of the conditions match
+    return res.status(400).json({ status: "error", message: "Invalid login request" });
 
   } catch (err) {
-    console.error("Apple login error:", err);
-    res.status(500).json({ message: "Apple login failed", error: err.message });
+    console.error("Unified login error:", err);
+    return res.status(500).json({ status: "error", message: "Login failed", error: err.message });
   }
 };
-
 
 module.exports = {
   saveSignupData,
-  processLoginData,
-  googleAuth,
-  appleAuth,
+  unifiedLogin, // 👈 add this new controller
 };

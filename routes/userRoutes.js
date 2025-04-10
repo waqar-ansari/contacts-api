@@ -1,9 +1,7 @@
 const { Router } = require("express");
 const {
   saveSignupData,
-  processLoginData,
-  googleAuth,
-  appleAuth,
+  unifiedLogin,
 } = require("../controllers/userControllers");
 
 const router = Router();
@@ -51,7 +49,7 @@ router.post("/signup", saveSignupData);
  * @swagger
  * /user/login:
  *   post:
- *     summary: Login a user with email and password
+ *     summary: Login with email/password, Google, or Apple using a single endpoint
  *     tags: [User]
  *     requestBody:
  *       required: true
@@ -59,74 +57,31 @@ router.post("/signup", saveSignupData);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - email
- *               - password
  *             properties:
  *               email:
  *                 type: string
- *                 example: "test@test.com"
+ *                 example: "test@example.com"
  *               password:
  *                 type: string
  *                 example: "yourpassword"
+ *               googleToken:
+ *                 type: string
+ *                 example: "GOOGLE_ID_TOKEN"
+ *               appleToken:
+ *                 type: string
+ *                 example: "APPLE_ID_TOKEN"
+ *             description: Provide email/password for standard login, or provide Google or Apple token. Only one method is required.
  *     responses:
  *       200:
  *         description: Login successful
+ *       400:
+ *         description: Invalid login request
  *       401:
  *         description: Invalid email or password
+ *       500:
+ *         description: Login failed
  */
-router.post("/login", processLoginData);
-
-/**
- * @swagger
- * /user/google-login:
- *   post:
- *     summary: Login or register using Google OAuth
- *     tags: [User]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - idToken
- *             properties:
- *               idToken:
- *                 type: string
- *                 description: Google ID token from frontend
- *     responses:
- *       200:
- *         description: Google login successful
- *       400:
- *         description: Google login failed
- */
-router.post("/google-auth", googleAuth);
-
-/**
- * @swagger
- * /user/apple-login:
- *   post:
- *     summary: Login or register using Apple Sign-In
- *     tags: [User]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - idToken
- *             properties:
- *               idToken:
- *                 type: string
- *                 description: Apple ID token from frontend
- *     responses:
- *       200:
- *         description: Apple login successful
- *       400:
- *         description: Apple login failed
- */
-router.post("/apple-auth", appleAuth);
+router.post("/login", unifiedLogin);
 
 module.exports = router;
+
