@@ -68,7 +68,15 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        // Only require password for local users
+        return !this.provider || this.provider === "local";
+      },
+    },
+    provider: {
+      type: String,
+      enum: ["local", "google", "apple"],
+      default: "local",
     },
 
     profileImageURL: {
