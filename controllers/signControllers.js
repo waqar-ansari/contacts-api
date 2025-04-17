@@ -1,26 +1,19 @@
 const fs = require("fs");
-const path = require("path");
-const os = require("os");
 const { execFile } = require("child_process");
 const { CERTIFICATE_PATH, PRIVATE_KEY_PATH, WWDR_PATH } = require("../config/certificates");
 
 const applePaymentSign = async (req, res) => {
-    try {
-        const manifest = req.body.manifest;
 
-        if (!manifest || typeof manifest !== "object") {
-            return res.status(400).json({ error: "Manifest data is missing or invalid." });
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No manifest file uploaded." });
         }
 
-        // Create a temporary file for manifest.json
-        const manifestContent = JSON.stringify(manifest);
-        const tempDir = os.tmpdir();
-        const manifestPath = path.join(tempDir, `manifest_${Date.now()}.json`);
+        const manifestPath = req.file.path;
         const signaturePath = `${manifestPath}_signature`;
+        fs.writeFileSync(manifestPath, req.file.buffer);
 
-        fs.writeFileSync(manifestPath, manifestContent);
-
-        // OpenSSL command to sign the manifest
+        // OpenSSL command to sign manifest.json
         const args = [
             "smime",
             "-binary",
@@ -35,19 +28,17 @@ const applePaymentSign = async (req, res) => {
 
         execFile("openssl", args, (error) => {
             if (error) {
-                console.error("❌ Error signing manifest:", error);
-                fs.unlinkSync(manifestPath);
-                return res.status(500).json({ error: `Error signing manifest: ${error.message}` });
+                console.error("❌ Error signing pass:", error);
+                return res.status(500).json({ error: `Error signing pass: ${error.message}` });
             }
 
+            // Verify the signature file
             fs.readFile(signaturePath, (readErr, signature) => {
                 if (readErr) {
                     console.error("❌ Error reading signature:", readErr);
-                    fs.unlinkSync(manifestPath);
                     return res.status(500).json({ error: "Failed to read signature." });
                 }
 
-                // Send the signature as a binary response
                 res.set({
                     "Content-Type": "application/octet-stream",
                     "Content-Disposition": "attachment; filename=\"signature\""
@@ -55,19 +46,18 @@ const applePaymentSign = async (req, res) => {
 
                 res.send(signature);
 
-                // Cleanup
+                // Cleanup temporary files after response
                 fs.unlinkSync(manifestPath);
                 fs.unlinkSync(signaturePath);
             });
         });
-
     } catch (error) {
-        console.error("❌ Server error:", error);
-        return res.status(500).json({
+        console.error(error);
+        return res.status(500).send({
             status: "error",
             message: "Server error, try again later",
         });
     }
-};
+}
 
-module.exports = { applePaymentSign };
+module.exports = { applePaymentSign }

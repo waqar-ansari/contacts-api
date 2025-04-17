@@ -46,6 +46,29 @@ exports.scanUser = async (req, res) => {
 
 // @desc Get my scan data
 // @route GET /api/scan/get_data
+// exports.getScanData = async (req, res) => {
+//     const userId = req.user._id;
+
+//     try {
+//         const user = await User.findById(userId)
+//             .populate("iScanned", "firstname lastname email profileImageURL")
+//             .populate("scannedMe", "firstname lastname email profileImageURL");
+
+//         if (!user) return res.status(404).json({ status: "error", message: "User not found" });
+
+//         res.json({
+//             status: "success",
+//             massage: "scanned data fetched",
+//             data: {
+//                 scannedMe: user.scannedMe,
+//                 iScanned: user.iScanned,
+//             }
+//         });
+//     } catch (err) {
+//         return res.status(500).json({ status: "error", massage: "error to fetch data" });
+//     }
+// };
+
 exports.getScanData = async (req, res) => {
     const userId = req.user._id;
 
@@ -54,17 +77,38 @@ exports.getScanData = async (req, res) => {
             .populate("iScanned", "firstname lastname email profileImageURL")
             .populate("scannedMe", "firstname lastname email profileImageURL");
 
-        if (!user) return res.status(404).json({ status: "error", message: "User not found" });
+        if (!user) {
+            return res.status(404).json({ status: "error", message: "User not found" });
+        }
 
-        res.json({
+        const iScannedUsers = user.iScanned.map((user) => ({
+            id: user._id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            profileImageURL: user.profileImageURL,
+            iScanned: true,
+        }));
+
+        const scannedMeUsers = user.scannedMe.map((user) => ({
+            id: user._id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            profileImageURL: user.profileImageURL,
+            iScanned: false,
+        }));
+
+        const combined = [...iScannedUsers, ...scannedMeUsers];
+
+        return res.json({
             status: "success",
-            massage: "scanned data fetched",
-            data: {
-                scannedMe: user.scannedMe,
-                iScanned: user.iScanned,
-            }
+            message: "Scan data fetched",
+            data: combined,
         });
     } catch (err) {
-        return res.status(500).json({ status: "error", massage: "error to fetch data" });
+        console.error(err);
+        return res.status(500).json({ status: "error", message: "Failed to fetch scan data" });
     }
 };
+

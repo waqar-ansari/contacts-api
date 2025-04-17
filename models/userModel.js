@@ -2,6 +2,24 @@ const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
 
+const reminderSchema = new Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+    date: {
+      type: Date,
+      required: true,
+    },
+  },
+  { timestamps: true, _id: true }
+);
+
 const userSchema = new Schema(
   {
     firstname: {

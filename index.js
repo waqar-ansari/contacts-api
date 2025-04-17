@@ -32,6 +32,7 @@ const authRoutes = require('./routes/authRoutes');
 const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
+const reminderRoutes = require('./routes/reminderRoutes');
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -63,6 +64,7 @@ app.use("/sign", checkForAuthentication(), signRoutes);
 app.use('/api', authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
 app.use("/api/scan", checkForAuthentication(), scanRoutes);
+app.use('/reminders', reminderRoutes);
 
 
 

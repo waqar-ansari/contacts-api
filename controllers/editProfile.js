@@ -41,9 +41,9 @@ const editProfile = async (req, res) => {
         return res.status(500).json({ status: "error", message: "Server error during file upload" });
       }
 
-      const { firstname, lastname, phonenumber, email } = req.body;
+      const { firstname, lastname, countryCode, number, email } = req.body;
 
-      if (!firstname && !lastname && !phonenumber && email && !req.file) {
+      if (!firstname && !lastname && !countryCode && !number && !email && !req.file) {
         return res.status(400).json({ status: "error", message: "No data provided" });
       }
 
@@ -55,7 +55,9 @@ const editProfile = async (req, res) => {
 
       if (firstname) user.firstname = firstname;
       if (lastname) user.lastname = lastname;
-      if (phonenumber) user.phonenumber = phonenumber;
+      if (countryCode && number) {
+        user.phonenumber = { countryCode, number };
+      }
       if (email) user.email = email;
 
 

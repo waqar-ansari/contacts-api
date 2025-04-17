@@ -1,18 +1,9 @@
-// const { Router } = require("express");
-// const { applePaymentSign } = require("../controllers/signControllers");
-// const multer = require("multer");
-// const router = Router();
-// const upload = multer({ dest: "uploads/" });
-
-// router.post("/",upload.single("manifest"), applePaymentSign);
-
-// module.exports = router;
-
-const express = require("express");
-const router = express.Router();
+const { Router } = require("express");
 const { applePaymentSign } = require("../controllers/signControllers");
+const multer = require("multer");
+const router = Router();
+const upload = multer({ dest: "uploads/" });
 
-// POST /api/apple-wallet/sign
-router.post("/", applePaymentSign);
+router.post("/",upload.single("manifest"), applePaymentSign);
 
 module.exports = router;
