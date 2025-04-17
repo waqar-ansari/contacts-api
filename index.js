@@ -32,7 +32,7 @@ const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const { error } = require("console");
-
+const cors = require('cors')
 const PORT = process.env.PORT;
 
 
@@ -61,8 +61,8 @@ app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use('/api', authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
-app.use("/api/scan", scanRoutes);
-
+app.use("/api/scan", checkForAuthentication(), scanRoutes);
+app.use(cors());
 
 
 
