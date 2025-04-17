@@ -10,7 +10,7 @@ exports.scanUser = async (req, res) => {
         const scanned = await User.findById(UserID);
 
         if (!scanner || !scanned) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({ status: "error", message: "User not found" });
         }
 
         console.log(scanner);
@@ -32,14 +32,17 @@ exports.scanUser = async (req, res) => {
         }
 
         res.status(200).json({
+            status: "success",
             message: "Scan successful",
-            Scanner: scanner,
-            ScannedUser: scanned,
+            data: {
+                Scanner: scanner.iScanned,
+                ScannedUser: scanned,
+            }
+
         });
 
     } catch (error) {
-        console.error("Scan error:", error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ status: "error", message: "Scan error" });
     }
 };
 
@@ -57,7 +60,7 @@ exports.getScanData = async (req, res) => {
             .populate("iScanned", "firstname lastname email profileImageURL")
             .populate("scannedMe", "firstname lastname email profileImageURL");
 
-        if (!user) return res.status(404).json({ status: "success", message: "User not found" });
+        if (!user) return res.status(404).json({ status: "error", message: "User not found" });
 
         res.json({
             scannedMe: user.scannedMe,

@@ -1,6 +1,7 @@
 require("dotenv").config()
 const express = require("express");
 const app = express();
+const cors = require('cors')
 
 const fs = require("fs");
 const path = require("path");
@@ -32,9 +33,9 @@ const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const { error } = require("console");
-const cors = require('cors')
 const PORT = process.env.PORT;
 
+app.use(cors());
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
@@ -62,7 +63,6 @@ app.use("/sign", checkForAuthentication(), signRoutes);
 app.use('/api', authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
 app.use("/api/scan", checkForAuthentication(), scanRoutes);
-app.use(cors());
 
 
 
