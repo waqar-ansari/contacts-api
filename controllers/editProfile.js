@@ -41,9 +41,9 @@ const editProfile = async (req, res) => {
         return res.status(500).json({ status: "error", message: "Server error during file upload" });
       }
 
-      const { firstname, lastname, phonenumber } = req.body;
+      const { firstname, lastname, phonenumber, email } = req.body;
 
-      if (!firstname && !lastname && !phonenumber && !req.file) {
+      if (!firstname && !lastname && !phonenumber && email && !req.file) {
         return res.status(400).json({ status: "error", message: "No data provided" });
       }
 
@@ -56,6 +56,8 @@ const editProfile = async (req, res) => {
       if (firstname) user.firstname = firstname;
       if (lastname) user.lastname = lastname;
       if (phonenumber) user.phonenumber = phonenumber;
+      if (email) user.email = email;
+
 
       if (req.file) {
         const newImagePath = `/userImages/${req.file.filename}`;
@@ -83,6 +85,7 @@ const editProfile = async (req, res) => {
           firstname: user.firstname,
           lastname: user.lastname,
           phonenumber: user.phonenumber,
+          email: user.email,
           profileImageURL: user.profileImageURL,
         },
       });
