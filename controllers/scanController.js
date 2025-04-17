@@ -13,9 +13,6 @@ exports.scanUser = async (req, res) => {
             return res.status(404).json({ status: "error", message: "User not found" });
         }
 
-        console.log(scanner);
-
-
         // Ensure fields exist
         if (!scanner.iScanned) scanner.iScanned = [];
         if (!scanned.scannedMe) scanned.scannedMe = [];
@@ -35,8 +32,8 @@ exports.scanUser = async (req, res) => {
             status: "success",
             message: "Scan successful",
             data: {
-                Scanner: scanner.iScanned,
-                ScannedUser: scanned,
+                iScanned: scanner.iScanned,
+                scannedMe: scanner.scannedMe
             }
 
         });
@@ -48,12 +45,9 @@ exports.scanUser = async (req, res) => {
 
 
 // @desc Get my scan data
-// @route GET /api/scan/:userId
+// @route GET /api/scan/get_data
 exports.getScanData = async (req, res) => {
     const userId = req.user._id;
-
-    console.log(req.user._id);
-
 
     try {
         const user = await User.findById(userId)
@@ -63,10 +57,14 @@ exports.getScanData = async (req, res) => {
         if (!user) return res.status(404).json({ status: "error", message: "User not found" });
 
         res.json({
-            scannedMe: user.scannedMe,
-            iScanned: user.iScanned,
+            status: "success",
+            massage: "scanned data fetched",
+            data: {
+                scannedMe: user.scannedMe,
+                iScanned: user.iScanned,
+            }
         });
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ status: "error", massage: "error to fetch data" });
     }
 };
