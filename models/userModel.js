@@ -84,7 +84,9 @@ const userSchema = new Schema(
       default: "/images/defaultUserPic.png",
     },
     resetPasswordToken: { type: String },
-    resetPasswordExpires: { type: Date }
+    resetPasswordExpires: { type: Date },
+    iScanned: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    scannedMe: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
