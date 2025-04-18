@@ -64,7 +64,7 @@ app.use("/sign", checkForAuthentication(), signRoutes);
 app.use('/api', authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
 app.use("/api/scan", checkForAuthentication(), scanRoutes);
-app.use('/reminders', reminderRoutes);
+app.use('/reminders', checkForAuthentication(), reminderRoutes);
 
 
 

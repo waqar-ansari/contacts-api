@@ -22,6 +22,9 @@ const reminderSchema = new Schema(
 
 const userSchema = new Schema(
   {
+
+    reminders: [reminderSchema],
+
     firstname: {
       type: String,
       default: "Dummy Firstname",
