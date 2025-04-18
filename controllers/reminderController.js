@@ -37,7 +37,7 @@ exports.addEditReminder = async (req, res) => {
         const parsedDate = moment(combinedDateTime, "DD/MM/YYYY hh:mm A", true);
 
         if (!parsedDate.isValid()) {
-            return res.status(400).json({ message: "Invalid date or time format. Use DD/MM/YYYY and hh:mm A" });
+            return res.status(400).json({ status: "error", message: "Invalid date or time format. Use DD/MM/YYYY and hh:mm A" });
         }
 
         let reminder;
