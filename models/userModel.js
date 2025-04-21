@@ -27,11 +27,11 @@ const userSchema = new Schema(
 
     firstname: {
       type: String,
-      default: "Dummy Firstname",
+      // default: "Dummy Firstname",
     },
     lastname: {
       type: String,
-      default: "Dummy Lastname",
+      // default: "Dummy Lastname",
     },
     email: {
       type: String,

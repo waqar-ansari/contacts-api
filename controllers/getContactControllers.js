@@ -2,12 +2,15 @@ const Contact = require("../models/contactModel");
 
 const getContact = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, tag } = req.body;
+    const {id, page = 1, limit = 10, search, tag } = req.body;
 
     const skip = (page - 1) * limit;
 
     // Build the dynamic search query
-    const query = {};
+    // const query = {};
+    const query = {
+      createdBy: id,
+    };
 
     // Apply search filter if not empty
     if (search && search.trim() !== "") {
@@ -37,7 +40,7 @@ const getContact = async (req, res) => {
     }
 
     // Fetch data with filters + pagination
-    const rawContacts  = await Contact.find(query)
+    const rawContacts = await Contact.find(query)
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -createdBy -createdAt -updatedAt -__v"); // omit these fields
@@ -46,7 +49,7 @@ const getContact = async (req, res) => {
     const contacts = rawContacts.map((contact) => {
       const contactObj = contact.toObject();
       if (Array.isArray(contactObj.tags)) {
-        contactObj.tags = contactObj.tags.map(tagObj => tagObj.tag);
+        contactObj.tags = contactObj.tags.map((tagObj) => tagObj.tag);
       }
       return contactObj;
     });
