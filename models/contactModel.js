@@ -9,11 +9,11 @@ const contactSchema = new Schema(
     },
     firstname: {
       type: String,
-      default: "Dummy Firstname",
+      // default: "Dummy Firstname",
     },
     lastname: {
       type: String,
-      default: "Dummy Lastname",
+      // default: "Dummy Lastname",
     },
     emailaddresses: {
       type: [String],

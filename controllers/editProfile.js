@@ -33,24 +33,43 @@ const editProfile = async (req, res) => {
     upload(req, res, async (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(413).json({ status: "error", message: "File too large. Max size is 10MB." });
+          return res.status(413).json({
+            status: "error",
+            message: "File too large. Max size is 10MB.",
+          });
         }
-        return res.status(500).json({ status: "error", message: "Image upload failed" });
+        return res
+          .status(500)
+          .json({ status: "error", message: "Image upload failed" });
       } else if (err) {
         console.error(err);
-        return res.status(500).json({ status: "error", message: "Server error during file upload" });
+        return res.status(500).json({
+          status: "error",
+          message: "Server error during file upload",
+        });
       }
 
       const { firstname, lastname, countryCode, number, email } = req.body;
 
-      if (!firstname && !lastname && !countryCode && !number && !email && !req.file) {
-        return res.status(400).json({ status: "error", message: "No data provided" });
+      if (
+        !firstname &&
+        !lastname &&
+        !countryCode &&
+        !number &&
+        !email &&
+        !req.file
+      ) {
+        return res
+          .status(400)
+          .json({ status: "error", message: "No data provided" });
       }
 
       const userId = req.user._id;
       const user = await User.findById(userId);
       if (!user) {
-        return res.status(404).json({ status: "error", message: "User not found" });
+        return res
+          .status(404)
+          .json({ status: "error", message: "User not found" });
       }
 
       if (firstname) user.firstname = firstname;
@@ -60,12 +79,14 @@ const editProfile = async (req, res) => {
       }
       if (email) user.email = email;
 
-
       if (req.file) {
         const newImagePath = `/userImages/${req.file.filename}`;
 
         // Remove old image if it's not the default
-        if (user.profileImageURL && user.profileImageURL !== "/public/images/defaultUserPic.png") {
+        if (
+          user.profileImageURL &&
+          user.profileImageURL !== "/public/images/defaultUserPic.png"
+        ) {
           const oldImagePath = path.join(__dirname, "..", user.profileImageURL);
           if (fs.existsSync(oldImagePath)) {
             fs.unlinkSync(oldImagePath);
@@ -99,4 +120,3 @@ const editProfile = async (req, res) => {
 };
 
 module.exports = { editProfile };
-
