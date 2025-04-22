@@ -18,6 +18,12 @@ const contactSchema = new Schema(
     emailaddresses: {
       type: [String],
     },
+    notes: {
+      type: String,
+    },
+    website: {
+      type: String,
+    },
     phonenumbers: [
       {
         _id: false,

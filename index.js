@@ -29,15 +29,13 @@ const getUserRoutes = require("./routes/getUserRoutes");
 const deleteTagRoutes = require("./routes/deleteTagRoutes");
 const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
 const signRoutes = require("./routes/signRoutes");
-const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
-const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
 const authRoutes = require("./routes/authRoutes");
 const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const { error } = require("console");
-// const PORT = process.env.PORT;
+const PORT = process.env.PORT;
 
 app.use(cors());
 
@@ -50,8 +48,9 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 // Serve static files (for accessing uploaded images)
-app.use("/userImages", express.static(path.join(__dirname, "userImages")));
-app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
+// app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
+app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
+  editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
 app.use("/getUser", checkForAuthentication(), getUserRoutes);
@@ -67,8 +66,7 @@ app.use(
   upload.single("contactImage"),
   contactRoutes
 );
-app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
-app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
+
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use("/api", authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
@@ -87,7 +85,7 @@ app.use("/", (req, res) => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }

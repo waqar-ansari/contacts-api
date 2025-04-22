@@ -2,14 +2,14 @@ const Contact = require("../models/contactModel");
 
 const getContact = async (req, res) => {
   try {
-    const {id, page = 1, limit = 10, search, tag } = req.body;
+    const {page = 1, limit = 10, search, tag } = req.body;
 
     const skip = (page - 1) * limit;
 
     // Build the dynamic search query
     // const query = {};
     const query = {
-      createdBy: id,
+      createdBy: req.user._id,
     };
 
     // Apply search filter if not empty

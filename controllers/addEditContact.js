@@ -74,6 +74,7 @@ const { mongoose } = require("mongoose");
 const Contact = require("../models/contactModel");
 const s3 = require("../utils/s3");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const path = require("path");
 
 const addEditContact = async (req, res) => {
   const {
@@ -85,6 +86,8 @@ const addEditContact = async (req, res) => {
     contactImage,
     isFavourite,
     tags,
+    notes,
+    website,
   } = req.body;
 
   // const uploadImageToS3 = async (file) => {
@@ -101,7 +104,9 @@ const addEditContact = async (req, res) => {
 
   const uploadImageToS3 = async (file) => {
     console.log("contact image url");
-    const fileName = `contactImages/${Date.now()}_${file.originalname}`;
+    const ext = path.extname(file.originalname); // e.g., ".jpg"
+    const name = path.basename(file.originalname, ext); // e.g., "yash"
+    const fileName = `contactImages/${name}_${Date.now()}${ext}`;
     console.log(fileName, "contact image url2");
 
     const params = {
@@ -144,6 +149,8 @@ const addEditContact = async (req, res) => {
         contactImageURL: contactImage,
         isFavourite,
         tags,
+        notes,
+        website,
         createdBy: req.user._id,
       });
       data.contact_id = data._id;
@@ -165,6 +172,8 @@ const addEditContact = async (req, res) => {
           contactImageURL: contactImage,
           isFavourite,
           tags,
+          notes,
+          website,
         },
         { new: true }
       ).populate("createdBy");
@@ -183,6 +192,8 @@ const addEditContact = async (req, res) => {
       });
     }
   } catch (error) {
+    console.log(error);
+
     res.status(500).json({ status: "error", message: "An error occurred" });
   }
 };
