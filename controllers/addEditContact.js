@@ -73,6 +73,7 @@
 const { mongoose } = require("mongoose");
 const Contact = require("../models/contactModel");
 const s3 = require("../utils/s3");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const addEditContact = async (req, res) => {
   const {
@@ -86,15 +87,46 @@ const addEditContact = async (req, res) => {
     tags,
   } = req.body;
 
+  // const uploadImageToS3 = async (file) => {
+  //   const fileName = `contactImages/${Date.now()}_${file.originalname}`;
+  //   const params = {
+  //     Bucket: process.env.AWS_BUCKET_NAME,
+  //     Key: fileName,
+  //     Body: file.buffer,
+  //     ContentType: file.mimetype,
+  //   };
+  //   await s3.upload(params).promise();
+  //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+  // };
+
   const uploadImageToS3 = async (file) => {
+    console.log("contact image url");
     const fileName = `contactImages/${Date.now()}_${file.originalname}`;
+    console.log(fileName, "contact image url2");
+
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME,
       Key: fileName,
       Body: file.buffer,
       ContentType: file.mimetype,
     };
-    await s3.upload(params).promise();
+    console.log(params, "contact image url3");
+    const command = new PutObjectCommand(params);
+    console.log(command, "contact image url4");
+    // await s3.send(command);
+    try {
+      await s3.send(command);
+      console.log("Upload successful!");
+    } catch (error) {
+      console.error("S3 upload failed:", error);
+    }
+
+    console.log("contact image url5");
+    console.log(
+      "Image uploaded to S3 successfully",
+      `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`
+    );
+
     return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
   };
   try {
@@ -122,7 +154,7 @@ const addEditContact = async (req, res) => {
         message: "Contact created successfully",
       });
     } else {
-      console.log(contactImage, "contact image url3");
+      console.log(contactImage, "contact image url to be updated in db");
       data = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
         {
@@ -136,7 +168,7 @@ const addEditContact = async (req, res) => {
         },
         { new: true }
       ).populate("createdBy");
-      console.log(data, "contact image url4");
+      console.log(data, "data after update");
 
       if (!data) {
         return res.status(404).json({
