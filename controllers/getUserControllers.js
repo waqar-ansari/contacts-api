@@ -3,7 +3,7 @@ const User = require("../models/userModel");
 
 const getUserData = async (req, res) => {
   try {
-    const data = await User.findById(req.user._id).select("-createdAt -updatedAt -__v -salt -password -tags")
+    const data = await User.findById(req.user._id).select("-createdAt -updatedAt -__v -salt -password -tags -iScanned -scannedMe -reminders")
     .lean();
     
     const contactCount = await Contact.countDocuments({ createdBy: data._id });

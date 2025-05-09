@@ -2,15 +2,36 @@ const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
 
+const reminderSchema = new Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+    date: {
+      type: Date,
+      required: true,
+    },
+  },
+  { timestamps: true, _id: true }
+);
+
 const userSchema = new Schema(
   {
+
+    reminders: [reminderSchema],
+
     firstname: {
       type: String,
-      default: "Dummy Firstname",
+      // default: "Dummy Firstname",
     },
     lastname: {
       type: String,
-      default: "Dummy Lastname",
+      // default: "Dummy Lastname",
     },
     email: {
       type: String,
@@ -68,13 +89,25 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        // Only require password for local users
+        return !this.provider || this.provider === "local";
+      },
+    },
+    provider: {
+      type: String,
+      enum: ["local", "google", "apple"],
+      default: "local",
     },
 
     profileImageURL: {
       type: String,
       default: "/images/defaultUserPic.png",
     },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
+    iScanned: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    scannedMe: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

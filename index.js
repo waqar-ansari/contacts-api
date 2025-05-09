@@ -1,11 +1,15 @@
-require("dotenv").config()
+require("dotenv").config();
 const express = require("express");
 const app = express();
+const cors = require("cors");
 
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const multer = require("multer");
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 const mongoose = require("mongoose");
 // const v1Router = express.Router();
@@ -25,19 +29,28 @@ const getUserRoutes = require("./routes/getUserRoutes");
 const deleteTagRoutes = require("./routes/deleteTagRoutes");
 const addToFavouriteRoutes = require("./routes/addToFavouriteRoutes");
 const signRoutes = require("./routes/signRoutes");
-const whoScannedMeRoutes = require("./routes/whoScannedMeRoutes");
-const iScannedWhoRoutes = require("./routes/iScannedWhoRoutes");
+const authRoutes = require("./routes/authRoutes");
+const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
+const scanRoutes = require("./routes/scanRoutes");
+const reminderRoutes = require("./routes/reminderRoutes");
 const { error } = require("console");
-
 const PORT = process.env.PORT;
+
+app.use(cors());
 
 app.use(express.json());
 app.use(express.static(path.resolve("./public")));
 app.use("/user", userRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
+
+// Serve static files (for accessing uploaded images)
+// app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
+app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
+  editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
 app.use("/getUser", checkForAuthentication(), getUserRoutes);
@@ -46,18 +59,25 @@ app.use("/getTag", checkForAuthentication(), getTagRoutes);
 app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
 app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
 app.use("/getContact", checkForAuthentication(), getContactRoutes);
-app.use("/addEditContact", checkForAuthentication(), contactRoutes);
-app.use("/whoScannedMe", checkForAuthentication(), whoScannedMeRoutes);
-app.use("/iScannedWho", checkForAuthentication(), iScannedWhoRoutes);
+// app.use("/addEditContact", checkForAuthentication(), contactRoutes);
+app.use(
+  "/addEditContact",
+  checkForAuthentication(),
+  upload.single("contactImage"),
+  contactRoutes
+);
+
 app.use("/sign", checkForAuthentication(), signRoutes);
-
-
+app.use("/api", authRoutes);
+app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
+app.use("/api/scan", checkForAuthentication(), scanRoutes);
+app.use("/reminders", checkForAuthentication(), reminderRoutes);
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });
 app.use("/", (req, res) => {
-  console.log("hello");
+  console.log("hello from homepage");
 
   res.json({ message: "API Homepage" });
 });
@@ -70,5 +90,4 @@ app.use("/", (req, res) => {
     console.error("Database connection failed:", err);
   }
 })();
-module.exports.handler = serverless(app)
-
+module.exports.handler = serverless(app);

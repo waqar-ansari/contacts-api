@@ -1,25 +1,23 @@
 const { Router } = require("express");
 const {
   saveSignupData,
-  processLoginData,
+  unifiedLogin,
 } = require("../controllers/userControllers");
+
 const router = Router();
 
 /**
  * @swagger
- * components:
- *   securitySchemes:
- *     BearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
+ * tags:
+ *   name: User
+ *   description: User authentication routes
  */
 
 /**
  * @swagger
  * /user/signup:
  *   post:
- *     summary: Register new user
+ *     summary: Register a new user with email and password
  *     tags: [User]
  *     requestBody:
  *       required: true
@@ -27,7 +25,14 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - email
+ *               - password
  *             properties:
+ *               firstname:
+ *                 type: string
+ *               lastname:
+ *                 type: string
  *               email:
  *                 type: string
  *               password:
@@ -35,6 +40,8 @@ const router = Router();
  *     responses:
  *       201:
  *         description: User registered successfully
+ *       409:
+ *         description: User already registered
  */
 router.post("/signup", saveSignupData);
 
@@ -42,7 +49,7 @@ router.post("/signup", saveSignupData);
  * @swagger
  * /user/login:
  *   post:
- *     summary: User login
+ *     summary: Login with email/password, Google, or Apple using a single endpoint
  *     tags: [User]
  *     requestBody:
  *       required: true
@@ -53,14 +60,28 @@ router.post("/signup", saveSignupData);
  *             properties:
  *               email:
  *                 type: string
- *                 example: "test@test.com"
+ *                 example: "test@example.com"
  *               password:
  *                 type: string
- *                 example: "asdfgh"
+ *                 example: "yourpassword"
+ *               googleToken:
+ *                 type: string
+ *                 example: "GOOGLE_ID_TOKEN"
+ *               appleToken:
+ *                 type: string
+ *                 example: "APPLE_ID_TOKEN"
+ *             description: Provide email/password for standard login, or provide Google or Apple token. Only one method is required.
  *     responses:
  *       200:
  *         description: Login successful
+ *       400:
+ *         description: Invalid login request
+ *       401:
+ *         description: Invalid email or password
+ *       500:
+ *         description: Login failed
  */
-router.post("/login", processLoginData);
+router.post("/login", unifiedLogin);
 
 module.exports = router;
+
