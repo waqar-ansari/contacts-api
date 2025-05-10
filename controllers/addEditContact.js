@@ -140,7 +140,7 @@ const addEditContact = async (req, res) => {
       contactImage = await uploadImageToS3(req.file);
     }
     let data;
-    if (contact_id === "0") {
+    if (!contact_id || contact_id === "0") {
       data = await Contact.create({
         firstname,
         lastname,

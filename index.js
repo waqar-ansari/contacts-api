@@ -20,6 +20,7 @@ const swaggerDocs = require("./swaggerConfig");
 const userRoutes = require("./routes/userRoutes");
 const editProfileRoutes = require("./routes/editProfileRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const assignedContactTag = require("./routes/assignedContactTag");
 const getContactRoutes = require("./routes/getContactRoutes");
 const deleteContactRoutes = require("./routes/deleteContactRoutes");
 const deleteUserRoutes = require("./routes/deleteUserRoutes");
@@ -66,6 +67,8 @@ app.use(
   upload.single("contactImage"),
   contactRoutes
 );
+app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
+
 
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use("/api", authRoutes);
