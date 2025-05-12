@@ -1,78 +1,86 @@
 const mongoose = require('mongoose');
 const Contact = require("../models/contactModel");
 
+// Assign multiple tags
 const assignTagToContact = async (req, res) => {
-  const { contactId, tagName } = req.body;
+  const { contactId, tagNames } = req.body;
 
-  if (!contactId || !tagName) {
-    return res.status(400).json({ message: 'contactId and tagName are required' });
+  if (!contactId || !Array.isArray(tagNames) || tagNames.length === 0) {
+    return res.status(400).json({ status: "error", message: 'contactId and tagNames are required' });
   }
 
   try {
     const contact = await Contact.findById(contactId);
     if (!contact) {
-      return res.status(404).json({ message: 'Contact not found' });
+      return res.status(404).json({ status: "error", message: 'Contact not found' });
     }
 
-    // Check if tag already exists by tag name
-    const tagExists = contact.tags.some(
-      (t) => t.tag && t.tag.toLowerCase() === tagName.toLowerCase()
-    );
+    let addedTags = [];
 
-    if (tagExists) {
-      return res.status(200).json({ message: 'Tag already assigned', contact });
-    }
+    tagNames.forEach(tagName => {
+      const tagExists = contact.tags.some(
+        (t) => t.tag && t.tag.toLowerCase() === tagName.toLowerCase()
+      );
 
-    // Add new tag
-    contact.tags.push({
-      tag_id: new mongoose.Types.ObjectId(),
-      tag: tagName,
+      if (!tagExists) {
+        contact.tags.push({
+          tag_id: new mongoose.Types.ObjectId(),
+          tag: tagName,
+        });
+        addedTags.push(tagName);
+      }
     });
 
     await contact.save();
 
     res.status(200).json({
-      message: 'Tag assigned successfully',
-      contact,
+      status: "success",
+      message: addedTags.length > 0 ? 'Tags assigned successfully' : 'tags are already assigned',
+      data: contact,
     });
   } catch (err) {
-    console.error('Error assigning tag:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error assigning tags:', err);
+    res.status(500).json({ status: "error", message: 'Internal server error' });
   }
 };
 
+// Unassign multiple tags
 const unassignTagFromContact = async (req, res) => {
-  const { contactId, tagName } = req.body;
+  const { contactId, tagNames } = req.body;
 
-  if (!contactId || !tagName) {
-    return res.status(400).json({ message: 'contactId and tagName are required' });
+  if (!contactId || !Array.isArray(tagNames) || tagNames.length === 0) {
+    return res.status(400).json({ status: "error", message: 'contactId and tagNames (array) are required' });
   }
 
   try {
     const contact = await Contact.findById(contactId);
     if (!contact) {
-      return res.status(404).json({ message: 'Contact not found' });
+      return res.status(404).json({ status: "error", message: 'Contact not found' });
     }
 
-    const originalLength = contact.tags.length;
+    const originalTags = contact.tags.map((t) => t.tag.toLowerCase());
+    const removedTags = [];
 
-    contact.tags = contact.tags.filter(
-      (t) => t.tag.toLowerCase() !== tagName.toLowerCase()
-    );
+    contact.tags = contact.tags.filter((t) => {
+      const shouldRemove = tagNames.includes(t.tag.toLowerCase());
+      if (shouldRemove) removedTags.push(t.tag);
+      return !shouldRemove;
+    });
 
-    if (contact.tags.length === originalLength) {
-      return res.status(404).json({ message: 'Tag not found on contact' });
+    if (removedTags.length === 0) {
+      return res.status(404).json({ status: "error", message: 'No matching tags found to unassign' });
     }
 
     await contact.save();
 
     res.status(200).json({
-      message: 'Tag unassigned successfully',
-      contact,
+      status: "success",
+      message: 'Tags unassigned successfully',
+      data: contact,
     });
   } catch (err) {
-    console.error('Error unassigning tag:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error unassigning tags:', err);
+    res.status(500).json({ status: "error", message: 'Internal server error' });
   }
 };
 
