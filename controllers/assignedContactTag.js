@@ -41,4 +41,39 @@ const assignTagToContact = async (req, res) => {
   }
 };
 
-module.exports = { assignTagToContact };
+const unassignTagFromContact = async (req, res) => {
+  const { contactId, tagName } = req.body;
+
+  if (!contactId || !tagName) {
+    return res.status(400).json({ message: 'contactId and tagName are required' });
+  }
+
+  try {
+    const contact = await Contact.findById(contactId);
+    if (!contact) {
+      return res.status(404).json({ message: 'Contact not found' });
+    }
+
+    const originalLength = contact.tags.length;
+
+    contact.tags = contact.tags.filter(
+      (t) => t.tag.toLowerCase() !== tagName.toLowerCase()
+    );
+
+    if (contact.tags.length === originalLength) {
+      return res.status(404).json({ message: 'Tag not found on contact' });
+    }
+
+    await contact.save();
+
+    res.status(200).json({
+      message: 'Tag unassigned successfully',
+      contact,
+    });
+  } catch (err) {
+    console.error('Error unassigning tag:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+module.exports = { assignTagToContact, unassignTagFromContact };
