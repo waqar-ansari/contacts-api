@@ -31,7 +31,7 @@ const deleteTag = async (req, res) => {
     await user.save();
     res
       .status(200)
-      .json({  status: "success" ,message: "Tag deleted successfully"});
+      .json({  status: "success" ,message: "Tag deleted successfully", tagId : tag_id });
   } catch {
     res.status(500).send({  status: "error",message: "Error deleting tag"});
   }
