@@ -156,10 +156,16 @@ const addEditContact = async (req, res) => {
       data.contact_id = data._id;
       await data.save();
 
+      const responseData = data.toObject();
+      delete responseData._id;
+      delete responseData.createdAt;
+      delete responseData.updatedAt;
+      delete responseData.__v;
+
       res.status(201).json({
         status: "success",
         message: "Contact created successfully",
-        data: data,
+        data: responseData,
       });
     } else {
       console.log(contactImage, "contact image url to be updated in db");
@@ -189,6 +195,10 @@ const addEditContact = async (req, res) => {
 
       const responseData = data.toObject();
       delete responseData.createdBy; // Remove createdBy from response
+      delete responseData._id;
+      delete responseData.createdAt;
+      delete responseData.updatedAt;
+      delete responseData.__v;
 
       res.status(200).json({
         status: "success",
