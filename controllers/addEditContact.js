@@ -159,6 +159,7 @@ const addEditContact = async (req, res) => {
       res.status(201).json({
         status: "success",
         message: "Contact created successfully",
+        data: data,
       });
     } else {
       console.log(contactImage, "contact image url to be updated in db");
@@ -186,9 +187,13 @@ const addEditContact = async (req, res) => {
         });
       }
 
+      const responseData = data.toObject();
+      delete responseData.createdBy; // Remove createdBy from response
+
       res.status(200).json({
         status: "success",
         message: "Contact updated successfully",
+        data: responseData,
       });
     }
   } catch (error) {
