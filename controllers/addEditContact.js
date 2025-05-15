@@ -72,6 +72,7 @@
 
 const { mongoose } = require("mongoose");
 const Contact = require("../models/contactModel");
+const User = require("../models/userModel");
 const s3 = require("../utils/s3");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
@@ -83,14 +84,23 @@ const addEditContact = async (req, res) => {
     lastname,
     emailaddresses,
     phonenumbers,
-    contactImage,
     isFavourite,
-    tags,
     notes,
     website,
   } = req.body;
 
-  // const uploadImageToS3 = async (file) => {
+  // Parse tags (expected in form-data as stringified JSON array)
+  let tagsArray = [];
+  try {
+    tagsArray = JSON.parse(req.body.tags || "[]");
+  } catch (err) {
+    return res.status(400).json({
+      status: "error",
+      message: "Tags must be a valid JSON array of strings.",
+    });
+  }
+
+    // const uploadImageToS3 = async (file) => {
   //   const fileName = `contactImages/${Date.now()}_${file.originalname}`;
   //   const params = {
   //     Bucket: process.env.AWS_BUCKET_NAME,
@@ -103,11 +113,9 @@ const addEditContact = async (req, res) => {
   // };
 
   const uploadImageToS3 = async (file) => {
-    console.log("contact image url");
-    const ext = path.extname(file.originalname); // e.g., ".jpg"
-    const name = path.basename(file.originalname, ext); // e.g., "yash"
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
     const fileName = `contactImages/${name}_${Date.now()}${ext}`;
-    console.log(fileName, "contact image url2");
 
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME,
@@ -115,136 +123,110 @@ const addEditContact = async (req, res) => {
       Body: file.buffer,
       ContentType: file.mimetype,
     };
-    console.log(params, "contact image url3");
-    const command = new PutObjectCommand(params);
-    console.log(command, "contact image url4");
-    // await s3.send(command);
+
     try {
-      await s3.send(command);
-      console.log("Upload successful!");
+      await s3.send(new PutObjectCommand(params));
+      return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
     } catch (error) {
       console.error("S3 upload failed:", error);
+      throw new Error("Image upload failed");
     }
-
-    console.log("contact image url5");
-    console.log(
-      "Image uploaded to S3 successfully",
-      `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`
-    );
-
-    return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
   };
+
   try {
+    // Match user tags
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ status: "error", message: "User not found" });
+
+    const matchedTags = user.tags
+      .filter((tagObj) => tagsArray.includes(tagObj.tag))
+      .map((tagObj) => ({
+        tag_id: tagObj.tag_id,
+        tag: tagObj.tag,
+      }));
+
     let contactImage = "";
     if (req.file) {
       contactImage = await uploadImageToS3(req.file);
     }
-    let data;
+
+    let contactData;
     if (!contact_id || contact_id === "0") {
-      data = await Contact.create({
+      // Create contact
+      contactData = await Contact.create({
         firstname,
         lastname,
         emailaddresses,
         phonenumbers,
         contactImageURL: contactImage,
         isFavourite,
-        tags,
+        tags: matchedTags,
         notes,
         website,
         createdBy: req.user._id,
       });
-      data.contact_id = data._id;
-      await data.save();
 
-      // const responseData = data.toObject();
-      const responseData = {
-        contact_id: data._id,
-        firstname: data.firstname,
-        lastname: data.lastname,
-        emailaddresses: data.emailaddresses,
-        contactImageURL: data.contactImageURL,
-        isFavourite: data.isFavourite,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        notes: data.notes,
-        website: data.website,
-        phonenumbers: Array.isArray(data.phonenumbers)
-          ? data.phonenumbers.map((item) => ({
-              countryCode: item.countryCode || "",
-              phoneNumber: item.phoneNumber || "",
-            }))
-          : [],
-      };
-      
+      contactData.contact_id = contactData._id;
+      await contactData.save();
+
+      const responseData = contactData.toObject();
+      const tag = responseData.tags.map(tag => tag.tag);
+      responseData.tags = tag;
+
+      delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
       delete responseData.updatedAt;
       delete responseData.__v;
 
-      res.status(201).json({
+      return res.status(201).json({
         status: "success",
         message: "Contact created successfully",
         data: responseData,
       });
     } else {
-      console.log(contactImage, "contact image url to be updated in db");
-      data = await Contact.findOneAndUpdate(
+      // Update contact
+      contactData = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
         {
           firstname,
           lastname,
           emailaddresses,
           phonenumbers,
-          contactImageURL: contactImage,
+          contactImageURL: contactImage || undefined, // update only if a new image uploaded
           isFavourite,
-          tags,
+          tags: matchedTags,
           notes,
           website,
         },
         { new: true }
-      ).populate("createdBy");
-      console.log(data, "data after update");
+      );
 
-      if (!data) {
+      if (!contactData) {
         return res.status(404).json({
           status: "error",
           message: "Contact not found or unauthorized access",
         });
       }
 
-      // const responseData = data.toObject();
-      const responseData = {
-        contact_id: data._id,
-        firstname: data.firstname,
-        lastname: data.lastname,
-        emailaddresses: data.emailaddresses,
-        contactImageURL: data.contactImageURL,
-        isFavourite: data.isFavourite,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        notes: data.notes,
-        website: data.website,
-        phonenumbers: Array.isArray(data.phonenumbers)
-          ? data.phonenumbers.map((item) => ({
-              countryCode: item.countryCode || "",
-              phoneNumber: item.phoneNumber || "",
-            }))
-          : [],
-      };
-      delete responseData.createdBy; // Remove createdBy from response
+      const responseData = contactData.toObject();
+      const tag = responseData.tags.map(tag => tag.tag);
+      responseData.tags = tag;
+      delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
       delete responseData.updatedAt;
       delete responseData.__v;
 
-      res.status(200).json({
+      return res.status(200).json({
         status: "success",
         message: "Contact updated successfully",
         data: responseData,
       });
     }
   } catch (error) {
-    console.log(error);
-
-    res.status(500).json({ status: "error", message: "An error occurred" });
+    console.error(error);
+    return res.status(500).json({ status: "error", message: "An error occurred" });
   }
 };
 

@@ -24,17 +24,20 @@ const contactSchema = new Schema(
     website: {
       type: String,
     },
-    phonenumbers: [
-      {
-        _id: false,
-        countryCode: {
-          type: String,
-        },
-        number: {
-          type: String,
-        },
-      },
-    ],
+    // phonenumbers: [
+    //   {
+    //     _id: false,
+    //     countryCode: {
+    //       type: String,
+    //     },
+    //     number: {
+    //       type: String,
+    //     },
+    //   },
+    // ],
+    phonenumbers: {
+      type: [String],
+    },
     contactImageURL: {
       type: String,
       default: "/images/defaultUserPic.png",
