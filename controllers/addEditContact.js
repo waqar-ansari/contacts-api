@@ -156,7 +156,25 @@ const addEditContact = async (req, res) => {
       data.contact_id = data._id;
       await data.save();
 
-      const responseData = data.toObject();
+      // const responseData = data.toObject();
+      const responseData = {
+        contact_id: data._id,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        emailaddresses: data.emailaddresses,
+        contactImageURL: data.contactImageURL,
+        isFavourite: data.isFavourite,
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        notes: data.notes,
+        website: data.website,
+        phonenumbers: Array.isArray(data.phonenumbers)
+          ? data.phonenumbers.map((item) => ({
+              countryCode: item.countryCode || "",
+              phoneNumber: item.phoneNumber || "",
+            }))
+          : [],
+      };
+      
       delete responseData._id;
       delete responseData.createdAt;
       delete responseData.updatedAt;
@@ -193,7 +211,24 @@ const addEditContact = async (req, res) => {
         });
       }
 
-      const responseData = data.toObject();
+      // const responseData = data.toObject();
+      const responseData = {
+        contact_id: data._id,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        emailaddresses: data.emailaddresses,
+        contactImageURL: data.contactImageURL,
+        isFavourite: data.isFavourite,
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        notes: data.notes,
+        website: data.website,
+        phonenumbers: Array.isArray(data.phonenumbers)
+          ? data.phonenumbers.map((item) => ({
+              countryCode: item.countryCode || "",
+              phoneNumber: item.phoneNumber || "",
+            }))
+          : [],
+      };
       delete responseData.createdBy; // Remove createdBy from response
       delete responseData._id;
       delete responseData.createdAt;
