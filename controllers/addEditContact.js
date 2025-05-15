@@ -89,18 +89,32 @@ const addEditContact = async (req, res) => {
     website,
   } = req.body;
 
-  // Parse tags (expected in form-data as stringified JSON array)
-  let tagsArray = [];
-  try {
-    tagsArray = JSON.parse(req.body.tags || "[]");
-  } catch (err) {
-    return res.status(400).json({
-      status: "error",
-      message: "Tags must be a valid JSON array of strings.",
-    });
+  let matchedTags = [];
+
+  // Only parse tags if provided
+  if (req.body.tags) {
+    let tagsArray = [];
+    try {
+      tagsArray = JSON.parse(req.body.tags);
+      const user = await User.findById(req.user._id);
+      if (!user) {
+        return res.status(401).json({ status: "error", message: "User not found" });
+      }
+      matchedTags = user.tags
+        .filter((tagObj) => tagsArray.includes(tagObj.tag))
+        .map((tagObj) => ({
+          tag_id: tagObj.tag_id,
+          tag: tagObj.tag,
+        }));
+    } catch (err) {
+      return res.status(400).json({
+        status: "error",
+        message: "Tags must be a valid JSON array of strings.",
+      });
+    }
   }
 
-    // const uploadImageToS3 = async (file) => {
+  // const uploadImageToS3 = async (file) => {
   //   const fileName = `contactImages/${Date.now()}_${file.originalname}`;
   //   const params = {
   //     Bucket: process.env.AWS_BUCKET_NAME,
@@ -116,7 +130,6 @@ const addEditContact = async (req, res) => {
     const ext = path.extname(file.originalname);
     const name = path.basename(file.originalname, ext);
     const fileName = `contactImages/${name}_${Date.now()}${ext}`;
-
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME,
       Key: fileName,
@@ -134,17 +147,6 @@ const addEditContact = async (req, res) => {
   };
 
   try {
-    // Match user tags
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(401).json({ status: "error", message: "User not found" });
-
-    const matchedTags = user.tags
-      .filter((tagObj) => tagsArray.includes(tagObj.tag))
-      .map((tagObj) => ({
-        tag_id: tagObj.tag_id,
-        tag: tagObj.tag,
-      }));
-
     let contactImage = "";
     if (req.file) {
       contactImage = await uploadImageToS3(req.file);
@@ -152,27 +154,27 @@ const addEditContact = async (req, res) => {
 
     let contactData;
     if (!contact_id || contact_id === "0") {
-      // Create contact
-      contactData = await Contact.create({
+      // Create
+      const contactPayload = {
         firstname,
         lastname,
         emailaddresses,
         phonenumbers,
         contactImageURL: contactImage,
         isFavourite,
-        tags: matchedTags,
         notes,
         website,
         createdBy: req.user._id,
-      });
+      };
 
+      if (matchedTags.length > 0) contactPayload.tags = matchedTags;
+
+      contactData = await Contact.create(contactPayload);
       contactData.contact_id = contactData._id;
       await contactData.save();
 
       const responseData = contactData.toObject();
-      const tag = responseData.tags.map(tag => tag.tag);
-      responseData.tags = tag;
-
+      responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
       delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
@@ -185,20 +187,23 @@ const addEditContact = async (req, res) => {
         data: responseData,
       });
     } else {
-      // Update contact
+      // Update
+      const updateFields = {
+        firstname,
+        lastname,
+        emailaddresses,
+        phonenumbers,
+        isFavourite,
+        notes,
+        website,
+      };
+
+      if (contactImage) updateFields.contactImageURL = contactImage;
+      if (req.body.tags) updateFields.tags = matchedTags;
+
       contactData = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
-        {
-          firstname,
-          lastname,
-          emailaddresses,
-          phonenumbers,
-          contactImageURL: contactImage || undefined, // update only if a new image uploaded
-          isFavourite,
-          tags: matchedTags,
-          notes,
-          website,
-        },
+        updateFields,
         { new: true }
       );
 
@@ -210,8 +215,7 @@ const addEditContact = async (req, res) => {
       }
 
       const responseData = contactData.toObject();
-      const tag = responseData.tags.map(tag => tag.tag);
-      responseData.tags = tag;
+      responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
       delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
