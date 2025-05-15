@@ -49,7 +49,7 @@ const addTags = async (req, res) => {
 
   } catch (error) {
     console.error("Add Tags Error:", error);
-    res.status(500).json({ status: "error", message: "Error adding tags" });
+    res.status(500).json({ status: "error", message: "Error adding tags" , "error": error});
   }
 };
 
