@@ -1,5 +1,19 @@
 const { Schema, model, mongoose } = require("mongoose");
 
+const taskSchema = new Schema(
+  {
+    task_id: {
+      type: Schema.Types.ObjectId,
+      default: () => new Schema.Types.ObjectId(),
+    },
+    title: String,
+    description: String,
+    dueDate: Date,
+    dueTime: String,
+  },
+  { _id: false }
+);
+
 const contactSchema = new Schema(
   {
     contact_id: {
@@ -57,6 +71,10 @@ const contactSchema = new Schema(
         },
       },
     ],
+
+    tasks: [taskSchema],
+
+
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
