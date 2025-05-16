@@ -10,6 +10,7 @@ const taskSchema = new Schema(
     description: String,
     dueDate: Date,
     dueTime: String,
+    complete: { type: Boolean, default: false },
   },
   { _id: false }
 );
