@@ -73,15 +73,18 @@ const userSchema = new Schema(
     //     },
     //   },
     // ],
-    phonenumber: {
-      countryCode: {
-        type: String,
-        default: "",
-      },
-      number: {
-        type: String,
-        default: "",
-      },
+    // phonenumber: {
+    //   countryCode: {
+    //     type: String,
+    //     default: "",
+    //   },
+    //   number: {
+    //     type: String,
+    //     default: "",
+    //   },
+    // },
+    phonenumbers: {
+      type: [String],
     },
     salt: {
       type: String,
