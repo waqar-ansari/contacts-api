@@ -225,19 +225,19 @@
 
 // module.exports = { addEditContact };
 
-  // const uploadImageToS3 = async (file) => {
-  //   const fileName = `contactImages/${Date.now()}_${file.originalname}`;
-  //   const params = {
-  //     Bucket: process.env.AWS_BUCKET_NAME,
-  //     Key: fileName,
-  //     Body: file.buffer,
-  //     ContentType: file.mimetype,
-  //   };
-  //   await s3.upload(params).promise();
-  //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-  // };
+// const uploadImageToS3 = async (file) => {
+//   const fileName = `contactImages/${Date.now()}_${file.originalname}`;
+//   const params = {
+//     Bucket: process.env.AWS_BUCKET_NAME,
+//     Key: fileName,
+//     Body: file.buffer,
+//     ContentType: file.mimetype,
+//   };
+//   await s3.upload(params).promise();
+//   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+// };
 
-  const { mongoose } = require("mongoose");
+const { mongoose } = require("mongoose");
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
@@ -326,13 +326,13 @@ const addEditContact = async (req, res) => {
 
     const taskObj = taskProvided
       ? {
-          task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
-          title,
-          description,
-          dueDate,
-          dueTime,
-          complete: isCreating ? false : (complete === true || complete === "true"),
-        }
+        task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
+        title,
+        description,
+        dueDate,
+        dueTime,
+        complete: isCreating ? false : (complete === true || complete === "true"),
+      }
       : null;
 
     if (isCreating) {
