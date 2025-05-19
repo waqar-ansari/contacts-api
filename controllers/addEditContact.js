@@ -254,7 +254,7 @@ const addEditContact = async (req, res) => {
     isFavourite,
     notes,
     website,
-    taskId,
+    task_id,
     taskTitle,
     taskDescription,
     taskDueDate,
@@ -324,7 +324,7 @@ const addEditContact = async (req, res) => {
 
     const taskObj = taskProvided
       ? {
-        taskId: taskId ? new mongoose.Types.ObjectId(taskId) : new mongoose.Types.ObjectId(),
+        task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
         taskTitle,
         taskDescription,
         taskDueDate,
@@ -334,7 +334,7 @@ const addEditContact = async (req, res) => {
       : null;
 
     if (isCreating) {
-      if (taskProvided && taskId) {
+      if (taskProvided && task_id) {
         return res.status(400).json({
           status: "error",
           message: "Task ID should not be provided when creating a contact with a task.",
@@ -411,7 +411,7 @@ const addEditContact = async (req, res) => {
 
       if (taskObj) {
         const taskIndex = contactData.tasks.findIndex((task) => {
-          return task?.taskId?.toString() === taskObj.taskId.toString();
+          return task?.task_id?.toString() === taskObj.task_id.toString();
         });
 
         if (taskIndex >= 0) {

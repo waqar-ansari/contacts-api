@@ -23,6 +23,7 @@ const contactRoutes = require("./routes/contactRoutes");
 const assignedContactTag = require("./routes/assignedContactTag");
 const getContactRoutes = require("./routes/getContactRoutes");
 const deleteContactRoutes = require("./routes/deleteContactRoutes");
+const deleteTaskRoutes = require("./routes/deleteTaskRoutes");
 const deleteUserRoutes = require("./routes/deleteUserRoutes");
 const addTagRoutes = require("./routes/addTagRoutes");
 const getTagRoutes = require("./routes/getTagRoutes");
@@ -54,6 +55,7 @@ app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
   editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
+app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
 app.use("/getUser", checkForAuthentication(), getUserRoutes);
 app.use("/addTag", checkForAuthentication(), addTagRoutes);
 app.use("/getTag", checkForAuthentication(), getTagRoutes);

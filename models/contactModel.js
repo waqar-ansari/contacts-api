@@ -2,7 +2,7 @@ const { Schema, model, mongoose } = require("mongoose");
 
 const taskSchema = new Schema(
   {
-    taskId: {
+    task_id: {
       type: mongoose.Types.ObjectId, // FIXED
       default: () => new mongoose.Types.ObjectId(), // FIXED
     },
