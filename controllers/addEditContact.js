@@ -245,66 +245,71 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
 
 const addEditContact = async (req, res) => {
-  const {
-    contact_id,
-    firstname,
-    lastname,
-    emailaddresses,
-    phonenumbers,
-    isFavourite,
-    notes,
-    website,
-    task_id,
-    taskTitle,
-    taskDescription,
-    taskDueDate,
-    taskDueTime,
-    taskIsCompleted,
-  } = req.body;
-
-  let matchedTags = [];
-
-  if (req.body.tags) {
-    try {
-      const tagsArray = JSON.parse(req.body.tags);
-      const user = await User.findById(req.user._id);
-      if (!user) {
-        return res.status(401).json({ status: "error", message: "User not found" });
-      }
-      matchedTags = user.tags
-        .filter((tagObj) => tagsArray.includes(tagObj.tag))
-        .map((tagObj) => ({
-          tag_id: tagObj.tag_id,
-          tag: tagObj.tag,
-        }));
-    } catch (err) {
-      return res.status(400).json({
+  try {
+    // ✅ 1. Check if the user exists in the database
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({
         status: "error",
-        message: "Tags must be a valid JSON array of strings.",
+        message: "Unauthorized: User not found",
       });
     }
-  }
 
-  const uploadImageToS3 = async (file) => {
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    const fileName = `contactImages/${name}_${Date.now()}${ext}`;
-    const params = {
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: fileName,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    };
-    try {
-      await s3.send(new PutObjectCommand(params));
-      return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-    } catch (error) {
-      console.error("S3 upload failed:", error);
-      throw new Error("Image upload failed");
+    const {
+      contact_id,
+      firstname,
+      lastname,
+      emailaddresses,
+      phonenumbers,
+      isFavourite,
+      notes,
+      website,
+      task_id,
+      taskTitle,
+      taskDescription,
+      taskDueDate,
+      taskDueTime,
+      taskIsCompleted,
+    } = req.body;
+
+    let matchedTags = [];
+
+    if (req.body.tags) {
+      try {
+        const tagsArray = JSON.parse(req.body.tags);
+        matchedTags = user.tags
+          .filter((tagObj) => tagsArray.includes(tagObj.tag))
+          .map((tagObj) => ({
+            tag_id: tagObj.tag_id,
+            tag: tagObj.tag,
+          }));
+      } catch (err) {
+        return res.status(400).json({
+          status: "error",
+          message: "Tags must be a valid JSON array of strings.",
+        });
+      }
     }
-  };
 
-  try {
+    const uploadImageToS3 = async (file) => {
+      const ext = path.extname(file.originalname);
+      const name = path.basename(file.originalname, ext);
+      const fileName = `contactImages/${name}_${Date.now()}${ext}`;
+      const params = {
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: fileName,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      };
+      try {
+        await s3.send(new PutObjectCommand(params));
+        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      } catch (error) {
+        console.error("S3 upload failed:", error);
+        throw new Error("Image upload failed");
+      }
+    };
+
     let contactImage = "";
     if (req.file) {
       contactImage = await uploadImageToS3(req.file);
@@ -414,8 +419,8 @@ const addEditContact = async (req, res) => {
       }
 
       if (taskObj) {
-        const taskIndex = contactData.tasks.findIndex((task) =>
-          task?.task_id?.toString() === taskObj.task_id.toString()
+        const taskIndex = contactData.tasks.findIndex(
+          (task) => task?.task_id?.toString() === taskObj.task_id.toString()
         );
 
         if (taskIndex >= 0) {
