@@ -362,11 +362,11 @@ const addEditContact = async (req, res) => {
 
       const responseData = contactData.toObject();
       responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
-
+      
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          taskIsCompleted: t.taskIsCompleted ? "true" : "false",
+          taskIsCompleted: !!t.taskIsCompleted, // Force to boolean
         }));
       }
 
@@ -432,7 +432,7 @@ const addEditContact = async (req, res) => {
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          taskIsCompleted: t.taskIsCompleted ? "true" : "false",
+          taskIsCompleted: !!t.taskIsCompleted, // Force to boolean
         }));
       }
 
