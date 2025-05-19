@@ -314,7 +314,6 @@ const addEditContact = async (req, res) => {
     const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime;
     const isCreating = !contact_id || contact_id === "0";
 
-    // Validation: Disallow complete:true on create
     if (isCreating && taskProvided && (taskIsCompleted === true || taskIsCompleted === "true")) {
       return res.status(400).json({
         status: "error",
@@ -322,16 +321,22 @@ const addEditContact = async (req, res) => {
       });
     }
 
-    const taskObj = taskProvided
-      ? {
+    let taskObj = null;
+    if (taskProvided) {
+      taskObj = {
         task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
         taskTitle,
         taskDescription,
         taskDueDate,
         taskDueTime,
-        taskIsCompleted: isCreating ? false : (taskIsCompleted === true || taskIsCompleted === "true"),
+      };
+
+      if (isCreating) {
+        taskObj.taskIsCompleted = false;
+      } else if (typeof taskIsCompleted !== "undefined") {
+        taskObj.taskIsCompleted = taskIsCompleted === true || taskIsCompleted === "true";
       }
-      : null;
+    }
 
     if (isCreating) {
       if (taskProvided && task_id) {
@@ -362,11 +367,11 @@ const addEditContact = async (req, res) => {
 
       const responseData = contactData.toObject();
       responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
-      
+
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          taskIsCompleted: !!t.taskIsCompleted, // Force to boolean
+          taskIsCompleted: !!t.taskIsCompleted,
         }));
       }
 
@@ -382,7 +387,6 @@ const addEditContact = async (req, res) => {
         data: responseData,
       });
     } else {
-      // UPDATE
       const updateFields = {
         firstname,
         lastname,
@@ -410,17 +414,25 @@ const addEditContact = async (req, res) => {
       }
 
       if (taskObj) {
-        const taskIndex = contactData.tasks.findIndex((task) => {
-          return task?.task_id?.toString() === taskObj.task_id.toString();
-        });
+        const taskIndex = contactData.tasks.findIndex((task) =>
+          task?.task_id?.toString() === taskObj.task_id.toString()
+        );
 
         if (taskIndex >= 0) {
+          const existingTask = contactData.tasks[taskIndex];
           contactData.tasks[taskIndex] = {
-            ...contactData.tasks[taskIndex],
+            ...existingTask,
             ...taskObj,
+            taskIsCompleted:
+              taskObj.taskIsCompleted !== undefined
+                ? taskObj.taskIsCompleted
+                : existingTask.taskIsCompleted,
           };
         } else {
-          contactData.tasks.push(taskObj);
+          contactData.tasks.push({
+            ...taskObj,
+            taskIsCompleted: taskObj.taskIsCompleted ?? false,
+          });
         }
 
         await contactData.save();
@@ -432,7 +444,7 @@ const addEditContact = async (req, res) => {
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          taskIsCompleted: !!t.taskIsCompleted, // Force to boolean
+          taskIsCompleted: !!t.taskIsCompleted,
         }));
       }
 
