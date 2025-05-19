@@ -2,19 +2,13 @@ const mongoose = require("mongoose");
 const Contact = require("../models/contactModel");
 
 const deleteTask = async (req, res) => {
-    const { contactId, taskId } = req.params;
+    const { contactId, task_id } = req.body;
 
+    // Validate only contactId
     if (!mongoose.Types.ObjectId.isValid(contactId)) {
         return res.status(400).json({
             status: "error",
             message: "Invalid contact ID",
-        });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(taskId)) {
-        return res.status(400).json({
-            status: "error",
-            message: "Invalid task ID",
         });
     }
 
@@ -23,10 +17,10 @@ const deleteTask = async (req, res) => {
             {
                 _id: contactId,
                 createdBy: req.user._id,
-                "tasks.taskId": taskId,
+                "tasks.task_id": task_id,
             },
             {
-                $pull: { tasks: { taskId: taskId } },
+                $pull: { tasks: { task_id: task_id } },
             },
             { new: true }
         );
