@@ -2,15 +2,15 @@ const { Schema, model, mongoose } = require("mongoose");
 
 const taskSchema = new Schema(
   {
-    task_id: {
-      type: Schema.Types.ObjectId,
-      default: () => new Schema.Types.ObjectId(),
+    taskId: {
+      type: mongoose.Types.ObjectId, // FIXED
+      default: () => new mongoose.Types.ObjectId(), // FIXED
     },
-    title: String,
-    description: String,
-    dueDate: Date,
-    dueTime: String,
-    complete: { type: Boolean, default: false },
+    taskTitle: String,
+    taskDescription: String,
+    taskDueDate: Date,
+    taskDueTime: String,
+    taskIsCompleted: { type: Boolean, default: false },
   },
   { _id: false }
 );

@@ -237,7 +237,7 @@
 //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 // };
 
-const { mongoose } = require("mongoose");
+const mongoose = require("mongoose");
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
@@ -254,12 +254,12 @@ const addEditContact = async (req, res) => {
     isFavourite,
     notes,
     website,
-    task_id,
-    title,
-    description,
-    dueDate,
-    dueTime,
-    complete,
+    taskId,
+    taskTitle,
+    taskDescription,
+    taskDueDate,
+    taskDueTime,
+    taskIsCompleted,
   } = req.body;
 
   let matchedTags = [];
@@ -311,13 +311,11 @@ const addEditContact = async (req, res) => {
     }
 
     let contactData;
-
-    const taskProvided = title || description || dueDate || dueTime;
-
+    const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime;
     const isCreating = !contact_id || contact_id === "0";
 
-    // Validation: Disallow `complete: true` on create
-    if (isCreating && taskProvided && (complete === true || complete === "true")) {
+    // Validation: Disallow complete:true on create
+    if (isCreating && taskProvided && (taskIsCompleted === true || taskIsCompleted === "true")) {
       return res.status(400).json({
         status: "error",
         message: "Task complete status cannot be set when creating a contact.",
@@ -326,18 +324,17 @@ const addEditContact = async (req, res) => {
 
     const taskObj = taskProvided
       ? {
-        task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
-        title,
-        description,
-        dueDate,
-        dueTime,
-        complete: isCreating ? false : (complete === true || complete === "true"),
+        taskId: taskId ? new mongoose.Types.ObjectId(taskId) : new mongoose.Types.ObjectId(),
+        taskTitle,
+        taskDescription,
+        taskDueDate,
+        taskDueTime,
+        taskIsCompleted: isCreating ? false : (taskIsCompleted === true || taskIsCompleted === "true"),
       }
       : null;
 
     if (isCreating) {
-      // CREATE
-      if (taskProvided && task_id) {
+      if (taskProvided && taskId) {
         return res.status(400).json({
           status: "error",
           message: "Task ID should not be provided when creating a contact with a task.",
@@ -357,7 +354,7 @@ const addEditContact = async (req, res) => {
       };
 
       if (matchedTags.length > 0) contactPayload.tags = matchedTags;
-      if (taskObj) contactPayload.tasks = [taskObj]; // complete already forced to false above
+      if (taskObj) contactPayload.tasks = [taskObj];
 
       contactData = await Contact.create(contactPayload);
       contactData.contact_id = contactData._id;
@@ -369,7 +366,7 @@ const addEditContact = async (req, res) => {
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          complete: t.complete ? "complete" : "incomplete",
+          taskIsCompleted: t.taskIsCompleted ? "true" : "false",
         }));
       }
 
@@ -413,9 +410,9 @@ const addEditContact = async (req, res) => {
       }
 
       if (taskObj) {
-        const taskIndex = contactData.tasks.findIndex(
-          (task) => task.task_id.toString() === taskObj.task_id.toString()
-        );
+        const taskIndex = contactData.tasks.findIndex((task) => {
+          return task?.taskId?.toString() === taskObj.taskId.toString();
+        });
 
         if (taskIndex >= 0) {
           contactData.tasks[taskIndex] = {
@@ -435,7 +432,7 @@ const addEditContact = async (req, res) => {
       if (responseData.tasks?.length) {
         responseData.tasks = responseData.tasks.map((t) => ({
           ...t,
-          complete: t.complete ? "complete" : "incomplete",
+          taskIsCompleted: t.taskIsCompleted ? "true" : "false",
         }));
       }
 
