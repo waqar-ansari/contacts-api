@@ -12,7 +12,10 @@ const taskSchema = new Schema(
     taskDueTime: String,
     taskIsCompleted: { type: Boolean, default: false },
   },
-  { _id: false }
+  {
+    timestamps: true,
+    _id: false,
+  }
 );
 
 const contactSchema = new Schema(

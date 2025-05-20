@@ -238,6 +238,7 @@
 // };
 
 const mongoose = require("mongoose");
+const { format } = require('date-fns');
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
@@ -246,13 +247,9 @@ const path = require("path");
 
 const addEditContact = async (req, res) => {
   try {
-    // ✅ 1. Check if the user exists in the database
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(401).json({
-        status: "error",
-        message: "Unauthorized: User not found",
-      });
+      return res.status(401).json({ status: "error", message: "Unauthorized: User not found" });
     }
 
     const {
@@ -273,7 +270,6 @@ const addEditContact = async (req, res) => {
     } = req.body;
 
     let matchedTags = [];
-
     if (req.body.tags) {
       try {
         const tagsArray = JSON.parse(req.body.tags);
@@ -315,9 +311,8 @@ const addEditContact = async (req, res) => {
       contactImage = await uploadImageToS3(req.file);
     }
 
-    let contactData;
-    const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime;
     const isCreating = !contact_id || contact_id === "0";
+    const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || taskIsCompleted;
 
     if (isCreating && taskProvided && (taskIsCompleted === true || taskIsCompleted === "true")) {
       return res.status(400).json({
@@ -328,21 +323,31 @@ const addEditContact = async (req, res) => {
 
     let taskObj = null;
     if (taskProvided) {
-      taskObj = {
-        task_id: task_id ? new mongoose.Types.ObjectId(task_id) : new mongoose.Types.ObjectId(),
-        taskTitle,
-        taskDescription,
-        taskDueDate,
-        taskDueTime,
-      };
+      taskObj = {};
+      if (task_id) {
+        taskObj.task_id = new mongoose.Types.ObjectId(task_id);
+      } else {
+        taskObj.task_id = new mongoose.Types.ObjectId();
+        taskObj.createdAt = new Date(); // Set createdAt only on new task
+      }
+
+      if (taskTitle) taskObj.taskTitle = taskTitle;
+      if (taskDescription) taskObj.taskDescription = taskDescription;
+      if (taskDueDate) taskObj.taskDueDate = taskDueDate;
+      if (taskDueTime) taskObj.taskDueTime = taskDueTime;
 
       if (isCreating) {
         taskObj.taskIsCompleted = false;
       } else if (typeof taskIsCompleted !== "undefined") {
         taskObj.taskIsCompleted = taskIsCompleted === true || taskIsCompleted === "true";
       }
+
+      if (!isCreating && task_id) {
+        taskObj.updatedAt = new Date(); // Set updatedAt only when editing an existing task
+      }
     }
 
+    let contactData;
     if (isCreating) {
       if (taskProvided && task_id) {
         return res.status(400).json({
@@ -369,28 +374,6 @@ const addEditContact = async (req, res) => {
       contactData = await Contact.create(contactPayload);
       contactData.contact_id = contactData._id;
       await contactData.save();
-
-      const responseData = contactData.toObject();
-      responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
-
-      if (responseData.tasks?.length) {
-        responseData.tasks = responseData.tasks.map((t) => ({
-          ...t,
-          taskIsCompleted: !!t.taskIsCompleted,
-        }));
-      }
-
-      delete responseData.createdBy;
-      delete responseData._id;
-      delete responseData.createdAt;
-      // delete responseData.updatedAt;
-      delete responseData.__v;
-
-      return res.status(201).json({
-        status: "success",
-        message: "Contact created successfully",
-        data: responseData,
-      });
     } else {
       const updateFields = {
         firstname,
@@ -401,7 +384,6 @@ const addEditContact = async (req, res) => {
         notes,
         website,
       };
-
       if (contactImage) updateFields.contactImageURL = contactImage;
       if (req.body.tags) updateFields.tags = matchedTags;
 
@@ -425,46 +407,65 @@ const addEditContact = async (req, res) => {
 
         if (taskIndex >= 0) {
           const existingTask = contactData.tasks[taskIndex];
-          contactData.tasks[taskIndex] = {
-            ...existingTask,
+          // contactData.tasks[taskIndex] = {
+          //   ...existingTask.toObject(),
+          //   ...taskObj,
+          //   taskIsCompleted:
+          //     taskObj.taskIsCompleted !== undefined
+          //       ? taskObj.taskIsCompleted
+          //       : existingTask.taskIsCompleted,
+          //   updatedAt: new Date(),
+          // };
+          Object.assign(contactData.tasks[taskIndex], {
             ...taskObj,
             taskIsCompleted:
               taskObj.taskIsCompleted !== undefined
                 ? taskObj.taskIsCompleted
-                : existingTask.taskIsCompleted,
-          };
+                : contactData.tasks[taskIndex].taskIsCompleted,
+          });
+          contactData.markModified("tasks"); // ✅ FIXED
+
         } else {
+          taskObj.createdAt = new Date();
           contactData.tasks.push({
             ...taskObj,
             taskIsCompleted: taskObj.taskIsCompleted ?? false,
           });
         }
 
+        contactData.updatedAt = new Date(); // ✅ Force Contact's updatedAt update
         await contactData.save();
       }
 
-      const responseData = contactData.toObject();
-      responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
-
-      if (responseData.tasks?.length) {
-        responseData.tasks = responseData.tasks.map((t) => ({
-          ...t,
-          taskIsCompleted: !!t.taskIsCompleted,
-        }));
-      }
-
-      delete responseData.createdBy;
-      delete responseData._id;
-      delete responseData.createdAt;
-      // delete responseData.updatedAt;
-      delete responseData.__v;
-
-      return res.status(200).json({
-        status: "success",
-        message: "Contact updated successfully",
-        data: responseData,
-      });
     }
+
+    const responseData = contactData.toObject();
+    responseData.contact_id = responseData._id;
+    responseData.tags = responseData.tags?.map((tag) => tag.tag) || [];
+    if (responseData.tasks?.length) {
+      responseData.tasks = responseData.tasks.map((t) => ({
+        task_id: t.task_id,
+        taskTitle: t.taskTitle,
+        taskDescription: t.taskDescription,
+        taskDueDate: t.taskDueDate,
+        taskDueTime: t.taskDueTime,
+        taskIsCompleted: !!t.taskIsCompleted,
+        createdAt: format(new Date(t.createdAt), 'dd MMMM yyyy hh:mm a'),
+        updatedAt: format(new Date(t.updatedAt), 'dd MMMM yyyy hh:mm a'),
+      }));
+    }
+
+    delete responseData.createdBy;
+    delete responseData._id;
+    delete responseData.createdAt;
+    delete responseData.updatedAt;
+    delete responseData.__v;
+
+    return res.status(isCreating ? 201 : 200).json({
+      status: "success",
+      message: isCreating ? "Contact created successfully" : "Contact updated successfully",
+      data: responseData,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ status: "error", message: "An error occurred" });
