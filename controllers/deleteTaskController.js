@@ -2,20 +2,21 @@ const mongoose = require("mongoose");
 const Contact = require("../models/contactModel");
 
 const deleteTask = async (req, res) => {
-    const { contactId, task_id } = req.body;
+    const { contact_id, task_id } = req.body;
 
     // Validate only contactId
-    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+    if (!mongoose.Types.ObjectId.isValid(contact_id)) {
         return res.status(400).json({
             status: "error",
             message: "Invalid contact ID",
         });
     }
 
+
     try {
         const updatedContact = await Contact.findOneAndUpdate(
             {
-                _id: contactId,
+                _id: contact_id,
                 createdBy: req.user._id,
                 "tasks.task_id": task_id,
             },
@@ -35,6 +36,7 @@ const deleteTask = async (req, res) => {
         return res.status(200).json({
             status: "success",
             message: "Task deleted successfully",
+            data: { task_id: task_id },
         });
     } catch (error) {
         console.error("Delete Task Error:", error);
