@@ -383,7 +383,7 @@ const addEditContact = async (req, res) => {
       delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
-      delete responseData.updatedAt;
+      // delete responseData.updatedAt;
       delete responseData.__v;
 
       return res.status(201).json({
@@ -456,7 +456,7 @@ const addEditContact = async (req, res) => {
       delete responseData.createdBy;
       delete responseData._id;
       delete responseData.createdAt;
-      delete responseData.updatedAt;
+      // delete responseData.updatedAt;
       delete responseData.__v;
 
       return res.status(200).json({
