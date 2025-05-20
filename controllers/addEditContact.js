@@ -238,7 +238,6 @@
 // };
 
 const mongoose = require("mongoose");
-const { format } = require('date-fns');
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
@@ -427,7 +426,7 @@ const addEditContact = async (req, res) => {
 
         } else {
           taskObj.createdAt = new Date();
-          contactData.tasks.push({
+          contactData.tasks.unshift({
             ...taskObj,
             taskIsCompleted: taskObj.taskIsCompleted ?? false,
           });
@@ -450,8 +449,8 @@ const addEditContact = async (req, res) => {
         taskDueDate: t.taskDueDate,
         taskDueTime: t.taskDueTime,
         taskIsCompleted: !!t.taskIsCompleted,
-        createdAt: format(new Date(t.createdAt), 'dd MMMM yyyy hh:mm a'),
-        updatedAt: format(new Date(t.updatedAt), 'dd MMMM yyyy hh:mm a'),
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt
       }));
     }
 
