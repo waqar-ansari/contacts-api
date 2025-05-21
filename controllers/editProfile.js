@@ -129,7 +129,7 @@ const path = require("path");
 
 // Edit Profile Controller
 const editProfile = async (req, res) => {
-  const { firstname, lastname, countryCode, number, email } = req.body;
+  const { firstname, lastname, phonenumbers, email } = req.body;
 
 
 
@@ -190,9 +190,7 @@ const editProfile = async (req, res) => {
 
     if (firstname) user.firstname = firstname;
     if (lastname) user.lastname = lastname;
-    if (countryCode && number) {
-      user.phonenumber = { countryCode, number };
-    }
+    if (phonenumbers) user.phonenumbers = phonenumbers;
     if (email) user.email = email;
 
     if (req.file) {
@@ -211,7 +209,7 @@ const editProfile = async (req, res) => {
         id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
-        phonenumber: user.phonenumber,
+        phonenumbers: user.phonenumbers,
         email: user.email,
         profileImageURL: user.profileImageURL,
       },

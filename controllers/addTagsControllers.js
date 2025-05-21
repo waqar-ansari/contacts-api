@@ -4,10 +4,11 @@ const User = require("../models/userModel");
 const addTags = async (req, res) => {
   try {
     const { tag } = req.body;
-    if (!tag) {
+
+    if (!tag || !Array.isArray(tag) || tag.length === 0) {
       return res
         .status(400)
-        .json({ status: "error", message: "Please provide a tag" });
+        .json({ status: "error", message: "Please provide an array of tags" });
     }
 
     const user = await User.findById(req.user._id);
@@ -17,24 +18,38 @@ const addTags = async (req, res) => {
         .json({ status: "error", message: "User not found" });
     }
 
-    const newTag = {
-      tag,
-      tag_id: new mongoose.Types.ObjectId(),
-    };
+    // Normalize input tags
+    const inputTags = tag.map(t => t.trim().toLowerCase());
 
-    user.tags.push(newTag);
+    // Get existing tag values from the user
+    const existingTags = user.tags.map(t => t.tag.toLowerCase());
 
-    await user.save();
+    const newTags = [];
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Tag added successfully",
-        data: newTag,
-      });
+    inputTags.forEach(t => {
+      if (!existingTags.includes(t)) {
+        const newTag = {
+          tag: t,
+          tag_id: new mongoose.Types.ObjectId(),
+        };
+        user.tags.push(newTag);
+        newTags.push(newTag);
+      }
+    });
+
+    if (newTags.length > 0) {
+      await user.save();
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "tag added successfully",
+      data: newTags,
+    });
+
   } catch (error) {
-    res.status(500).json({ status: "error", message: "Error adding tag" });
+    console.error("Add Tags Error:", error);
+    res.status(500).json({ status: "error", message: "Error adding tags" , "error": error});
   }
 };
 

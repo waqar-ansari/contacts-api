@@ -1,5 +1,23 @@
 const { Schema, model, mongoose } = require("mongoose");
 
+const taskSchema = new Schema(
+  {
+    task_id: {
+      type: mongoose.Types.ObjectId, // FIXED
+      default: () => new mongoose.Types.ObjectId(), // FIXED
+    },
+    taskTitle: String,
+    taskDescription: String,
+    taskDueDate: Date,
+    taskDueTime: String,
+    taskIsCompleted: { type: Boolean, default: false },
+  },
+  {
+    timestamps: true,
+    _id: false,
+  }
+);
+
 const contactSchema = new Schema(
   {
     contact_id: {
@@ -24,17 +42,20 @@ const contactSchema = new Schema(
     website: {
       type: String,
     },
-    phonenumbers: [
-      {
-        _id: false,
-        countryCode: {
-          type: String,
-        },
-        number: {
-          type: String,
-        },
-      },
-    ],
+    // phonenumbers: [
+    //   {
+    //     _id: false,
+    //     countryCode: {
+    //       type: String,
+    //     },
+    //     number: {
+    //       type: String,
+    //     },
+    //   },
+    // ],
+    phonenumbers: {
+      type: [String],
+    },
     contactImageURL: {
       type: String,
       default: "/images/defaultUserPic.png",
@@ -54,6 +75,10 @@ const contactSchema = new Schema(
         },
       },
     ],
+
+    tasks: [taskSchema],
+
+
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
