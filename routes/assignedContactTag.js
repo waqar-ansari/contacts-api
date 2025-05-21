@@ -1,7 +1,11 @@
 const { Router } = require("express");
-const { assignTagToContact } = require("../controllers/assignedContactTag");
+const { assignTagToContact, unassignTagFromContact } = require("../controllers/assignedContactTag");
 const router = Router();
 
-router.post("/", assignTagToContact);
+// Assign a tag
+router.post('/assign-tag', assignTagToContact);
+
+// Unassign a tag
+router.post('/unassign-tag', unassignTagFromContact);
 
 module.exports = router;

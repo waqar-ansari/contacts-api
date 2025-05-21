@@ -2,7 +2,7 @@ const Contact = require("../models/contactModel");
 
 const getContact = async (req, res) => {
   try {
-    const {page = 1, limit = 10, search, tag } = req.body;
+    const { page = 1, limit = 10, search, tag } = req.body;
 
     const skip = (page - 1) * limit;
 
@@ -33,10 +33,18 @@ const getContact = async (req, res) => {
     }
 
     // Apply tag filter only if it's a non-empty array or string
+    // if (Array.isArray(tag) && tag.length > 0) {
+    //   query.tags = { $elemMatch: { tag: { $in: tag } } };
+    // } else if (typeof tag === "string" && tag.trim() !== "") {
+    //   query.tags = { $elemMatch: { tag: tag.trim() } };
+    // }
+
+    // Apply tag filter only if it's a non-empty array or string
     if (Array.isArray(tag) && tag.length > 0) {
-      query.tags = { $elemMatch: { tag: { $in: tag } } };
+      // Find contacts where `tags.tag` contains ALL the tags in the array
+      query["tags.tag"] = { $all: tag };
     } else if (typeof tag === "string" && tag.trim() !== "") {
-      query.tags = { $elemMatch: { tag: tag.trim() } };
+      query["tags.tag"] = tag.trim();
     }
 
     // Fetch data with filters + pagination
