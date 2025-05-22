@@ -2,6 +2,37 @@ const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
 
+const whatsappSchema = new Schema(
+  {
+    whatsappMessage_id: {
+      type: mongoose.Types.ObjectId, // FIXED
+      default: () => new mongoose.Types.ObjectId(), // FIXED
+    },
+    whatsappMessageTitle: String,
+    whatsappMessage: String,
+  },
+  {
+    timestamps: true,
+    _id: false,
+  }
+);
+
+const emailSchema = new Schema(
+  {
+    email_id: {
+      type: mongoose.Types.ObjectId, // FIXED
+      default: () => new mongoose.Types.ObjectId(), // FIXED
+    },
+    emailTitle: String,
+    emailSubject: String,
+    emailBody: String,
+  },
+  {
+    timestamps: true,
+    _id: false,
+  }
+);
+
 const reminderSchema = new Schema(
   {
     title: {
@@ -25,6 +56,10 @@ const userSchema = new Schema(
 
     reminders: [reminderSchema],
 
+    whatsappMessages: [whatsappSchema],
+
+    emailMessages: [emailSchema],
+    
     firstname: {
       type: String,
       // default: "Dummy Firstname",
