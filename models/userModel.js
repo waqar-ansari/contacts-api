@@ -9,7 +9,7 @@ const whatsappTemplateSchema = new Schema(
       default: () => new mongoose.Types.ObjectId(),
     },
     whatsappTemplateTitle: String,
-    whatsappTemplate: String,
+    whatsappTemplateMessage: String,
     whatsappTemplateIsFavourite: {
       type: Boolean,
       default: false,

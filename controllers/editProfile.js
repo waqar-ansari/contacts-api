@@ -154,7 +154,7 @@ const editProfile = async (req, res) => {
       phonenumbers,
       whatsappTemplate_id,
       whatsappTemplateTitle,
-      whatsappTemplate,
+      whatsappTemplateMessage,
       whatsappTemplateIsFavourite,
       emailTemplate_id,
       emailTemplateTitle,
@@ -190,14 +190,14 @@ const editProfile = async (req, res) => {
     }
 
     // === WhatsApp Template: Add or Edit ===
-    if (whatsappTemplateTitle || whatsappTemplate || whatsappTemplate_id || typeof whatsappTemplateIsFavourite !== 'undefined') {
+    if (whatsappTemplateTitle || whatsappTemplateMessage || whatsappTemplate_id || typeof whatsappTemplateIsFavourite !== 'undefined') {
       if (whatsappTemplate_id) {
         const index = user.whatsappTemplates.findIndex(
           (tpl) => tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
         );
         if (index !== -1) {
           if (whatsappTemplateTitle) user.whatsappTemplates[index].whatsappTemplateTitle = whatsappTemplateTitle;
-          if (whatsappTemplate) user.whatsappTemplates[index].whatsappTemplate = whatsappTemplate;
+          if (whatsappTemplateMessage) user.whatsappTemplates[index].whatsappTemplateMessage = whatsappTemplateMessage;
           if (typeof whatsappTemplateIsFavourite !== 'undefined') {
             user.whatsappTemplates[index].whatsappTemplateIsFavourite = whatsappTemplateIsFavourite;
           }
@@ -208,7 +208,7 @@ const editProfile = async (req, res) => {
         user.whatsappTemplates.unshift({
           whatsappTemplate_id: new mongoose.Types.ObjectId(),
           whatsappTemplateTitle,
-          whatsappTemplate,
+          whatsappTemplateMessage,
           whatsappTemplateIsFavourite: typeof whatsappTemplateIsFavourite === 'boolean' ? whatsappTemplateIsFavourite : false,
         });
       }
