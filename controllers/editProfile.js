@@ -152,13 +152,15 @@ const editProfile = async (req, res) => {
       lastname,
       email,
       phonenumbers,
-      whatsappMessage_id,
-      whatsappMessageTitle,
-      whatsappMessage,
-      email_id,
-      emailTitle,
-      emailSubject,
-      emailBody,
+      whatsappTemplate_id,
+      whatsappTemplateTitle,
+      whatsappTemplate,
+      whatsappTemplateIsFavourite,
+      emailTemplate_id,
+      emailTemplateTitle,
+      emailTemplateSubject,
+      emailTemplateBody,
+      emailTemplateIsFavourite,
     } = req.body;
 
     const user = await User.findById(userId);
@@ -187,45 +189,56 @@ const editProfile = async (req, res) => {
       user.profileImageURL = "/public/images/defaultUserPic.png";
     }
 
-    // === WhatsApp Message: Add or Edit Single ===
-    if (whatsappMessage_id) {
-      const index = user.whatsappMessages.findIndex(
-        (msg) => msg.whatsappMessage_id?.toString() === whatsappMessage_id.toString()
-      );
-
-      if (index !== -1) {
-        if (whatsappMessageTitle) user.whatsappMessages[index].whatsappMessageTitle = whatsappMessageTitle;
-        if (whatsappMessage) user.whatsappMessages[index].whatsappMessage = whatsappMessage;
+    // === WhatsApp Template: Add or Edit ===
+    if (whatsappTemplateTitle || whatsappTemplate || whatsappTemplate_id || typeof whatsappTemplateIsFavourite !== 'undefined') {
+      if (whatsappTemplate_id) {
+        const index = user.whatsappTemplates.findIndex(
+          (tpl) => tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
+        );
+        if (index !== -1) {
+          if (whatsappTemplateTitle) user.whatsappTemplates[index].whatsappTemplateTitle = whatsappTemplateTitle;
+          if (whatsappTemplate) user.whatsappTemplates[index].whatsappTemplate = whatsappTemplate;
+          if (typeof whatsappTemplateIsFavourite !== 'undefined') {
+            user.whatsappTemplates[index].whatsappTemplateIsFavourite = whatsappTemplateIsFavourite;
+          }
+        } else {
+          return res.status(404).json({ status: "error", message: "WhatsApp template not found" });
+        }
       } else {
-        return res.status(404).json({ status: "error", message: "WhatsApp message not found" });
+        user.whatsappTemplates.unshift({
+          whatsappTemplate_id: new mongoose.Types.ObjectId(),
+          whatsappTemplateTitle,
+          whatsappTemplate,
+          whatsappTemplateIsFavourite: typeof whatsappTemplateIsFavourite === 'boolean' ? whatsappTemplateIsFavourite : false,
+        });
       }
-    } else {
-      user.whatsappMessages.unshift({
-        whatsappMessage_id: new mongoose.Types.ObjectId(),
-        whatsappMessageTitle,
-        whatsappMessage,
-      });
     }
-    // === Email Message: Add or Edit Single ===
-    if (email_id) {
-      const index = user.emailMessages.findIndex(
-        (msg) => msg.email_id?.toString() === email_id.toString()
-      );
 
-      if (index !== -1) {
-        if (emailTitle) user.emailMessages[index].emailTitle = emailTitle;
-        if (emailSubject) user.emailMessages[index].emailSubject = emailSubject;
-        if (emailBody) user.emailMessages[index].emailBody = emailBody;
+    // === Email Template: Add or Edit ===
+    if (emailTemplateTitle || emailTemplateSubject || emailTemplateBody || emailTemplate_id || typeof emailTemplateIsFavourite !== 'undefined') {
+      if (emailTemplate_id) {
+        const index = user.emailTemplates.findIndex(
+          (tpl) => tpl.emailTemplate_id?.toString() === emailTemplate_id.toString()
+        );
+        if (index !== -1) {
+          if (emailTemplateTitle) user.emailTemplates[index].emailTemplateTitle = emailTemplateTitle;
+          if (emailTemplateSubject) user.emailTemplates[index].emailTemplateSubject = emailTemplateSubject;
+          if (emailTemplateBody) user.emailTemplates[index].emailTemplateBody = emailTemplateBody;
+          if (typeof emailTemplateIsFavourite !== 'undefined') {
+            user.emailTemplates[index].emailTemplateIsFavourite = emailTemplateIsFavourite;
+          }
+        } else {
+          return res.status(404).json({ status: "error", message: "Email template not found" });
+        }
       } else {
-        return res.status(404).json({ status: "error", message: "Email message not found" });
+        user.emailTemplates.unshift({
+          emailTemplate_id: new mongoose.Types.ObjectId(),
+          emailTemplateTitle,
+          emailTemplateSubject,
+          emailTemplateBody,
+          emailTemplateIsFavourite: typeof emailTemplateIsFavourite === 'boolean' ? emailTemplateIsFavourite : false,
+        });
       }
-    } else {
-      user.emailMessages.unshift({
-        email_id: new mongoose.Types.ObjectId(),
-        emailTitle,
-        emailSubject,
-        emailBody,
-      });
     }
 
     await user.save();
@@ -240,8 +253,8 @@ const editProfile = async (req, res) => {
         email: user.email,
         phonenumbers: user.phonenumbers,
         profileImageURL: user.profileImageURL,
-        whatsappMessages: user.whatsappMessages,
-        emailMessages: user.emailMessages,
+        whatsappTemplates: user.whatsappTemplates,
+        emailTemplates: user.emailTemplates,
       },
     });
   } catch (error) {
@@ -249,5 +262,7 @@ const editProfile = async (req, res) => {
     return res.status(500).json({ status: "error", message: "Server error" });
   }
 };
+
+
 
 module.exports = { editProfile };

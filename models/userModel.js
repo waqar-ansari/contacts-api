@@ -2,14 +2,18 @@ const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
 
-const whatsappSchema = new Schema(
+const whatsappTemplateSchema = new Schema(
   {
-    whatsappMessage_id: {
-      type: mongoose.Types.ObjectId, // FIXED
-      default: () => new mongoose.Types.ObjectId(), // FIXED
+    whatsappTemplate_id: {
+      type: mongoose.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
     },
-    whatsappMessageTitle: String,
-    whatsappMessage: String,
+    whatsappTemplateTitle: String,
+    whatsappTemplate: String,
+    whatsappTemplateIsFavourite: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -17,21 +21,26 @@ const whatsappSchema = new Schema(
   }
 );
 
-const emailSchema = new Schema(
+const emailTemplateSchema = new Schema(
   {
-    email_id: {
-      type: mongoose.Types.ObjectId, // FIXED
-      default: () => new mongoose.Types.ObjectId(), // FIXED
+    emailTemplate_id: {
+      type: mongoose.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
     },
-    emailTitle: String,
-    emailSubject: String,
-    emailBody: String,
+    emailTemplateTitle: String,
+    emailTemplateSubject: String,
+    emailTemplateBody: String,
+    emailTemplateIsFavourite: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
     _id: false,
   }
 );
+
 
 const reminderSchema = new Schema(
   {
@@ -56,10 +65,10 @@ const userSchema = new Schema(
 
     reminders: [reminderSchema],
 
-    whatsappMessages: [whatsappSchema],
+    whatsappTemplates: [whatsappTemplateSchema],
 
-    emailMessages: [emailSchema],
-    
+    emailTemplates: [emailTemplateSchema],
+
     firstname: {
       type: String,
       // default: "Dummy Firstname",
