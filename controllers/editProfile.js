@@ -120,11 +120,10 @@
 // // };
 
 const path = require("path");
+const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
-const mongoose = require("mongoose");
-
 
 const uploadImageToS3 = async (file) => {
   const ext = path.extname(file.originalname);
@@ -168,101 +167,140 @@ const editProfile = async (req, res) => {
       return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    // --- Basic Info ---
-    if (firstname) user.firstname = firstname;
-    if (lastname) user.lastname = lastname;
-    if (email) user.email = email;
+    let updatedWhatsappTemplate = null;
+    let updatedEmailTemplate = null;
 
-    if (phonenumbers) {
-      try {
-        user.phonenumbers = JSON.parse(phonenumbers);
-      } catch {
-        user.phonenumbers = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
+    // === WhatsApp Template Edit ===
+    if (whatsappTemplate_id) {
+      const index = user.whatsappTemplates.findIndex(
+        tpl => tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
+      );
+
+      if (index !== -1) {
+        if (whatsappTemplateTitle) user.whatsappTemplates[index].whatsappTemplateTitle = whatsappTemplateTitle;
+        if (whatsappTemplateMessage) user.whatsappTemplates[index].whatsappTemplateMessage = whatsappTemplateMessage;
+        if (typeof whatsappTemplateIsFavourite !== 'undefined') {
+          user.whatsappTemplates[index].whatsappTemplateIsFavourite = whatsappTemplateIsFavourite;
+        }
+        updatedWhatsappTemplate = user.whatsappTemplates[index];
+      } else {
+        return res.status(404).json({ status: "error", message: "WhatsApp template not found" });
       }
     }
 
-    // --- Upload Profile Image ---
-    if (req.file) {
-      const profileImage = await uploadImageToS3(req.file);
-      user.profileImageURL = profileImage;
-    } else if (!user.profileImageURL) {
-      user.profileImageURL = "/public/images/defaultUserPic.png";
+    // === WhatsApp Template Add ===
+    if (!whatsappTemplate_id && whatsappTemplateTitle && whatsappTemplateMessage) {
+      const newWhatsappTemplate = {
+        whatsappTemplate_id: new mongoose.Types.ObjectId(),
+        whatsappTemplateTitle,
+        whatsappTemplateMessage,
+        whatsappTemplateIsFavourite: !!whatsappTemplateIsFavourite,
+      };
+      user.whatsappTemplates.push(newWhatsappTemplate);
+      updatedWhatsappTemplate = newWhatsappTemplate;
     }
 
-    // === WhatsApp Template: Add or Edit ===
-    if (whatsappTemplateTitle || whatsappTemplateMessage || whatsappTemplate_id || typeof whatsappTemplateIsFavourite !== 'undefined') {
-      if (whatsappTemplate_id) {
-        const index = user.whatsappTemplates.findIndex(
-          (tpl) => tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
-        );
-        if (index !== -1) {
-          if (whatsappTemplateTitle) user.whatsappTemplates[index].whatsappTemplateTitle = whatsappTemplateTitle;
-          if (whatsappTemplateMessage) user.whatsappTemplates[index].whatsappTemplateMessage = whatsappTemplateMessage;
-          if (typeof whatsappTemplateIsFavourite !== 'undefined') {
-            user.whatsappTemplates[index].whatsappTemplateIsFavourite = whatsappTemplateIsFavourite;
-          }
-        } else {
-          return res.status(404).json({ status: "error", message: "WhatsApp template not found" });
+    // === Email Template Edit ===
+    if (emailTemplate_id) {
+      const index = user.emailTemplates.findIndex(
+        tpl => tpl.emailTemplate_id?.toString() === emailTemplate_id.toString()
+      );
+
+      if (index !== -1) {
+        if (emailTemplateTitle) user.emailTemplates[index].emailTemplateTitle = emailTemplateTitle;
+        if (emailTemplateSubject) user.emailTemplates[index].emailTemplateSubject = emailTemplateSubject;
+        if (emailTemplateBody) user.emailTemplates[index].emailTemplateBody = emailTemplateBody;
+        if (typeof emailTemplateIsFavourite !== 'undefined') {
+          user.emailTemplates[index].emailTemplateIsFavourite = emailTemplateIsFavourite;
         }
+        updatedEmailTemplate = user.emailTemplates[index];
       } else {
-        user.whatsappTemplates.unshift({
-          whatsappTemplate_id: new mongoose.Types.ObjectId(),
-          whatsappTemplateTitle,
-          whatsappTemplateMessage,
-          whatsappTemplateIsFavourite: typeof whatsappTemplateIsFavourite === 'boolean' ? whatsappTemplateIsFavourite : false,
-        });
+        return res.status(404).json({ status: "error", message: "Email template not found" });
       }
     }
 
-    // === Email Template: Add or Edit ===
-    if (emailTemplateTitle || emailTemplateSubject || emailTemplateBody || emailTemplate_id || typeof emailTemplateIsFavourite !== 'undefined') {
-      if (emailTemplate_id) {
-        const index = user.emailTemplates.findIndex(
-          (tpl) => tpl.emailTemplate_id?.toString() === emailTemplate_id.toString()
-        );
-        if (index !== -1) {
-          if (emailTemplateTitle) user.emailTemplates[index].emailTemplateTitle = emailTemplateTitle;
-          if (emailTemplateSubject) user.emailTemplates[index].emailTemplateSubject = emailTemplateSubject;
-          if (emailTemplateBody) user.emailTemplates[index].emailTemplateBody = emailTemplateBody;
-          if (typeof emailTemplateIsFavourite !== 'undefined') {
-            user.emailTemplates[index].emailTemplateIsFavourite = emailTemplateIsFavourite;
-          }
-        } else {
-          return res.status(404).json({ status: "error", message: "Email template not found" });
+    // === Email Template Add ===
+    if (!emailTemplate_id && emailTemplateTitle && emailTemplateSubject && emailTemplateBody) {
+      const newEmailTemplate = {
+        emailTemplate_id: new mongoose.Types.ObjectId(),
+        emailTemplateTitle,
+        emailTemplateSubject,
+        emailTemplateBody,
+        emailTemplateIsFavourite: !!emailTemplateIsFavourite,
+      };
+      user.emailTemplates.push(newEmailTemplate);
+      updatedEmailTemplate = newEmailTemplate;
+    }
+
+    // === Update Basic Info ===
+    if (!whatsappTemplate_id && !emailTemplate_id && !whatsappTemplateTitle && !emailTemplateTitle) {
+      if (firstname) user.firstname = firstname;
+      if (lastname) user.lastname = lastname;
+      if (email) user.email = email;
+
+      if (phonenumbers) {
+        try {
+          user.phonenumbers = JSON.parse(phonenumbers);
+        } catch {
+          user.phonenumbers = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
         }
-      } else {
-        user.emailTemplates.unshift({
-          emailTemplate_id: new mongoose.Types.ObjectId(),
-          emailTemplateTitle,
-          emailTemplateSubject,
-          emailTemplateBody,
-          emailTemplateIsFavourite: typeof emailTemplateIsFavourite === 'boolean' ? emailTemplateIsFavourite : false,
-        });
+      }
+
+      if (req.file) {
+        const profileImage = await uploadImageToS3(req.file);
+        user.profileImageURL = profileImage;
+      } else if (!user.profileImageURL) {
+        user.profileImageURL = "/images/defaultUserPic.png";
       }
     }
 
     await user.save();
 
-    return res.status(200).json({
-      status: "success",
-      message: "Profile updated successfully",
-      data: {
+    // === Response ===
+    if (updatedWhatsappTemplate || updatedEmailTemplate) {
+      const responseData = {
         id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
         email: user.email,
         phonenumbers: user.phonenumbers,
         profileImageURL: user.profileImageURL,
-        whatsappTemplates: user.whatsappTemplates,
-        emailTemplates: user.emailTemplates,
-      },
-    });
+        templates: {},
+      };
+
+      if (updatedWhatsappTemplate) {
+        responseData.templates.whatsappTemplate = updatedWhatsappTemplate;
+      }
+
+      if (updatedEmailTemplate) {
+        responseData.templates.emailTemplate = updatedEmailTemplate;
+      }
+
+      return res.status(200).json({
+        status: "success",
+        message: "Template added or updated successfully",
+        data: responseData,
+      });
+    } else {
+      return res.status(200).json({
+        status: "success",
+        message: "Profile updated successfully",
+        data: {
+          id: user._id,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          phonenumbers: user.phonenumbers,
+          profileImageURL: user.profileImageURL,
+          whatsappTemplates: user.whatsappTemplates,
+          emailTemplates: user.emailTemplates,
+        },
+      });
+    }
   } catch (error) {
     console.error("Edit Profile Error:", error);
     return res.status(500).json({ status: "error", message: "Server error" });
   }
 };
-
-
 
 module.exports = { editProfile };
