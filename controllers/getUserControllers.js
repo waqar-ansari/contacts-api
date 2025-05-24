@@ -132,12 +132,13 @@ const getUserData = async (req, res) => {
     // WhatsApp Templates
     let whatsappTemplates = Array.isArray(data.whatsappTemplates) ? data.whatsappTemplates : [];
     if (search) {
+      const lowerSearch = search.toLowerCase();
       whatsappTemplates = whatsappTemplates.filter((t) =>
-        (t.title || "").toLowerCase().includes(search.toLowerCase())
+        (t.whatsappTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
+        (t.whatsappTemplateMessage || "").toLowerCase().includes(lowerSearch)
       );
     }
     const whatsappTotal = whatsappTemplates.length;
-    // const whatsappFavourite = whatsappTemplates.filter(t => t.whatsappTemplateIsFavourite);
     const whatsappTotalPages = Math.ceil(whatsappTotal / whatsappTemplateLimit);
     const whatsappPaginated = whatsappTemplates.slice(
       (whatsappTemplatePage - 1) * whatsappTemplateLimit,
@@ -147,12 +148,14 @@ const getUserData = async (req, res) => {
     // Email Templates
     let emailTemplates = Array.isArray(data.emailTemplates) ? data.emailTemplates : [];
     if (search) {
+      const lowerSearch = search.toLowerCase();
       emailTemplates = emailTemplates.filter((t) =>
-        (t.title || "").toLowerCase().includes(search.toLowerCase())
+        (t.emailTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
+        (t.emailTemplateSubject || "").toLowerCase().includes(lowerSearch) ||
+        (t.emailTemplateBody || "").toLowerCase().includes(lowerSearch)
       );
     }
     const emailTotal = emailTemplates.length;
-    // const emailFavourite = emailTemplates.filter(t => t.emailTemplateIsFavourite);
     const emailTotalPages = Math.ceil(emailTotal / emailTemplateLimit);
     const emailPaginated = emailTemplates.slice(
       (emailTemplatePage - 1) * emailTemplateLimit,
@@ -161,8 +164,6 @@ const getUserData = async (req, res) => {
 
     data.templates = {
       whatsappTemplates: {
-        // totalTemplate: whatsappTotal,
-        // favourite: whatsappFavourite,
         whatsappTemplatesData: whatsappPaginated,
         whatsappTemplatePagination: {
           currentPage: Number(whatsappTemplatePage),
@@ -171,8 +172,6 @@ const getUserData = async (req, res) => {
         }
       },
       emailTemplates: {
-        // totalTemplate: emailTotal,
-        // favourite: emailFavourite,
         emailTemplatesData: emailPaginated,
         emailTemplatePagination: {
           currentPage: Number(emailTemplatePage),
