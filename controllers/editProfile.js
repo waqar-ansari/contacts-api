@@ -167,8 +167,8 @@ const editProfile = async (req, res) => {
       return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    let updatedWhatsappTemplate = null;
-    let updatedEmailTemplate = null;
+    let updatedWhatsappTemplate;
+    let updatedEmailTemplate;
 
     // === WhatsApp Template Edit ===
     if (whatsappTemplate_id) {
@@ -265,15 +265,19 @@ const editProfile = async (req, res) => {
         email: user.email,
         phonenumbers: user.phonenumbers,
         profileImageURL: user.profileImageURL,
-        templates: {},
+        templates: {}
       };
 
       if (updatedWhatsappTemplate) {
-        responseData.templates.whatsappTemplates = updatedWhatsappTemplate;
+        responseData.templates.whatsappTemplates = {
+          whatsappTemplatesData: [updatedWhatsappTemplate]
+        };
       }
 
       if (updatedEmailTemplate) {
-        responseData.templates.emailTemplates = updatedEmailTemplate;
+        responseData.templates.emailTemplates = {
+          emailTemplatesData: [updatedEmailTemplate]
+        };
       }
 
       return res.status(200).json({
@@ -292,8 +296,8 @@ const editProfile = async (req, res) => {
           email: user.email,
           phonenumbers: user.phonenumbers,
           profileImageURL: user.profileImageURL,
-          whatsappTemplates: user.whatsappTemplates,
-          emailTemplates: user.emailTemplates,
+          // whatsappTemplates: user.whatsappTemplates,
+          // emailTemplates: user.emailTemplates,
         },
       });
     }
