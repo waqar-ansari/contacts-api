@@ -14,6 +14,6 @@ const router = Router();
  *         description: User fetched successfully
  */
 
-router.get("/", getUserData);
+router.post("/", getUserData);
 
 module.exports = router;

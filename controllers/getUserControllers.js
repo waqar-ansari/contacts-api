@@ -137,7 +137,7 @@ const getUserData = async (req, res) => {
       );
     }
     const whatsappTotal = whatsappTemplates.length;
-    const whatsappFavourite = whatsappTemplates.filter(t => t.whatsappTemplateIsFavourite);
+    // const whatsappFavourite = whatsappTemplates.filter(t => t.whatsappTemplateIsFavourite);
     const whatsappTotalPages = Math.ceil(whatsappTotal / whatsappTemplateLimit);
     const whatsappPaginated = whatsappTemplates.slice(
       (whatsappTemplatePage - 1) * whatsappTemplateLimit,
@@ -152,7 +152,7 @@ const getUserData = async (req, res) => {
       );
     }
     const emailTotal = emailTemplates.length;
-    const emailFavourite = emailTemplates.filter(t => t.emailTemplateIsFavourite);
+    // const emailFavourite = emailTemplates.filter(t => t.emailTemplateIsFavourite);
     const emailTotalPages = Math.ceil(emailTotal / emailTemplateLimit);
     const emailPaginated = emailTemplates.slice(
       (emailTemplatePage - 1) * emailTemplateLimit,
@@ -162,8 +162,8 @@ const getUserData = async (req, res) => {
     data.templates = {
       whatsappTemplates: {
         // totalTemplate: whatsappTotal,
-        favourite: whatsappFavourite,
-        data: whatsappPaginated,
+        // favourite: whatsappFavourite,
+        whatsappTemplatesData: whatsappPaginated,
         whatsappTemplatePagination: {
           currentPage: Number(whatsappTemplatePage),
           totalPages: whatsappTotalPages,
@@ -172,8 +172,8 @@ const getUserData = async (req, res) => {
       },
       emailTemplates: {
         // totalTemplate: emailTotal,
-        favourite: emailFavourite,
-        data: emailPaginated,
+        // favourite: emailFavourite,
+        emailTemplatesData: emailPaginated,
         emailTemplatePagination: {
           currentPage: Number(emailTemplatePage),
           totalPages: emailTotalPages,
