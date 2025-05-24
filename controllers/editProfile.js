@@ -269,11 +269,11 @@ const editProfile = async (req, res) => {
       };
 
       if (updatedWhatsappTemplate) {
-        responseData.templates.whatsappTemplate = updatedWhatsappTemplate;
+        responseData.templates.whatsappTemplates = updatedWhatsappTemplate;
       }
 
       if (updatedEmailTemplate) {
-        responseData.templates.emailTemplate = updatedEmailTemplate;
+        responseData.templates.emailTemplates = updatedEmailTemplate;
       }
 
       return res.status(200).json({
