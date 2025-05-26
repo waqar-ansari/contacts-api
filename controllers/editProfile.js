@@ -196,7 +196,7 @@ const editProfile = async (req, res) => {
         whatsappTemplateMessage,
         whatsappTemplateIsFavourite: !!whatsappTemplateIsFavourite,
       };
-      user.whatsappTemplates.push(newWhatsappTemplate);
+      user.whatsappTemplates.unshift(newWhatsappTemplate);
       updatedWhatsappTemplate = newWhatsappTemplate;
     }
 
@@ -228,7 +228,7 @@ const editProfile = async (req, res) => {
         emailTemplateBody,
         emailTemplateIsFavourite: !!emailTemplateIsFavourite,
       };
-      user.emailTemplates.push(newEmailTemplate);
+      user.emailTemplates.unshift(newEmailTemplate);
       updatedEmailTemplate = newEmailTemplate;
     }
 
