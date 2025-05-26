@@ -94,7 +94,8 @@ const User = require("../models/userModel");
 const getUserData = async (req, res) => {
   try {
     const {
-      search = "",
+      searchWhatsappTemplates = "",
+      searchEmailTemplates = "",
       whatsappTemplatePage = 1,
       whatsappTemplateLimit = 10,
       emailTemplatePage = 1,
@@ -131,8 +132,8 @@ const getUserData = async (req, res) => {
 
     // WhatsApp Templates
     let whatsappTemplates = Array.isArray(data.whatsappTemplates) ? data.whatsappTemplates : [];
-    if (search) {
-      const lowerSearch = search.toLowerCase();
+    if (searchWhatsappTemplates) {
+      const lowerSearch = searchWhatsappTemplates.toLowerCase();
       whatsappTemplates = whatsappTemplates.filter((t) =>
         (t.whatsappTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
         (t.whatsappTemplateMessage || "").toLowerCase().includes(lowerSearch)
@@ -147,8 +148,8 @@ const getUserData = async (req, res) => {
 
     // Email Templates
     let emailTemplates = Array.isArray(data.emailTemplates) ? data.emailTemplates : [];
-    if (search) {
-      const lowerSearch = search.toLowerCase();
+    if (searchEmailTemplates) {
+      const lowerSearch = searchEmailTemplates.toLowerCase();
       emailTemplates = emailTemplates.filter((t) =>
         (t.emailTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
         (t.emailTemplateSubject || "").toLowerCase().includes(lowerSearch) ||
