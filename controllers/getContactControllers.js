@@ -8,13 +8,13 @@ const getContact = async (req, res) => {
       search,
       tag,
       isFavourite = false,
-      favoriteContactsPage = 1,
-      favoriteContactsLimit = 10,
-      favoriteContactsSearch = ""
+      favouriteContactsPage = 1,
+      favouriteContactsLimit = 10,
+      favouriteContactsSearch = ""
     } = req.body;
 
     const skip = (page - 1) * limit;
-    const favoriteContactsSkip = (favoriteContactsPage - 1) * favoriteContactsLimit;
+    const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
 
     // Base query
     const baseQuery = {
@@ -45,18 +45,18 @@ const getContact = async (req, res) => {
         isFavourite: true,
       };
 
-      if (favoriteContactsSearch?.trim()) {
+      if (favouriteContactsSearch?.trim()) {
         favQuery.$or = [
-          { firstname: { $regex: favoriteContactsSearch, $options: "i" } },
-          { lastname: { $regex: favoriteContactsSearch, $options: "i" } },
-          { emailaddresses: { $elemMatch: { $regex: favoriteContactsSearch, $options: "i" } } },
-          { phonenumbers: { $elemMatch: { number: { $regex: favoriteContactsSearch, $options: "i" } } } }
+          { firstname: { $regex: favouriteContactsSearch, $options: "i" } },
+          { lastname: { $regex: favouriteContactsSearch, $options: "i" } },
+          { emailaddresses: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
+          { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } }
         ];
       }
 
       const rawFavouriteContacts = await Contact.find(favQuery)
-        .skip(favoriteContactsSkip)
-        .limit(parseInt(favoriteContactsLimit))
+        .skip(favouriteContactsSkip)
+        .limit(parseInt(favouriteContactsLimit))
         .select("-_id -createdBy -createdAt -updatedAt -__v");
 
       const favouriteContacts = rawFavouriteContacts.map((contact) => {
@@ -85,8 +85,8 @@ const getContact = async (req, res) => {
         // favouriteContacts: {
         data: favouriteContacts,
         pagination: {
-          currentPage: parseInt(favoriteContactsPage),
-          totalPages: Math.ceil(totalFavCount / favoriteContactsLimit),
+          currentPage: parseInt(favouriteContactsPage),
+          totalPages: Math.ceil(totalFavCount / favouriteContactsLimit),
           totalContacts: totalFavCount,
         },
         // },
