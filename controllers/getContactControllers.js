@@ -47,6 +47,16 @@ const getContact = async (req, res) => {
 
     const contacts = rawContacts.map((contact) => {
       const contactObj = contact.toObject();
+
+      contactObj.emailaddresses = (Array.isArray(contactObj.emailaddresses)
+        ? contactObj.emailaddresses.filter(email => email && email.trim() !== "")
+        : []);
+
+      // Clean phonenumbers (array of objects with .number)
+      contactObj.phonenumbers = (Array.isArray(contactObj.phonenumbers)
+        ? contactObj.phonenumbers.filter(number => number && number.trim() !== "")
+        : []);
+
       if (Array.isArray(contactObj.tags)) {
         contactObj.tags = contactObj.tags.map((tagObj) => tagObj.tag);
       }
@@ -87,6 +97,16 @@ const getContact = async (req, res) => {
 
     const favouriteContacts = rawFavouriteContacts.map((contact) => {
       const contactObj = contact.toObject();
+
+      contactObj.emailaddresses = (Array.isArray(contactObj.emailaddresses)
+        ? contactObj.emailaddresses.filter(email => email && email.trim() !== "")
+        : []);
+
+      // Clean phonenumbers (array of objects with .number)
+      contactObj.phonenumbers = (Array.isArray(contactObj.phonenumbers)
+        ? contactObj.phonenumbers.filter(number => number && number.trim() !== "")
+        : []);
+
       if (Array.isArray(contactObj.tags)) {
         contactObj.tags = contactObj.tags.map((tagObj) => tagObj.tag);
       }
