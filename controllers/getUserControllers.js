@@ -3,6 +3,23 @@
 
 // const getUserData = async (req, res) => {
 //   try {
+//     const {
+//       searchWhatsappTemplates = "",
+//       searchEmailTemplates = "",
+//       whatsappTemplatePage = 1,
+//       whatsappTemplateLimit = 10,
+//       emailTemplatePage = 1,
+//       emailTemplateLimit = 10,
+//       whatsappTemplateIsFavourite = false,
+//       emailTemplateIsFavourite = false,
+//       favouriteWhatsappTemplatesPage = 1,
+//       favouriteWhastappTemplatesContactsLimit = 10,
+//       favouriteWhatsappTemplatesContactsSearch = "",
+//       favouriteEmailTemplatesPage = 1,
+//       favouriteEmailTemplatesContactsLimit = 10,
+//       favouriteEmailTemplatesContactsSearch = ""
+//     } = req.body;
+
 //     const data = await User.findById(req.user._id)
 //       .select("-createdAt -updatedAt -__v -salt -password -tags -iScanned -scannedMe -reminders")
 //       .lean();
@@ -20,55 +37,73 @@
 //     ]);
 //     const tagCount = tagCountValue.length > 0 ? tagCountValue[0].tagCount : 0;
 
-//     // Prepare basic data
+//     // Prepare user data
 //     data.contactCount = contactCount;
 //     data.favouriteCount = favouriteCount;
 //     data.tagCount = tagCount;
+//     data.id = data._id;
+//     delete data._id;
 
-//     if (data) {
-//       data.id = data._id;
-//       delete data._id;
+//     if (data.tags) {
+//       data.tags.forEach((tag) => delete tag._id);
 //     }
 
-//     if (data && data.tags) {
-//       data.tags.forEach((tag) => {
-//         delete tag._id;
-//       });
-//     }
+//     const favouriteWhatsappTemplatesSkip = (favouriteWhatsappTemplatesPage - 1) * favouriteWhastappTemplatesContactsLimit;
 
-//     // Handle WhatsApp templates
-//     let whatsappFavouriteTemplates = [];
-//     let whatsappAllTemplates = [];
-//     if (Array.isArray(data.whatsappTemplates)) {
-//       whatsappAllTemplates = data.whatsappTemplates;
-//       whatsappFavouriteTemplates = data.whatsappTemplates.filter(
-//         (template) => template.whatsappTemplateIsFavourite === true
+//     const favouriteEmailTemplatesSkip = (favouriteEmailTemplatesPage - 1) * favouriteEmailTemplatesContactsLimit;
+
+//     // WhatsApp Templates
+//     let whatsappTemplates = Array.isArray(data.whatsappTemplates) ? data.whatsappTemplates : [];
+//     if (searchWhatsappTemplates) {
+//       const lowerSearch = searchWhatsappTemplates.toLowerCase();
+//       whatsappTemplates = whatsappTemplates.filter((t) =>
+//         (t.whatsappTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
+//         (t.whatsappTemplateMessage || "").toLowerCase().includes(lowerSearch)
 //       );
 //     }
+//     const whatsappTotal = whatsappTemplates.length;
+//     const whatsappTotalPages = Math.ceil(whatsappTotal / whatsappTemplateLimit);
+//     const whatsappPaginated = whatsappTemplates.slice(
+//       (whatsappTemplatePage - 1) * whatsappTemplateLimit,
+//       whatsappTemplatePage * whatsappTemplateLimit
+//     );
 
-//     // Handle Email templates
-//     let emailFavouriteTemplates = [];
-//     let emailAllTemplates = [];
-//     if (Array.isArray(data.emailTemplates)) {
-//       emailAllTemplates = data.emailTemplates;
-//       emailFavouriteTemplates = data.emailTemplates.filter(
-//         (template) => template.emailTemplateIsFavourite === true
+//     // Email Templates
+//     let emailTemplates = Array.isArray(data.emailTemplates) ? data.emailTemplates : [];
+//     if (searchEmailTemplates) {
+//       const lowerSearch = searchEmailTemplates.toLowerCase();
+//       emailTemplates = emailTemplates.filter((t) =>
+//         (t.emailTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
+//         (t.emailTemplateSubject || "").toLowerCase().includes(lowerSearch) ||
+//         (t.emailTemplateBody || "").toLowerCase().includes(lowerSearch)
 //       );
 //     }
+//     const emailTotal = emailTemplates.length;
+//     const emailTotalPages = Math.ceil(emailTotal / emailTemplateLimit);
+//     const emailPaginated = emailTemplates.slice(
+//       (emailTemplatePage - 1) * emailTemplateLimit,
+//       emailTemplatePage * emailTemplateLimit
+//     );
 
-//     // Final structure: put all templates inside `data.templates`
 //     data.templates = {
 //       whatsappTemplates: {
-//         favourite: whatsappFavouriteTemplates,
-//         allWhatsappTemplates: whatsappAllTemplates,
+//         whatsappTemplatesData: whatsappPaginated,
+//         whatsappTemplatePagination: {
+//           currentPage: Number(whatsappTemplatePage),
+//           totalPages: whatsappTotalPages,
+//           totalTemplates: whatsappTotal
+//         }
 //       },
 //       emailTemplates: {
-//         favourite: emailFavouriteTemplates,
-//         allEmailTemplates: emailAllTemplates,
-//       },
+//         emailTemplatesData: emailPaginated,
+//         emailTemplatePagination: {
+//           currentPage: Number(emailTemplatePage),
+//           totalPages: emailTotalPages,
+//           totalTemplates: emailTotal
+//         }
+//       }
 //     };
 
-//     // Remove original arrays from root
 //     delete data.whatsappTemplates;
 //     delete data.emailTemplates;
 
@@ -100,103 +135,198 @@ const getUserData = async (req, res) => {
       whatsappTemplateLimit = 10,
       emailTemplatePage = 1,
       emailTemplateLimit = 10,
+      whatsappTemplateIsFavourite,
+      emailTemplateIsFavourite,
     } = req.body;
 
-    const data = await User.findById(req.user._id)
-      .select("-createdAt -updatedAt -__v -salt -password -tags -iScanned -scannedMe -reminders")
-      .lean();
+    const isWhatsappFav = whatsappTemplateIsFavourite === true || whatsappTemplateIsFavourite === "true";
+    const isEmailFav = emailTemplateIsFavourite === true || emailTemplateIsFavourite === "true";
 
-    const contactCount = await Contact.countDocuments({ createdBy: data._id });
-    const favouriteCount = await Contact.countDocuments({
-      createdBy: data._id,
-      isFavourite: true,
-    });
+    const user = await User.findById(req.user._id).lean();
 
-    const tagCountValue = await User.aggregate([
-      { $match: { _id: data._id } },
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    const responseData = {};
+
+    const contactCount = await Contact.countDocuments({ createdBy: user._id });
+    const favouriteCount = await Contact.countDocuments({ createdBy: user._id, isFavourite: true });
+
+    const tagCountAgg = await User.aggregate([
+      { $match: { _id: user._id } },
       { $unwind: "$tags" },
       { $count: "tagCount" },
     ]);
-    const tagCount = tagCountValue.length > 0 ? tagCountValue[0].tagCount : 0;
+    const tagCount = tagCountAgg.length > 0 ? tagCountAgg[0].tagCount : 0;
 
-    // Prepare user data
-    data.contactCount = contactCount;
-    data.favouriteCount = favouriteCount;
-    data.tagCount = tagCount;
-    data.id = data._id;
-    delete data._id;
+    // Only return WhatsApp templates if specifically requested
+    if (isWhatsappFav && !isEmailFav) {
+      let whatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates : [];
+      whatsappTemplates = whatsappTemplates.filter(t => t.whatsappTemplateIsFavourite === true);
 
-    if (data.tags) {
-      data.tags.forEach((tag) => delete tag._id);
+      if (searchWhatsappTemplates.trim()) {
+        const search = searchWhatsappTemplates.toLowerCase();
+        whatsappTemplates = whatsappTemplates.filter(t =>
+          (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
+          (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
+        );
+      }
+
+      const total = whatsappTemplates.length;
+      const totalPages = Math.ceil(total / whatsappTemplateLimit);
+      const paginated = whatsappTemplates.slice(
+        (whatsappTemplatePage - 1) * whatsappTemplateLimit,
+        whatsappTemplatePage * whatsappTemplateLimit
+      );
+
+      return res.json({
+        status: "success",
+        message: "Favourite WhatsApp templates fetched successfully.",
+        data: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          contactCount,
+          favouriteCount,
+          tagCount,
+          "templates": {
+            whatsappTemplates: {
+              whatsappTemplatesData: paginated,
+              whatsappTemplatePagination: {
+                currentPage: Number(whatsappTemplatePage),
+                totalPages,
+                totalTemplates: total,
+              },
+            },
+          },
+        },
+      });
     }
+
+    // Only return Email templates if specifically requested
+    if (isEmailFav && !isWhatsappFav) {
+      let emailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates : [];
+      emailTemplates = emailTemplates.filter(t => t.emailTemplateIsFavourite === true);
+
+      if (searchEmailTemplates.trim()) {
+        const search = searchEmailTemplates.toLowerCase();
+        emailTemplates = emailTemplates.filter(t =>
+          (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
+          (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
+          (t.emailTemplateBody || "").toLowerCase().includes(search)
+        );
+      }
+
+      const total = emailTemplates.length;
+      const totalPages = Math.ceil(total / emailTemplateLimit);
+      const paginated = emailTemplates.slice(
+        (emailTemplatePage - 1) * emailTemplateLimit,
+        emailTemplatePage * emailTemplateLimit
+      );
+
+      return res.json({
+        status: "success",
+        message: "Favourite Email templates fetched successfully.",
+        data: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          contactCount,
+          favouriteCount,
+          tagCount,
+          "templates": {
+            emailTemplates: {
+              emailTemplatesData: paginated,
+              emailTemplatePagination: {
+                currentPage: Number(emailTemplatePage),
+                totalPages,
+                totalTemplates: total,
+              },
+            },
+          },
+
+        },
+      });
+    }
+
+    // If no specific favourite flags provided, return full data
+
+
+    const data = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      contactCount,
+      favouriteCount,
+      tagCount,
+      templates: {}
+    };
 
     // WhatsApp Templates
-    let whatsappTemplates = Array.isArray(data.whatsappTemplates) ? data.whatsappTemplates : [];
-    if (searchWhatsappTemplates) {
-      const lowerSearch = searchWhatsappTemplates.toLowerCase();
-      whatsappTemplates = whatsappTemplates.filter((t) =>
-        (t.whatsappTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
-        (t.whatsappTemplateMessage || "").toLowerCase().includes(lowerSearch)
+    let whatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates : [];
+    if (searchWhatsappTemplates.trim()) {
+      const search = searchWhatsappTemplates.toLowerCase();
+      whatsappTemplates = whatsappTemplates.filter(t =>
+        (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
+        (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
       );
     }
-    const whatsappTotal = whatsappTemplates.length;
-    const whatsappTotalPages = Math.ceil(whatsappTotal / whatsappTemplateLimit);
-    const whatsappPaginated = whatsappTemplates.slice(
+    const totalWhatsapp = whatsappTemplates.length;
+    const totalWhatsappPages = Math.ceil(totalWhatsapp / whatsappTemplateLimit);
+    const paginatedWhatsapp = whatsappTemplates.slice(
       (whatsappTemplatePage - 1) * whatsappTemplateLimit,
       whatsappTemplatePage * whatsappTemplateLimit
     );
 
     // Email Templates
-    let emailTemplates = Array.isArray(data.emailTemplates) ? data.emailTemplates : [];
-    if (searchEmailTemplates) {
-      const lowerSearch = searchEmailTemplates.toLowerCase();
-      emailTemplates = emailTemplates.filter((t) =>
-        (t.emailTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
-        (t.emailTemplateSubject || "").toLowerCase().includes(lowerSearch) ||
-        (t.emailTemplateBody || "").toLowerCase().includes(lowerSearch)
+    let emailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates : [];
+    if (searchEmailTemplates.trim()) {
+      const search = searchEmailTemplates.toLowerCase();
+      emailTemplates = emailTemplates.filter(t =>
+        (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
+        (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
+        (t.emailTemplateBody || "").toLowerCase().includes(search)
       );
     }
-    const emailTotal = emailTemplates.length;
-    const emailTotalPages = Math.ceil(emailTotal / emailTemplateLimit);
-    const emailPaginated = emailTemplates.slice(
+    const totalEmail = emailTemplates.length;
+    const totalEmailPages = Math.ceil(totalEmail / emailTemplateLimit);
+    const paginatedEmail = emailTemplates.slice(
       (emailTemplatePage - 1) * emailTemplateLimit,
       emailTemplatePage * emailTemplateLimit
     );
 
-    data.templates = {
-      whatsappTemplates: {
-        whatsappTemplatesData: whatsappPaginated,
-        whatsappTemplatePagination: {
-          currentPage: Number(whatsappTemplatePage),
-          totalPages: whatsappTotalPages,
-          totalTemplates: whatsappTotal
-        }
+    data.templates.whatsappTemplates = {
+      whatsappTemplatesData: paginatedWhatsapp,
+      whatsappTemplatePagination: {
+        currentPage: Number(whatsappTemplatePage),
+        totalPages: totalWhatsappPages,
+        totalTemplates: totalWhatsapp,
       },
-      emailTemplates: {
-        emailTemplatesData: emailPaginated,
-        emailTemplatePagination: {
-          currentPage: Number(emailTemplatePage),
-          totalPages: emailTotalPages,
-          totalTemplates: emailTotal
-        }
-      }
     };
 
-    delete data.whatsappTemplates;
-    delete data.emailTemplates;
+    data.templates.emailTemplates = {
+      emailTemplatesData: paginatedEmail,
+      emailTemplatePagination: {
+        currentPage: Number(emailTemplatePage),
+        totalPages: totalEmailPages,
+        totalTemplates: totalEmail,
+      },
+    };
 
     return res.json({
       status: "success",
-      message: "User fetched successfully.",
+      message: "User and templates fetched successfully.",
       data,
     });
   } catch (error) {
     console.error("Error fetching user:", error);
     return res.status(500).json({
       status: "error",
-      message: "Error fetching the User",
+      message: "Internal server error.",
     });
   }
 };
 
 module.exports = { getUserData };
+
