@@ -567,8 +567,10 @@ const addEditContact = async (req, res) => {
       meeting_id,
       meetingTitle,
       meetingDescription,
-      meetingDate,
-      meetingTime,
+      meetingStartDate,
+      meetingStartTime,
+      meetingEndDate,
+      meetingEndTime,
       meetingType,
       meetingLocation,
       meetingLink
@@ -658,7 +660,7 @@ const addEditContact = async (req, res) => {
     }
 
     // ---------- Handle Meeting ----------
-    const meetingProvided = meetingTitle || meetingDescription || meetingDate || meetingTime || meetingType;
+    const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
     let meetingObj = null;
     if (meetingProvided) {
       meetingObj = {};
@@ -671,8 +673,11 @@ const addEditContact = async (req, res) => {
 
       if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
       if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
-      if (meetingDate) meetingObj.meetingDate = meetingDate;
-      if (meetingTime) meetingObj.meetingTime = meetingTime;
+      if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
+      if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
+      if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
+      if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
+
       if (meetingType) meetingObj.meetingType = meetingType;
       if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
       if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
@@ -801,8 +806,10 @@ const addEditContact = async (req, res) => {
         meeting_id: m.meeting_id,
         meetingTitle: m.meetingTitle,
         meetingDescription: m.meetingDescription,
-        meetingDate: m.meetingDate,
-        meetingTime: m.meetingTime,
+        meetingStartDate: m.meetingStartDate,
+        meetingStartTime: m.meetingStartTime,
+        meetingEndDate: m.meetingEndDate,
+        meetingEndTime: m.meetingEndTime,
         meetingType: m.meetingType,
         meetingLocation: m.meetingLocation,
         meetingLink: m.meetingLink,

@@ -26,8 +26,10 @@ const meetingSchema = new Schema(
     },
     meetingTitle: String,
     meetingDescription: String,
-    meetingDate: Date,
-    meetingTime: String,
+    meetingStartDate: Date,
+    meetingStartTime: String,
+    meetingEndDate: String,
+    meetingEndTime: String,
     meetingType: {
       type: String,
       enum: ["online", "offline"],
