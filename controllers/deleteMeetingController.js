@@ -32,7 +32,6 @@ const deleteMeeting = async (req, res) => {
                 message: "Meeting not found in this contact or unauthorized access",
             });
         }
-        console.log(updatedContact);
 
 
         return res.status(200).json({
