@@ -18,6 +18,26 @@ const taskSchema = new Schema(
   }
 );
 
+const meetingSchema = new Schema(
+  {
+    meeting_id: {
+      type: mongoose.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
+    },
+    meetingTitle: String,
+    meetingDescription: String,
+    meetingDate: Date,
+    meetingTime: String,
+    meetingType: {
+      type: String,
+      enum: ["online", "offline"],
+    },
+    meetingLink: String,
+    meetingLocation: String,
+  },
+  { timestamps: true, _id: false }
+);
+
 const contactSchema = new Schema(
   {
     contact_id: {
@@ -77,6 +97,9 @@ const contactSchema = new Schema(
     ],
 
     tasks: [taskSchema],
+
+    meetings: [meetingSchema],
+
 
 
     createdBy: {
