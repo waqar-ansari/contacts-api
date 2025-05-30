@@ -57,7 +57,7 @@ const getContact = async (req, res) => {
       const rawFavouriteContacts = await Contact.find(favQuery)
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
-        .select("-_id -createdBy -createdAt -updatedAt -__v");
+        .select("-_id -createdBy -updatedAt -__v");
 
       const favouriteContacts = rawFavouriteContacts.map((contact) => {
         const contactObj = contact.toObject();
@@ -97,7 +97,7 @@ const getContact = async (req, res) => {
     const rawContacts = await Contact.find(baseQuery)
       .skip(skip)
       .limit(parseInt(limit))
-      .select("-_id -createdBy -createdAt -updatedAt -__v");
+      .select("-_id -createdBy -updatedAt -__v");
 
     const contacts = rawContacts.map((contact) => {
       const contactObj = contact.toObject();

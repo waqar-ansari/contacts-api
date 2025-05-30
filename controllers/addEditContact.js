@@ -553,6 +553,8 @@ const addEditContact = async (req, res) => {
       contact_id,
       firstname,
       lastname,
+      company,
+      designation,
       emailaddresses,
       phonenumbers,
       isFavourite,
@@ -699,6 +701,8 @@ const addEditContact = async (req, res) => {
       const contactPayload = {
         firstname,
         lastname,
+        company,
+        designation,
         emailaddresses,
         phonenumbers,
         contactImageURL: contactImage,
@@ -719,6 +723,8 @@ const addEditContact = async (req, res) => {
       const updateFields = {
         firstname,
         lastname,
+        company,
+        designation,
         emailaddresses,
         phonenumbers,
         isFavourite,
@@ -820,7 +826,7 @@ const addEditContact = async (req, res) => {
 
     delete responseData.createdBy;
     delete responseData._id;
-    delete responseData.createdAt;
+    // delete responseData.createdAt;
     delete responseData.updatedAt;
     delete responseData.__v;
 

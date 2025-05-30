@@ -55,6 +55,14 @@ const contactSchema = new Schema(
       type: String,
       // default: "Dummy Lastname",
     },
+    company: {
+      type: String,
+      // default: "Dummy Lastname",
+    },
+    designation: {
+      type: String,
+      // default: "Dummy Lastname",
+    },
     emailaddresses: {
       type: [String],
     },
