@@ -90,29 +90,29 @@ const getProfileEvents = async (req, res) => {
         const events = [];
 
         contacts.forEach((contact) => {
-            const contactName = contact.name || "Unnamed Contact";
+            // const contactName = contact.name || "Unnamed Contact";
 
             // Tasks
-            if (Array.isArray(contact.tasks)) {
-                contact.tasks.forEach((task) => {
-                    if (task.taskDueDate) {
-                        events.push({
-                            type: "task",
-                            event_id: task.task_id,
-                            // contact_id: contact._id,
-                            // contact_name: contactName,
-                            title: task.taskTitle,
-                            start: task.taskDueDate,
-                            end: task.taskDueDate,
-                            startTime: task.taskDueTime || null,
-                            endTime: task.taskDueTime || null,
-                            color: "#4CAF50", // green
-                            createdAt: task.createdAt,
-                            updatedAt: task.updatedAt,
-                        });
-                    }
-                });
-            }
+            // if (Array.isArray(contact.tasks)) {
+            //     contact.tasks.forEach((task) => {
+            //         if (task.taskDueDate) {
+            //             events.push({
+            //                 type: "task",
+            //                 event_id: task.task_id,
+            //                 // contact_id: contact._id,
+            //                 // contact_name: contactName,
+            //                 title: task.taskTitle,
+            //                 start: task.taskDueDate,
+            //                 end: task.taskDueDate,
+            //                 startTime: task.taskDueTime || null,
+            //                 endTime: task.taskDueTime || null,
+            //                 color: "#4CAF50", // green
+            //                 createdAt: task.createdAt,
+            //                 updatedAt: task.updatedAt,
+            //             });
+            //         }
+            //     });
+            // }
 
             // Meetings
             if (Array.isArray(contact.meetings)) {
