@@ -23,6 +23,7 @@ const contactRoutes = require("./routes/contactRoutes");
 const assignedContactTag = require("./routes/assignedContactTag");
 const getContactRoutes = require("./routes/getContactRoutes");
 const getContactEmailRoutes = require("./routes/getContactEmailRoutes");
+const getContactEventRoutes = require("./routes/getContactEventRoutes");
 const deleteContactRoutes = require("./routes/deleteContactRoutes");
 const deleteTaskRoutes = require("./routes/deleteTaskRoutes");
 const deleteMeetingRoutes = require("./routes/deleteMeetingRoutes");
@@ -68,6 +69,7 @@ app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
 app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
 app.use("/getContact", checkForAuthentication(), getContactRoutes);
 app.use("/getContactEmail", checkForAuthentication(), getContactEmailRoutes);
+app.use("/getContactEvent", checkForAuthentication(), getContactEventRoutes);
 // app.use("/addEditContact", checkForAuthentication(), contactRoutes);
 app.use(
   "/addEditContact",
