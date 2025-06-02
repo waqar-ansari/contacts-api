@@ -185,7 +185,9 @@ const getUserData = async (req, res) => {
         message: "Favourite WhatsApp templates fetched successfully.",
         data: {
           id: user._id,
-          name: user.name,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          phonenumbers: user.phonenumbers,
           email: user.email,
           contactCount,
           favouriteCount,
@@ -230,7 +232,9 @@ const getUserData = async (req, res) => {
         message: "Favourite Email templates fetched successfully.",
         data: {
           id: user._id,
-          name: user.name,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          phonenumbers: user.phonenumbers,
           email: user.email,
           contactCount,
           favouriteCount,
@@ -255,7 +259,9 @@ const getUserData = async (req, res) => {
 
     const data = {
       id: user._id,
-      name: user.name,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      phonenumbers: user.phonenumbers,
       email: user.email,
       contactCount,
       favouriteCount,
