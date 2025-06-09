@@ -3,71 +3,55 @@ const User = require("../models/userModel");
 // @desc Scan QR and save data
 // @route POST /api/scan
 exports.scanUser = async (req, res) => {
-    const { ScannerID, UserID } = req.body;
+    const { UserID, ScannerID } = req.body; // UserID = logged-in scanner, ScannerID = target being scanned
 
     try {
-        const scanner = await User.findById(ScannerID);
-        const scanned = await User.findById(UserID);
+        const user = await User.findById(UserID);         // the one who scanned
+        const scannedUser = await User.findById(ScannerID); // the one being scanned
 
-        if (!scanner || !scanned) {
+        if (!user || !scannedUser) {
             return res.status(404).json({ status: "error", message: "User not found" });
         }
 
-        // Ensure fields exist
-        if (!scanner.iScanned) scanner.iScanned = [];
-        if (!scanned.scannedMe) scanned.scannedMe = [];
+        // Initialize fields if not present
+        if (!Array.isArray(user.iScanned)) user.iScanned = [];
+        if (!Array.isArray(scannedUser.scannedMe)) scannedUser.scannedMe = [];
 
-        // Update relationships if not already added
-        if (!scanner.iScanned.includes(UserID)) {
-            scanner.iScanned.push(UserID);
-            await scanner.save();
+        let updated = false;
+
+        // Add scanned user to iScanned list
+        if (!user.iScanned.includes(ScannerID)) {
+            user.iScanned.push(ScannerID);
+            updated = true;
         }
 
-        if (!scanned.scannedMe.includes(ScannerID)) {
-            scanned.scannedMe.push(ScannerID);
-            await scanned.save();
+        // Add current user to scannedMe list of scanned user
+        if (!scannedUser.scannedMe.includes(UserID)) {
+            scannedUser.scannedMe.push(UserID);
+            updated = true;
+        }
+
+        if (updated) {
+            await user.save();
+            await scannedUser.save();
         }
 
         res.status(200).json({
             status: "success",
             message: "Scan successful",
             data: {
-                iScanned: scanner.iScanned,
-                scannedMe: scanner.scannedMe
+                iScanned: user.iScanned,
+                scannedMe: scannedUser.scannedMe,
             }
-
         });
 
     } catch (error) {
+        console.error(error);
         res.status(500).json({ status: "error", message: "Scan error" });
     }
 };
 
 
-// @desc Get my scan data
-// @route GET /api/scan/get_data
-// exports.getScanData = async (req, res) => {
-//     const userId = req.user._id;
-
-//     try {
-//         const user = await User.findById(userId)
-//             .populate("iScanned", "firstname lastname email profileImageURL")
-//             .populate("scannedMe", "firstname lastname email profileImageURL");
-
-//         if (!user) return res.status(404).json({ status: "error", message: "User not found" });
-
-//         res.json({
-//             status: "success",
-//             massage: "scanned data fetched",
-//             data: {
-//                 scannedMe: user.scannedMe,
-//                 iScanned: user.iScanned,
-//             }
-//         });
-//     } catch (err) {
-//         return res.status(500).json({ status: "error", massage: "error to fetch data" });
-//     }
-// };
 
 exports.getScanData = async (req, res) => {
     const userId = req.user._id;
@@ -81,27 +65,29 @@ exports.getScanData = async (req, res) => {
             return res.status(404).json({ status: "error", message: "User not found" });
         }
 
-        const iScannedUsers = user.iScanned.map((user) => ({
-            id: user._id,
-            firstname: user.firstname,
-            lastname: user.lastname,
-            email: user.email,
-            profileImageURL: user.profileImageURL,
+        const iScannedUsers = user.iScanned.map((scannedUser) => ({
+            id: scannedUser._id,
+            firstname: scannedUser.firstname,
+            lastname: scannedUser.lastname,
+            email: scannedUser.email,
+            profileImageURL: scannedUser.profileImageURL,
             iScanned: true,
         }));
 
-        const scannedMeUsers = user.scannedMe.map((user) => ({
-            id: user._id,
-            firstname: user.firstname,
-            lastname: user.lastname,
-            email: user.email,
-            profileImageURL: user.profileImageURL,
-            iScanned: false,
-        }));
+        const scannedMeUsers = user.scannedMe
+            .filter(u => !user.iScanned.some(scanned => scanned._id.equals(u._id))) // avoid duplicates
+            .map((scannedByUser) => ({
+                id: scannedByUser._id,
+                firstname: scannedByUser.firstname,
+                lastname: scannedByUser.lastname,
+                email: scannedByUser.email,
+                profileImageURL: scannedByUser.profileImageURL,
+                iScanned: false,
+            }));
 
         const combined = [...iScannedUsers, ...scannedMeUsers];
 
-        return res.json({
+        return res.status(200).json({
             status: "success",
             message: "Scan data fetched",
             data: combined,
