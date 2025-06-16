@@ -6,56 +6,17 @@ const mongoose = require("mongoose");
 
 const { generateOtp, sendEmailOtp } = require("../utils/otpUtils");
 
-const googleClient = new OAuth2Client("308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com");
+const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 
+// OTP Schema
+const Otp = mongoose.model("Otp", new mongoose.Schema({
+  email: String,
+  phonenumber: String,
+  otp: String,
+  createdAt: { type: Date, default: Date.now, index: { expires: 300 } },
+}));
 
 // STEP 1: Request OTP
-// const requestOtp = async (req, res) => {
-//   try {
-//     let { email = "" } = req.body;
-
-//     if (!email) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "Email is required",
-//       });
-//     }
-
-//     // Build dynamic query
-//     const query = [];
-//     if (email) query.push({ email });
-
-//     const existingUser = await User.findOne({ $or: query });
-
-//     if (existingUser) {
-//       return res.status(409).json({
-//         status: "error",
-//         message: "User already registered",
-//       });
-//     }
-
-//     // Remove previous OTPs
-//     await User.Otp.deleteMany({ $or: [{ email }] });
-
-//     const otpCode = generateOtp(); // e.g. "123456"
-
-//     await User.Otp.create({ email, otp: otpCode });
-
-//     if (email) await sendEmailOtp(email, otpCode);
-
-//     return res.json({
-//       status: "success",
-//       message: "OTP sent successfully",
-//     });
-//   } catch (err) {
-//     console.error("OTP error:", err);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Failed to send OTP",
-//     });
-//   }
-// };
-
 const requestOtp = async (req, res) => {
   try {
     let { email = "" } = req.body;
@@ -67,7 +28,11 @@ const requestOtp = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    // Build dynamic query
+    const query = [];
+    if (email) query.push({ email });
+
+    const existingUser = await User.findOne({ $or: query });
 
     if (existingUser) {
       return res.status(409).json({
@@ -76,27 +41,14 @@ const requestOtp = async (req, res) => {
       });
     }
 
-    // Remove previous OTPs from embedded Otp array (if any)
-    await User.updateMany(
-      {}, // remove from all documents (precaution, since user isn't registered yet)
-      { $pull: { Otp: { email } } }
-    );
+    // Remove previous OTPs
+    await Otp.deleteMany({ $or: [{ email }] });
 
-    // Create OTP
     const otpCode = generateOtp(); // e.g. "123456"
 
-    // Optionally: store it in a temp dummy user or wait till actual signup
+    await Otp.create({ email, otp: otpCode });
 
-    // Create a dummy user document just for storing OTP
-    await User.create({
-      email: email,
-      Otp: [{ email, otp: otpCode }],
-      password: "TEMP", // placeholder, you can skip validation or override
-      salt: "TEMP"
-    });
-
-    // Send OTP via email
-    await sendEmailOtp(email, otpCode);
+    if (email) await sendEmailOtp(email, otpCode);
 
     return res.json({
       status: "success",
@@ -107,11 +59,9 @@ const requestOtp = async (req, res) => {
     return res.status(500).json({
       status: "error",
       message: "Failed to send OTP",
-      error: err.message,
     });
   }
 };
-
 
 // STEP 2: Signup with OTP
 const saveSignupData = async (req, res) => {
@@ -141,24 +91,16 @@ const saveSignupData = async (req, res) => {
         });
       }
 
-      // Search embedded OTP inside any dummy user (if stored like that)
-      const otpHolderUser = await User.findOne({
-        Otp: {
-          $elemMatch: {
-            email: email.trim(),
-            otp: otp.trim(),
-          },
-        },
-      });
+      const otpMatch = await Otp.findOne({ email, otp });
 
-      if (!otpHolderUser) {
+      if (!otpMatch) {
         return res.status(400).json({
           status: "error",
           message: "Invalid or expired OTP",
         });
       }
 
-      const emailExists = await User.findOne({ email: email.trim() });
+      const emailExists = await User.findOne({ email });
       if (emailExists) {
         return res.status(409).json({
           status: "error",
@@ -166,17 +108,13 @@ const saveSignupData = async (req, res) => {
         });
       }
 
-      // Remove used OTPs from all users
-      await User.updateMany(
-        {},
-        { $pull: { Otp: { email: email.trim() } } }
-      );
+      await Otp.deleteMany({ email }); // remove OTP once used
     }
 
     // === PHONE REGISTRATION ===
     if (phonenumber.trim()) {
       const phoneExists = await User.findOne({
-        phonenumbers: { $in: [phonenumber.trim()] },
+        phonenumbers: { $in: [phonenumber] },
       });
 
       if (phoneExists) {
@@ -187,12 +125,11 @@ const saveSignupData = async (req, res) => {
       }
     }
 
-    // === Create New User ===
     const newUserData = {
       password,
       firstname,
       lastname,
-      phonenumbers: phonenumber.trim() ? [phonenumber.trim()] : [],
+      phonenumbers: phonenumber ? [phonenumber] : [],
     };
 
     if (email.trim()) {
@@ -220,7 +157,6 @@ const saveSignupData = async (req, res) => {
     });
   }
 };
-
 
 
 

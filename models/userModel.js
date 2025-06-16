@@ -22,9 +22,13 @@ const whatsappTemplateSchema = new Schema(
 );
 
 const OtpSchema = new mongoose.Schema({
-  email: String,
-  otp: String,
-  createdAt: { type: Date, default: Date.now, index: { expires: 300 } } // 5 min expiry
+  email: { type: String },
+  otp: { type: String },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    expires: 300, // auto-delete after 5 mins
+  },
 });
 
 const emailTemplateSchema = new Schema(
