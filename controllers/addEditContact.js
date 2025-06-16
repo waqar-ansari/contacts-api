@@ -843,8 +843,6 @@ const addEditContact = async (req, res) => {
       message = "Task updated successfully";
     } else if (taskProvided) {
       message = "Task created successfully";
-    } else if (tagsProvided) {
-      message = "Tags created/updated successfully";
     } else {
       message = isCreating ? "Contact created successfully" : "Contact updated successfully";
     }
