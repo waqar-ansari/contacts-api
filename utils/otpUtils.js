@@ -31,30 +31,7 @@ async function sendEmailOtp(email, otp) {
   }
 }
 
-async function sendSmsOtp(phonenumber, otp) {
-  try {
-    const response = await axios.post(
-      "https://api.msg91.com/api/v5/otp",
-      {
-        mobile: `91${phonenumber}`,
-        template_id: "your_template_id",
-        authkey: "your_msg91_authkey",
-        otp: otp,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-    console.log("SMS OTP sent to", phonenumber, response.data);
-  } catch (error) {
-    console.error("SMS send error:", error.response?.data || error.message);
-  }
-}
-
 module.exports = {
   generateOtp,
   sendEmailOtp,
-  sendSmsOtp,
 };

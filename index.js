@@ -63,7 +63,8 @@ app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
 app.use("/deleteMeeting", checkForAuthentication(), deleteMeetingRoutes);
 app.use("/deleteTemplate", checkForAuthentication(), deleteTemplateRoutes);
 app.use("/getUser", checkForAuthentication(), getUserRoutes);
-app.use("/addTag", checkForAuthentication(), addTagRoutes);
+app.use("/addTag", checkForAuthentication(), upload.fields([{ name: "icons", maxCount: 10 }]), // <-- fix here
+  addTagRoutes);
 app.use("/getTag", checkForAuthentication(), getTagRoutes);
 app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
 app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
@@ -75,6 +76,7 @@ app.use(
   "/addEditContact",
   checkForAuthentication(),
   upload.single("contactImage"),
+  upload.fields([{ name: "icons", maxCount: 10 }]),
   contactRoutes
 );
 app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);

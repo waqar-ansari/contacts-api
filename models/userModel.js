@@ -21,6 +21,12 @@ const whatsappTemplateSchema = new Schema(
   }
 );
 
+const OtpSchema = new mongoose.Schema({
+  email: String,
+  otp: String,
+  createdAt: { type: Date, default: Date.now, index: { expires: 300 } } // 5 min expiry
+});
+
 const emailTemplateSchema = new Schema(
   {
     emailTemplate_id: {
@@ -69,6 +75,8 @@ const userSchema = new Schema(
 
     emailTemplates: [emailTemplateSchema],
 
+    Otp: [OtpSchema],
+
     firstname: {
       type: String,
       // default: "Dummy Firstname",
@@ -79,8 +87,10 @@ const userSchema = new Schema(
     },
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
+      trim: true,
+      // default: null, // ✅ makes sure null is used instead of ""
     },
     // tags: [
     //   {
@@ -104,6 +114,9 @@ const userSchema = new Schema(
         },
         tag: {
           type: String,
+        },
+        icon: {
+          type: String, // Will now hold emoji character
         },
       },
     ],
@@ -173,23 +186,23 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-userSchema.static(
-  "matchPasswordAndGenerateToken",
-  async function (email, password) {
-    const user = await this.findOne({ email });
-
-    if (!user) throw new Error("User not found");
-    const salt = user.salt;
-    const hashedPassword = user.password;
-    const userProvidedHash = createHmac("sha256", salt)
-      .update(password)
-      .digest("hex");
-    if (hashedPassword !== userProvidedHash)
-      throw new Error("Password not matched");
-    const token = createTokenforUser(user);
-    return token;
+userSchema.static("matchPasswordAndGenerateToken", async function ({ email, phonenumber, password }) {
+  if (!password || (!email && !phonenumber)) {
+    throw new Error("Email or phone number and password are required");
   }
-);
+
+  const query = email
+    ? { email }
+    : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
+
+  const user = await this.findOne(query);
+  if (!user) throw new Error("User not found");
+
+  const hash = createHmac("sha256", user.salt).update(password).digest("hex");
+  if (hash !== user.password) throw new Error("Password not matched");
+
+  return createTokenforUser(user);
+});
 
 const User = model("User", userSchema);
 module.exports = User;

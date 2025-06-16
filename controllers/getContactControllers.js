@@ -55,6 +55,7 @@ const getContact = async (req, res) => {
       }
 
       const rawFavouriteContacts = await Contact.find(favQuery)
+        .sort({ createdAt: -1 }) // Show newest first
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
         .select("-_id -createdBy -updatedAt -__v");
@@ -95,6 +96,7 @@ const getContact = async (req, res) => {
 
     // Normal all contact fetch
     const rawContacts = await Contact.find(baseQuery)
+      .sort({ createdAt: -1 }) // Show newest first
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -createdBy -updatedAt -__v");

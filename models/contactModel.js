@@ -98,10 +98,14 @@ const contactSchema = new Schema(
       {
         _id: false,
         tag_id: {
-          type: Schema.Types.ObjectId,
+          type: mongoose.Schema.Types.ObjectId,
+          default: () => new mongoose.Types.ObjectId(),
         },
         tag: {
           type: String,
+        },
+        icon: {
+          type: String, // URL to S3
         },
       },
     ],

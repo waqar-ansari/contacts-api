@@ -1,91 +1,277 @@
-
-const User = require("../models/userModel");
 const { OAuth2Client } = require("google-auth-library");
 const appleSignin = require("apple-signin-auth");
 const { createTokenforUser } = require("../services/authentication");
+const User = require("../models/userModel");
+const mongoose = require("mongoose");
+
+const { generateOtp, sendEmailOtp } = require("../utils/otpUtils");
 
 const googleClient = new OAuth2Client("308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com");
 
-const saveSignupData = async (req, res) => {
-  try {
-    const { email, password, firstname, lastname } = req.body;
 
-    if (!email || !password) {
+// STEP 1: Request OTP
+// const requestOtp = async (req, res) => {
+//   try {
+//     let { email = "" } = req.body;
+
+//     if (!email) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: "Email is required",
+//       });
+//     }
+
+//     // Build dynamic query
+//     const query = [];
+//     if (email) query.push({ email });
+
+//     const existingUser = await User.findOne({ $or: query });
+
+//     if (existingUser) {
+//       return res.status(409).json({
+//         status: "error",
+//         message: "User already registered",
+//       });
+//     }
+
+//     // Remove previous OTPs
+//     await User.Otp.deleteMany({ $or: [{ email }] });
+
+//     const otpCode = generateOtp(); // e.g. "123456"
+
+//     await User.Otp.create({ email, otp: otpCode });
+
+//     if (email) await sendEmailOtp(email, otpCode);
+
+//     return res.json({
+//       status: "success",
+//       message: "OTP sent successfully",
+//     });
+//   } catch (err) {
+//     console.error("OTP error:", err);
+//     return res.status(500).json({
+//       status: "error",
+//       message: "Failed to send OTP",
+//     });
+//   }
+// };
+
+const requestOtp = async (req, res) => {
+  try {
+    let { email = "" } = req.body;
+
+    if (!email) {
       return res.status(400).json({
         status: "error",
-        message: "email and password is required"
+        message: "Email is required",
       });
     }
 
     const existingUser = await User.findOne({ email });
+
     if (existingUser) {
-      return res.status(409).json({ status: "error", message: "User already registered" });
+      return res.status(409).json({
+        status: "error",
+        message: "User already registered",
+      });
     }
 
-    const newUser = await User.create({ email, password, firstname, lastname });
+    // Remove previous OTPs from embedded Otp array (if any)
+    await User.updateMany(
+      {}, // remove from all documents (precaution, since user isn't registered yet)
+      { $pull: { Otp: { email } } }
+    );
 
-    if (!newUser) {
-      return res.status(500).json({ status: "error", message: "User registration failed" });
-    }
+    // Create OTP
+    const otpCode = generateOtp(); // e.g. "123456"
 
-    return res.status(201).json({ status: "success", message: "User registered successfully" });
+    // Optionally: store it in a temp dummy user or wait till actual signup
 
-  } catch (error) {
-    return res.status(500).json({ status: "error", message: "Something went wrong during registration"});
+    // Create a dummy user document just for storing OTP
+    await User.create({
+      email: email,
+      Otp: [{ email, otp: otpCode }],
+      password: "TEMP", // placeholder, you can skip validation or override
+      salt: "TEMP"
+    });
+
+    // Send OTP via email
+    await sendEmailOtp(email, otpCode);
+
+    return res.json({
+      status: "success",
+      message: "OTP sent successfully",
+    });
+  } catch (err) {
+    console.error("OTP error:", err);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to send OTP",
+      error: err.message,
+    });
   }
 };
 
-const unifiedLogin = async (req, res) => {
-  try {
-    const { email, password, googleToken, appleToken } = req.body;
 
-    // 🔐 Email & Password Login
-    if (email && password && !googleToken && !appleToken) {
-      try {
-        const token = await User.matchPasswordAndGenerateToken(email, password);
-        return res.json({
-          status: "success",
-          message: "Login successful",
-          data: { token }
-        });
-      } catch (error) {
-        return res.status(401).json({
+// STEP 2: Signup with OTP
+const saveSignupData = async (req, res) => {
+  try {
+    const {
+      email = "",
+      phonenumber = "",
+      password,
+      firstname = "",
+      lastname = "",
+      otp = ""
+    } = req.body;
+
+    if (!password || (!email && !phonenumber)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Password and either email or phone number are required",
+      });
+    }
+
+    // === EMAIL REGISTRATION ===
+    if (email.trim()) {
+      if (!otp.trim()) {
+        return res.status(400).json({
           status: "error",
-          message: "Invalid email or password",
+          message: "OTP is required for email registration",
+        });
+      }
+
+      // Search embedded OTP inside any dummy user (if stored like that)
+      const otpHolderUser = await User.findOne({
+        Otp: {
+          $elemMatch: {
+            email: email.trim(),
+            otp: otp.trim(),
+          },
+        },
+      });
+
+      if (!otpHolderUser) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid or expired OTP",
+        });
+      }
+
+      const emailExists = await User.findOne({ email: email.trim() });
+      if (emailExists) {
+        return res.status(409).json({
+          status: "error",
+          message: "User with this email already exists",
+        });
+      }
+
+      // Remove used OTPs from all users
+      await User.updateMany(
+        {},
+        { $pull: { Otp: { email: email.trim() } } }
+      );
+    }
+
+    // === PHONE REGISTRATION ===
+    if (phonenumber.trim()) {
+      const phoneExists = await User.findOne({
+        phonenumbers: { $in: [phonenumber.trim()] },
+      });
+
+      if (phoneExists) {
+        return res.status(409).json({
+          status: "error",
+          message: "User with this phone number already exists",
         });
       }
     }
 
-    // 🔐 Google Login
-    if (googleToken && !email && !password && !appleToken) {
+    // === Create New User ===
+    const newUserData = {
+      password,
+      firstname,
+      lastname,
+      phonenumbers: phonenumber.trim() ? [phonenumber.trim()] : [],
+    };
+
+    if (email.trim()) {
+      newUserData.email = email.trim();
+    }
+
+    const user = await User.create(newUserData);
+
+    return res.status(201).json({
+      status: "success",
+      message: "User registered successfully",
+      data: {
+        _id: user._id,
+        email: user.email || null,
+        phonenumbers: user.phonenumbers,
+      },
+    });
+
+  } catch (error) {
+    console.error("Signup error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Signup failed",
+      error: error.message,
+    });
+  }
+};
+
+
+
+
+
+// Unified Login
+const unifiedLogin = async (req, res) => {
+  try {
+    const { email = "", phonenumber = "", password = "", googleToken, appleToken } = req.body;
+
+    // === EMAIL or PHONENUMBER + PASSWORD ===
+    if ((email || phonenumber) && password && !googleToken && !appleToken) {
+      try {
+        const token = await User.matchPasswordAndGenerateToken({ email, phonenumber, password });
+        return res.json({ status: "success", message: "Login successful", data: { token } });
+      } catch (err) {
+        return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
+      }
+    }
+
+    // === GOOGLE LOGIN ===
+    if (googleToken && !email && !password && !appleToken && !phonenumber) {
       try {
         const ticket = await googleClient.verifyIdToken({
           idToken: googleToken,
-          audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
+          // audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
+          audience: "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com",
         });
 
         const { email, name } = ticket.getPayload();
-
         let user = await User.findOne({ email });
+
         if (!user) {
           user = await User.create({ email, firstname: name, provider: "google" });
         }
 
         const token = createTokenforUser(user);
         return res.json({ status: "success", message: "Google login successful", data: { token } });
+      } catch (err) {
+        console.log(err);
 
-      } catch (error) {
         return res.status(500).json({ status: "error", message: "Google login failed" });
       }
     }
 
-    // 🔐 Apple Login
-    if (appleToken && !email && !password && !googleToken) {
+    // === APPLE LOGIN ===
+    if (appleToken && !email && !password && !googleToken && !phonenumber) {
       try {
         let id_token = appleToken;
 
         if (!id_token.includes(".")) {
-          const decoded = Buffer.from(id_token, 'base64').toString('utf8');
+          const decoded = Buffer.from(id_token, "base64").toString("utf8");
           if (!decoded.includes(".")) {
             return res.status(400).json({ message: "Invalid Apple token format" });
           }
@@ -99,6 +285,7 @@ const unifiedLogin = async (req, res) => {
 
         const appleEmail = appleUser.email || "noemail@apple.com";
         let user = await User.findOne({ email: appleEmail });
+
         if (!user) {
           user = await User.create({
             email: appleEmail,
@@ -110,20 +297,19 @@ const unifiedLogin = async (req, res) => {
 
         const token = createTokenforUser(user);
         return res.json({ status: "success", message: "Apple login successful", data: { token } });
-
-      } catch (error) {
+      } catch (err) {
         return res.status(500).json({ status: "error", message: "Apple login failed" });
       }
     }
 
     return res.status(400).json({ status: "error", message: "Invalid login request" });
-
   } catch (err) {
     return res.status(500).json({ status: "error", message: "Login failed" });
   }
 };
 
 module.exports = {
+  requestOtp,
   saveSignupData,
   unifiedLogin,
 };

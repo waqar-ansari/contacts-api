@@ -1,5 +1,6 @@
 const { Router } = require("express");
 const {
+  requestOtp,
   saveSignupData,
   unifiedLogin,
 } = require("../controllers/userControllers");
@@ -43,7 +44,10 @@ const router = Router();
  *       409:
  *         description: User already registered
  */
-router.post("/signup", saveSignupData);
+router.post("/signup/request-otp", requestOtp);
+
+router.post("/signup/verify", saveSignupData);
+
 
 /**
  * @swagger
