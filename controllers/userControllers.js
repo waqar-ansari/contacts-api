@@ -158,9 +158,6 @@ const saveSignupData = async (req, res) => {
   }
 };
 
-
-
-
 // Unified Login
 const unifiedLogin = async (req, res) => {
   try {
