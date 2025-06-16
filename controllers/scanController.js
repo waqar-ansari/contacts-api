@@ -53,13 +53,62 @@ exports.scanUser = async (req, res) => {
 
 
 
+// exports.getScanData = async (req, res) => {
+//     const userId = req.user._id;
+
+//     try {
+//         const user = await User.findById(userId)
+//             .populate("iScanned", "firstname lastname email profileImageURL")
+//             .populate("scannedMe", "firstname lastname email profileImageURL");
+
+//         if (!user) {
+//             return res.status(404).json({ status: "error", message: "User not found" });
+//         }
+
+//         const iScannedUsers = user.iScanned.map((scannedUser) => ({
+//             id: scannedUser._id,
+//             firstname: scannedUser.firstname,
+//             lastname: scannedUser.lastname,
+//             email: scannedUser.email,
+//             phonenumbers: scannedUser.phonenumbers,
+//             profileImageURL: scannedUser.profileImageURL,
+//             iScanned: true,
+//         }));
+//         console.log(iScannedUsers);
+
+//         const scannedMeUsers = user.scannedMe
+//             .filter(u => !user.iScanned.some(scanned => scanned._id.equals(u._id))) // avoid duplicates
+//             .map((scannedByUser) => ({
+//                 id: scannedByUser._id,
+//                 firstname: scannedByUser.firstname,
+//                 lastname: scannedByUser.lastname,
+//                 email: scannedByUser.email,
+//                 phonenumbers: scannedUser.phonenumbers,
+//                 profileImageURL: scannedByUser.profileImageURL,
+//                 iScanned: false,
+//             }));
+
+//         const combined = [...iScannedUsers, ...scannedMeUsers];
+
+//         return res.status(200).json({
+//             status: "success",
+//             message: "Scan data fetched",
+//             data: combined,
+//         });
+//     } catch (err) {
+//         console.error(err);
+//         return res.status(500).json({ status: "error", message: "Failed to fetch scan data" });
+//     }
+// };
+
+
 exports.getScanData = async (req, res) => {
     const userId = req.user._id;
 
     try {
         const user = await User.findById(userId)
-            .populate("iScanned", "firstname lastname email profileImageURL")
-            .populate("scannedMe", "firstname lastname email profileImageURL");
+            .populate("iScanned", "firstname lastname email profileImageURL phonenumbers")
+            .populate("scannedMe", "firstname lastname email profileImageURL phonenumbers");
 
         if (!user) {
             return res.status(404).json({ status: "error", message: "User not found" });
@@ -70,6 +119,7 @@ exports.getScanData = async (req, res) => {
             firstname: scannedUser.firstname,
             lastname: scannedUser.lastname,
             email: scannedUser.email,
+            phonenumbers: scannedUser.phonenumbers,
             profileImageURL: scannedUser.profileImageURL,
             iScanned: true,
         }));
@@ -81,6 +131,7 @@ exports.getScanData = async (req, res) => {
                 firstname: scannedByUser.firstname,
                 lastname: scannedByUser.lastname,
                 email: scannedByUser.email,
+                phonenumbers: scannedByUser.phonenumbers,
                 profileImageURL: scannedByUser.profileImageURL,
                 iScanned: false,
             }));

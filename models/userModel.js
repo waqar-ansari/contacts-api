@@ -155,7 +155,7 @@ const userSchema = new Schema(
 
     profileImageURL: {
       type: String,
-      default: "/images/defaultUserPic.png",
+      default: "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/profileImages/defaultImage.jpeg ",
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
