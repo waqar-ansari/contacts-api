@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const axios = require("axios"); // Only if using MSG91
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();

@@ -41,7 +41,7 @@ const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const { error } = require("console");
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 app.use(cors());
 
@@ -76,16 +76,15 @@ app.use(
   "/addEditContact",
   checkForAuthentication(),
   upload.single("contactImage"),
-  upload.fields([{ name: "icons", maxCount: 10 }]),
   contactRoutes
 );
 app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
 
 
 app.use("/sign", checkForAuthentication(), signRoutes);
-app.use("/api", authRoutes);
+app.use("/password", authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
-app.use("/api/scan", checkForAuthentication(), scanRoutes);
+app.use("/scan", checkForAuthentication(), scanRoutes);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 
 app.use("/check", (req, res) => {
@@ -100,7 +99,7 @@ app.use("/", (req, res) => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }
