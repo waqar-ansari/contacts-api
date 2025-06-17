@@ -11,6 +11,7 @@ const getTags = async (req, res) => {
     const userTags = user.tags.map((tag) => ({
       tag_id: tag.tag_id,
       tag: tag.tag,
+      emoji: tag.emoji, // Ensure icon is always present
     }));
 
     res
