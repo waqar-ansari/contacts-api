@@ -29,7 +29,7 @@ const deleteTaskRoutes = require("./routes/deleteTaskRoutes");
 const deleteMeetingRoutes = require("./routes/deleteMeetingRoutes");
 const deleteTemplateRoutes = require("./routes/deleteTemplateRoutes");
 const deleteUserRoutes = require("./routes/deleteUserRoutes");
-const addTagRoutes = require("./routes/addTagRoutes");
+const addEditTagRoutes = require("./routes/addEditTagRoutes");
 const getTagRoutes = require("./routes/getTagRoutes");
 const getUserRoutes = require("./routes/getUserRoutes");
 const deleteTagRoutes = require("./routes/deleteTagRoutes");
@@ -41,7 +41,7 @@ const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const { error } = require("console");
-// const PORT = process.env.PORT;
+const PORT = process.env.PORT;
 
 app.use(cors());
 
@@ -63,8 +63,7 @@ app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
 app.use("/deleteMeeting", checkForAuthentication(), deleteMeetingRoutes);
 app.use("/deleteTemplate", checkForAuthentication(), deleteTemplateRoutes);
 app.use("/getUser", checkForAuthentication(), getUserRoutes);
-app.use("/addTag", checkForAuthentication(), upload.fields([{ name: "icons", maxCount: 10 }]), // <-- fix here
-  addTagRoutes);
+app.use("/addEditTag", checkForAuthentication(), addEditTagRoutes);
 app.use("/getTag", checkForAuthentication(), getTagRoutes);
 app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
 app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
@@ -99,7 +98,7 @@ app.use("/", (req, res) => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }

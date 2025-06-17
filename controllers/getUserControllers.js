@@ -152,6 +152,13 @@ const getUserData = async (req, res) => {
 
     const contactCount = await Contact.countDocuments({ createdBy: user._id });
     const favouriteCount = await Contact.countDocuments({ createdBy: user._id, isFavourite: true });
+    const totalWhatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates.length : 0;
+    const totalEmailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates.length : 0;
+    const totalTemplates = totalWhatsappTemplates + totalEmailTemplates;
+
+    const totalScans =
+      (Array.isArray(user.iScanned) ? user.iScanned.length : 0) +
+      (Array.isArray(user.scannedMe) ? user.scannedMe.length : 0);
 
     const tagCountAgg = await User.aggregate([
       { $match: { _id: user._id } },
@@ -192,6 +199,8 @@ const getUserData = async (req, res) => {
           profileImageURL: user.profileImageURL,
           contactCount,
           favouriteCount,
+          totalTemplates,
+          totalScans,
           tagCount,
           "templates": {
             whatsappTemplates: {
@@ -240,6 +249,8 @@ const getUserData = async (req, res) => {
           profileImageURL: user.profileImageURL,
           contactCount,
           favouriteCount,
+          totalTemplates,
+          totalScans,
           tagCount,
           "templates": {
             emailTemplates: {
@@ -268,6 +279,8 @@ const getUserData = async (req, res) => {
       profileImageURL: user.profileImageURL,
       contactCount,
       favouriteCount,
+      totalTemplates,
+      totalScans,
       tagCount,
       templates: {}
     };

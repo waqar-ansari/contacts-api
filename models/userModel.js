@@ -135,11 +135,6 @@ const userSchema = new Schema(
           tag_id: new mongoose.Types.ObjectId(),
           tag: "Friends",
           emoji: "⚽"
-        },
-        {
-          tag_id: new mongoose.Types.ObjectId(),
-          tag: "Animation",
-          emoji: "▶️"
         }
       ]
     },
