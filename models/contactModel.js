@@ -104,7 +104,7 @@ const contactSchema = new Schema(
         tag: {
           type: String,
         },
-        icon: {
+        emoji: {
           type: String, // URL to S3
         },
       },

@@ -1,5 +1,5 @@
 const { Router } = require("express")
-const { addEditTag } = require("../controllers/addEditTagControllers")
+const { addTag } = require("../controllers/addTagControllers")
 const router = Router()
 
 
@@ -26,6 +26,6 @@ const router = Router()
 
 
 
-router.post("/", addEditTag)
+router.post("/", addTag)
 
 module.exports = router

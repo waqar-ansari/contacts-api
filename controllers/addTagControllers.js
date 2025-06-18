@@ -74,7 +74,7 @@
 const { mongoose } = require("mongoose");
 const User = require("../models/userModel");
 
-const addEditTag = async (req, res) => {
+const addTag = async (req, res) => {
   try {
     const tagsArray = req.body;
 
@@ -85,7 +85,6 @@ const addEditTag = async (req, res) => {
       });
     }
 
-    // ✅ Find user
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({
@@ -94,69 +93,50 @@ const addEditTag = async (req, res) => {
       });
     }
 
-    const existingTags = user.tags.map((t) => t.tag.toLowerCase());
+    const existingTagMap = new Map(user.tags.map(t => [t.tag.toLowerCase(), true]));
     const newTags = [];
-    const updatedTags = [];
     const skippedTags = [];
 
     for (const item of tagsArray) {
       const tagText = item.tag?.trim();
-      const emoji = item.emoji || "";
-      const tagId = item.tag_id;
+      const emoji = item.emoji?.trim() || "";
 
       if (!tagText) continue;
 
-      if (tagId) {
-        // 🔁 Edit existing tag
-        const index = user.tags.findIndex(t => t.tag_id.toString() === tagId);
-        if (index !== -1) {
-          user.tags[index].tag = tagText;
-          user.tags[index].icon = emoji;
-          updatedTags.push(user.tags[index]);
-        } else {
-          skippedTags.push(tagText);
-        }
-      } else {
-        // ➕ Add new tag if not duplicate
-        const lowerTagText = tagText.toLowerCase();
-        if (existingTags.includes(lowerTagText)) {
-          skippedTags.push(lowerTagText);
-          continue;
-        }
-
-        const newTag = {
-          tag_id: new mongoose.Types.ObjectId(),
-          tag: tagText,
-          icon: emoji,
-        };
-
-        user.tags.push(newTag);
-        newTags.push(newTag);
+      const lowerTagText = tagText.toLowerCase();
+      if (existingTagMap.has(lowerTagText)) {
+        skippedTags.push(lowerTagText);
+        continue;
       }
+
+      const newTag = {
+        tag_id: new mongoose.Types.ObjectId(),
+        tag: tagText,
+        emoji,
+      };
+
+      user.tags.push(newTag);
+      newTags.push(newTag);
     }
 
     await user.save();
 
     return res.status(200).json({
       status: "success",
-      message: "Tags processed successfully",
-      data: {
-        tagAdded: newTags,
-        tagUpdated: updatedTags,
-        // skipped: skippedTags,
-      }
-
+      message: "Tags added successfully",
+      data: newTags,
     });
   } catch (error) {
-    console.error("Add/Edit Tags Error:", error);
+    console.error("Add Tags Error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Error processing tags",
+      message: "Error adding tags",
       error: error.message,
     });
   }
 };
 
-module.exports = { addEditTag };
+
+module.exports = { addTag };
 
 

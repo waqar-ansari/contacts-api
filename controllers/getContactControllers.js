@@ -73,7 +73,10 @@ const getContact = async (req, res) => {
           : []);
 
         if (Array.isArray(contactObj.tags)) {
-          contactObj.tags = contactObj.tags.map((tagObj) => tagObj.tag);
+          contactObj.tags = contactObj.tags.map((tagObj) => ({
+            tag: tagObj.tag,
+            emoji: tagObj.emoji
+          }));
         }
         return contactObj;
       });
@@ -114,7 +117,10 @@ const getContact = async (req, res) => {
         : []);
 
       if (Array.isArray(contactObj.tags)) {
-        contactObj.tags = contactObj.tags.map((tagObj) => tagObj.tag);
+        contactObj.tags = contactObj.tags.map((tagObj) => ({
+          tag: tagObj.tag,
+          emoji: tagObj.emoji
+        }));
       }
       return contactObj;
     });
