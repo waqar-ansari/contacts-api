@@ -70,6 +70,12 @@ const userSchema = new Schema(
 
     emailTemplates: [emailTemplateSchema],
 
+    serialNumber: {
+      type: String,
+      unique: true,
+      index: true,
+    },
+
     firstname: {
       type: String,
       // default: "Dummy Firstname",
@@ -138,6 +144,27 @@ const userSchema = new Schema(
         }
       ]
     },
+
+    userInfo: {
+      helps: {
+        type: [String],
+        default: []
+      },
+      companyName: {
+        type: String,
+        default: ""
+      },
+      isFirstCRM: {
+        type: Boolean,
+        default: false
+      },
+      industry: {
+        type: String,
+        enum: ["Agency", "Real Estate", "Software/Technology", "Financial Services"],
+        default: "Agency" // or any of the valid options
+      }
+    },
+
 
     // phonenumbers: [
     //   {

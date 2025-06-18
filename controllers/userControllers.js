@@ -3,7 +3,7 @@ const appleSignin = require("apple-signin-auth");
 const { createTokenforUser } = require("../services/authentication");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
-
+const { getNextSerialNumber } = require("../utils/serialUtils");
 const { generateOtp, sendEmailOtp } = require("../utils/otpUtils");
 
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
@@ -132,6 +132,9 @@ const saveSignupData = async (req, res) => {
       phonenumbers: phonenumber ? [phonenumber] : [],
     };
 
+    const serialNumber = await getNextSerialNumber();
+    newUserData.serialNumber = serialNumber;
+
     if (email.trim()) {
       newUserData.email = email.trim();
     }
@@ -182,11 +185,22 @@ const unifiedLogin = async (req, res) => {
           audience: "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com",
         });
 
-        const { email, name } = ticket.getPayload();
+        const { email } = ticket.getPayload();
         let user = await User.findOne({ email });
 
+        // if (!user) {
+        //   user = await User.create({ email, firstname: firstName, lastname: lastName, provider: "google" });
+        // }
+
         if (!user) {
-          user = await User.create({ email, firstname: name, provider: "google" });
+          const serialNumber = await getNextSerialNumber();
+          user = await User.create({
+            email,
+            firstname: ticket.getPayload().given_name || "Google",
+            lastname: ticket.getPayload().family_name || "User",
+            provider: "google",
+            serialNumber
+          });
         }
 
         const token = createTokenforUser(user);
@@ -219,12 +233,23 @@ const unifiedLogin = async (req, res) => {
         const appleEmail = appleUser.email || "noemail@apple.com";
         let user = await User.findOne({ email: appleEmail });
 
+        // if (!user) {
+        //   user = await User.create({
+        //     email: appleEmail,
+        //     provider: "apple",
+        //     firstname: appleUser.firstName || "Apple",
+        //     lastname: appleUser.lastName || "User",
+        //   });
+        // }
+
         if (!user) {
+          const serialNumber = await getNextSerialNumber();
           user = await User.create({
             email: appleEmail,
             provider: "apple",
             firstname: appleUser.firstName || "Apple",
             lastname: appleUser.lastName || "User",
+            serialNumber
           });
         }
 
