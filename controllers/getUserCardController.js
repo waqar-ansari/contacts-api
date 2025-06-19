@@ -3,7 +3,6 @@ const User = require("../models/userModel");
 exports.getUserInfo = async (req, res) => {
   try {
     const profileId = req.params.profileId; // e.g., "yash02"
-    console.log("Received profileId:", profileId);
 
     if (!profileId) {
       return res.status(400).json({
@@ -24,9 +23,6 @@ exports.getUserInfo = async (req, res) => {
 
     const firstname = match[1];
     const serialNumber = match[2]; // keep as string
-
-    console.log("Extracted firstname:", firstname);
-    console.log("Extracted serial number:", serialNumber);
 
     const user = await User.findOne({
       firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match
