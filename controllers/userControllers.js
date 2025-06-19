@@ -355,7 +355,7 @@ const saveSignupData = async (req, res) => {
 
     // === Send Verification Email if email exists ===
     if (newUser.email && newUser.emailVerificationToken) {
-      const verificationLink = `https://100rjobf76.execute-api.eu-north-1.amazonaws.com/verify-email?token=${newUser.emailVerificationToken}`;
+      const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}`;
       await sendVerificationEmail(newUser.email, verificationLink);
     }
 
