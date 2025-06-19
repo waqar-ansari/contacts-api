@@ -44,9 +44,9 @@ const router = Router();
  *       409:
  *         description: User already registered
  */
-router.post("/signup/request-otp", requestOtp);
+// router.post("/signup/request-otp", requestOtp);
 
-router.post("/signup/verify", saveSignupData);
+router.post("/signup", saveSignupData);
 
 
 /**

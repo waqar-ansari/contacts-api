@@ -92,6 +92,8 @@ app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
 
+
+
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });

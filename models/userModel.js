@@ -91,6 +91,8 @@ const userSchema = new Schema(
       trim: true,
       // default: null, // ✅ makes sure null is used instead of ""
     },
+    emailVerificationToken: String,
+    isVerified: { type: Boolean, default: false },
     // tags: [
     //   {
     //     _id: false,

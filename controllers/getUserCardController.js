@@ -27,7 +27,7 @@ exports.getUserInfo = async (req, res) => {
     const user = await User.findOne({
       firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match
       serialNumber,
-    }).select("firstname lastname email phonenumbers");
+    }).select("firstname lastname email phonenumbers profileImageURL");
 
     if (!user) {
       return res.status(404).json({
