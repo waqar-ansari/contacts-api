@@ -2,7 +2,8 @@ const User = require("../models/userModel");
 
 exports.getUserInfo = async (req, res) => {
   try {
-    const profileId = req.params.profileId; // e.g., "ravi2"
+    const profileId = req.params.profileId; // e.g., "yash02"
+    console.log("Received profileId:", profileId);
 
     if (!profileId) {
       return res.status(400).json({
@@ -11,24 +12,26 @@ exports.getUserInfo = async (req, res) => {
       });
     }
 
-    // Extract the serial number from the end of the string
-    const match = profileId.match(/^(.+?)(\d+)$/); // Match name + digits at the end
+    // Match letters (firstname) + at least 2 digits (serial)
+    const match = profileId.match(/^([a-zA-Z]+)(\d{2,})$/);
+
     if (!match) {
       return res.status(400).json({
         status: "error",
-        message: "Invalid profile ID format. Expected format: {name}{serialNumber}, e.g., ravi2",
+        message: "Invalid profile ID format. Expected format: {firstname}{serialNumber}, e.g., yash02",
       });
     }
 
-    const serialNumber = parseInt(match[2], 10);
-    if (isNaN(serialNumber)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Serial number is invalid or missing.",
-      });
-    }
+    const firstname = match[1];
+    const serialNumber = match[2]; // keep as string
 
-    const user = await User.findOne({ serialNumber }).select("firstname lastname email phonenumbers");
+    console.log("Extracted firstname:", firstname);
+    console.log("Extracted serial number:", serialNumber);
+
+    const user = await User.findOne({
+      firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match
+      serialNumber,
+    }).select("firstname lastname email phonenumbers");
 
     if (!user) {
       return res.status(404).json({
@@ -51,5 +54,6 @@ exports.getUserInfo = async (req, res) => {
     });
   }
 };
+
 
 
