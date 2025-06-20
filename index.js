@@ -45,7 +45,7 @@ const reminderRoutes = require("./routes/reminderRoutes");
 const userInfoRoutes = require("./routes/userInfoRoutes");
 const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const { error } = require("console");
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 app.use(cors());
 
@@ -108,7 +108,7 @@ app.use("/", (req, res) => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }
