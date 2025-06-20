@@ -4,258 +4,10 @@ const { createTokenforUser } = require("../services/authentication");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
 const { getNextSerialNumber } = require("../utils/serialUtils");
-const { generateOtp, sendEmailOtp } = require("../utils/emailUtils");
 const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
-
-
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
-
-
-// // STEP 2: Signup with OTP
-// const saveSignupData = async (req, res) => {
-//   try {
-//     const {
-//       email = "",
-//       phonenumber = "",
-//       password,
-//       firstname = "",
-//       lastname = "",
-//       otp = ""
-//     } = req.body;
-
-//     if (!password || (!email && !phonenumber)) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "Password and either email or phone number are required",
-//       });
-//     }
-
-//     // === EMAIL REGISTRATION ===
-//     if (email.trim()) {
-//       if (!otp.trim()) {
-//         return res.status(400).json({
-//           status: "error",
-//           message: "OTP is required for email registration",
-//         });
-//       }
-
-//       const otpMatch = await Otp.findOne({ email, otp });
-
-//       if (!otpMatch) {
-//         return res.status(400).json({
-//           status: "error",
-//           message: "Invalid or expired OTP",
-//         });
-//       }
-
-//       const emailExists = await User.findOne({ email });
-//       if (emailExists) {
-//         return res.status(409).json({
-//           status: "error",
-//           message: "User with this email already exists",
-//         });
-//       }
-
-//       await Otp.deleteMany({ email }); // remove OTP once used
-//     }
-
-//     // === PHONE REGISTRATION ===
-//     if (phonenumber.trim()) {
-//       const phoneExists = await User.findOne({
-//         phonenumbers: { $in: [phonenumber] },
-//       });
-
-//       if (phoneExists) {
-//         return res.status(409).json({
-//           status: "error",
-//           message: "User with this phone number already exists",
-//         });
-//       }
-//     }
-
-//     const newUserData = {
-//       password,
-//       firstname,
-//       lastname,
-//       phonenumbers: phonenumber ? [phonenumber] : [],
-//     };
-
-//     const serialNumber = await getNextSerialNumber();
-//     newUserData.serialNumber = serialNumber;
-
-//     if (email.trim()) {
-//       newUserData.email = email.trim();
-//     }
-
-//     // Generate QR code
-//     const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber);
-//     newUserData.qrCode = qrCode;
-
-//     const user = await User.create(newUserData);
-
-
-
-//     return res.status(201).json({
-//       status: "success",
-//       message: "User registered successfully",
-//       data: {
-//         _id: user._id,
-//         email: user.email || null,
-//         phonenumbers: user.phonenumbers,
-//       },
-//     });
-
-//   } catch (error) {
-//     console.error("Signup error:", error);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Signup failed",
-//       error: error.message,
-//     });
-//   }
-// };
-
-
-
-// const saveSignupData = async (req, res) => {
-//   try {
-//     const {
-//       email = "",
-//       phonenumber = "",
-//       password,
-//       firstname = "",
-//       lastname = "",
-//       verifyToken = ""
-//     } = req.body;
-
-//     // === PART 1: Handle Email Verification Token ===
-//     if (verifyToken) {
-//       const user = await User.findOne({ emailVerificationToken: verifyToken });
-
-//       if (!user) {
-//         return res.status(400).json({
-//           status: "error",
-//           message: "Invalid or expired verification token",
-//         });
-//       }
-
-//       // Mark email as verified
-//       user.isVerified = true;
-//       user.emailVerificationToken = undefined;
-
-//       // Save QR code if not created yet
-//       if (!user.qrCode) {
-//         const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber);
-//         user.qrCode = qrCode;
-//       }
-
-//       await user.save();
-
-//       return res.status(200).json({
-//         status: "success",
-//         message: "Email verified successfully. You can now log in.",
-//       });
-//     }
-
-//     // === PART 2: Signup (store unverified user and send verification email) ===
-//     if (!password || (!email && !phonenumber)) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "Password and either email or phone number are required",
-//       });
-//     }
-
-//     // Email existence check
-//     if (email.trim()) {
-//       const emailExists = await User.findOne({ email });
-//       if (emailExists) {
-//         return res.status(409).json({
-//           status: "error",
-//           message: "User with this email already exists",
-//         });
-//       }
-//     }
-
-//     // Phone existence check
-//     if (phonenumber.trim()) {
-//       const phoneExists = await User.findOne({
-//         phonenumbers: { $in: [phonenumber] },
-//       });
-
-//       if (phoneExists) {
-//         return res.status(409).json({
-//           status: "error",
-//           message: "User with this phone number already exists",
-//         });
-//       }
-//     }
-
-//     // Generate serial number
-//     const serialNumber = await getNextSerialNumber();
-
-//     // Generate email verification token
-//     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
-
-//     // const newUser = await User.create({
-//     //   email,
-//     //   password,
-//     //   firstname,
-//     //   lastname,
-//     //   phonenumbers: phonenumber ? [phonenumber] : [],
-//     //   serialNumber,
-//     //   emailVerificationToken,
-//     //   isVerified: false
-//     // });
-
-//     const newUserData = {
-//       password,
-//       firstname,
-//       lastname,
-//       phonenumbers: phonenumber ? [phonenumber] : [],
-//       serialNumber,
-//       emailVerificationToken,
-//       isVerified: false,
-//     };
-
-//     // Only add email if it's provided and not empty
-//     if (email && email.trim() !== "") {
-//       newUserData.email = email.trim();
-//     }
-
-//     const newUser = await User.create(newUserData);
-
-
-
-//     // Build verification link
-//     const verificationLink = `https://100rjobf76.execute-api.eu-north-1.amazonaws.com/verify-email?token=${emailVerificationToken}`;
-//     await sendVerificationEmail(email, verificationLink);
-
-//     return res.status(201).json({
-//       status: "success",
-//       message: "Signup started. Please verify your email to activate your account.",
-//       data: {
-//         _id: newUser._id,
-//         email: newUser.email,
-//         phonenumbers: newUser.phonenumbers,
-//       },
-//     });
-
-//   } catch (error) {
-//     console.error("Signup error:", error);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Signup failed",
-//       error: error.message,
-//     });
-//   }
-// };
-
-
-
-
-// Unified Login
 
 const saveSignupData = async (req, res) => {
   try {
@@ -283,11 +35,95 @@ const saveSignupData = async (req, res) => {
       user.emailVerificationToken = undefined;
 
       if (!user.qrCode) {
-        const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber);
+        const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          phonenumbers: user.phonenumbers,
+          email: user.email,
+          provider: "local"
+        });
+
         user.qrCode = qrCode;
       }
 
+      // ✅ UPDATED SCANNER LOGIC
+      // const matchingUsers = await User.find({
+      //   scannedMe: {
+      //     $elemMatch: {
+      //       $or: [
+      //         { email: user.email },
+      //         { phonenumber: user.phonenumbers?.[0] || "" }
+      //       ]
+      //     }
+      //   }
+      // });
+
+      // ✅ UPDATED SCANNER LOGIC (fixed for email signup)
+      let matchConditions = [];
+      if (user.email) {
+        matchConditions.push({ email: user.email });
+      }
+
+      console.log(user.email);
+
+      if (user.phonenumbers?.[0]) {
+        matchConditions.push({ phonenumber: user.phonenumbers[0] });
+      }
+
+      const matchingUsers = matchConditions.length > 0
+        ? await User.find({
+          scannedMe: {
+            $elemMatch: {
+              $or: matchConditions
+            }
+          }
+        })
+        : [];
+
+      console.log(matchingUsers);
+
+
+      for (const scanner of matchingUsers) {
+        let updated = false;
+
+        scanner.scannedMe = scanner.scannedMe.map(entry => {
+          if (typeof entry === "object" && (
+            (entry.email && entry.email === user.email) ||
+            (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
+          )) {
+            updated = true;
+            return user._id;
+          }
+          return entry;
+        });
+
+        if (updated) await scanner.save();
+
+        if (!Array.isArray(user.iScanned)) user.iScanned = [];
+        // if (!user.iScanned.includes(scanner._id)) {
+        //   user.iScanned.push(scanner._id);
+        // }
+
+        if (!user.iScanned.some(entry => {
+          if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
+          return entry.toString() === scanner._id.toString();
+        })) {
+          user.iScanned.push({
+            _id: scanner._id,
+            firstname: scanner.firstname || "",
+            lastname: scanner.lastname || "",
+            email: scanner.email || "",
+            phonenumbers: scanner.phonenumbers || [],
+            profileImageURL: scanner.profileImageURL || "/images/defaultUserPic.png"
+          });
+        }
+
+
+      }
+
       await user.save();
+
 
       return res.status(200).json({
         status: "success",
@@ -347,11 +183,89 @@ const saveSignupData = async (req, res) => {
     } else {
       // If phone signup: immediately verified and generate QR code
       newUserData.isVerified = true;
-      const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber);
+      const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+        firstname,
+        lastname,
+        phonenumbers: newUserData.phonenumbers,
+        provider: "local"
+      });
+
       newUserData.qrCode = qrCode;
     }
 
     const newUser = await User.create(newUserData);
+
+    if (newUser.isVerified) {
+      // const matchingUsers = await User.find({
+      //   scannedMe: {
+      //     $elemMatch: {
+      //       $or: [
+      //         { email: newUser.email },
+      //         { phonenumber: newUser.phonenumbers?.[0] || "" }
+      //       ]
+      //     }
+      //   }
+      // });
+
+      let matchConditions = [];
+      if (newUser.email) {
+        matchConditions.push({ email: newUser.email });
+      }
+      if (newUser.phonenumbers?.[0]) {
+        matchConditions.push({ phonenumber: newUser.phonenumbers[0] });
+      }
+
+      const matchingUsers = matchConditions.length > 0
+        ? await User.find({
+          scannedMe: {
+            $elemMatch: {
+              $or: matchConditions
+            }
+          }
+        })
+        : [];
+
+
+      for (const scanner of matchingUsers) {
+        let updated = false;
+
+        scanner.scannedMe = scanner.scannedMe.map(entry => {
+          if (typeof entry === "object" && (
+            (entry.email && entry.email === newUser.email) ||
+            (entry.phonenumber && entry.phonenumber === newUser.phonenumbers?.[0])
+          )) {
+            updated = true;
+            return newUser._id;
+          }
+          return entry;
+        });
+
+        if (updated) await scanner.save();
+
+        if (!Array.isArray(newUser.iScanned)) newUser.iScanned = [];
+        // if (!newUser.iScanned.includes(scanner._id)) {
+        //   newUser.iScanned.push(scanner._id);
+        // }
+
+        if (!user.iScanned.some(entry => {
+          if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
+          return entry.toString() === scanner._id.toString();
+        })) {
+          user.iScanned.push({
+            _id: scanner._id,
+            firstname: scanner.firstname || "",
+            lastname: scanner.lastname || "",
+            email: scanner.email || "",
+            phonenumbers: scanner.phonenumbers || [],
+            profileImageURL: scanner.profileImageURL || "/images/defaultUserPic.png"
+          });
+        }
+
+
+      }
+
+      await newUser.save();
+    }
 
     // === Send Verification Email if email exists ===
     if (newUser.email && newUser.emailVerificationToken) {
@@ -380,6 +294,7 @@ const saveSignupData = async (req, res) => {
     });
   }
 };
+
 
 
 const unifiedLogin = async (req, res) => {
@@ -451,7 +366,12 @@ const unifiedLogin = async (req, res) => {
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
 
-          const { qrCode } = await generateUserQRCode(firstname, serialNumber);
+          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+            firstname,
+            lastname,
+            email,
+            provider: "google"
+          });
 
           user = await User.create({
             email,
@@ -462,6 +382,7 @@ const unifiedLogin = async (req, res) => {
             qrCode
           });
         }
+
 
         const token = createTokenforUser(user);
         return res.json({ status: "success", message: "Google login successful", data: { token } });
@@ -518,7 +439,12 @@ const unifiedLogin = async (req, res) => {
           const firstname = appleUser.firstName || "Apple";
           const lastname = appleUser.lastName || "User";
 
-          const { qrCode } = await generateUserQRCode(firstname, serialNumber);
+          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+            firstname,
+            lastname,
+            email: appleEmail,
+            provider: "apple"
+          });
 
           user = await User.create({
             email: appleEmail,

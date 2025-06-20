@@ -1,10 +1,14 @@
 const QRCode = require("qrcode");
 
-const generateUserQRCode = async (firstname, serialNumber) => {
-  const profileId = `${firstname.toLowerCase()}${String(serialNumber).padStart(2, '0')}`;
-  const profileUrl = `https://100rjobf76.execute-api.eu-north-1.amazonaws.com/shareProfile/${profileId}`;
-  const qrDataURL = await QRCode.toDataURL(profileUrl);
-  return { profileId, profileUrl, qrCode: qrDataURL };
-};
+async function generateUserQRCode(name, serialNumber, extraData = {}) {
+  const qrContent = JSON.stringify({
+    name,
+    serialNumber,
+    ...extraData
+  });
+
+  const qrCodeDataURL = await QRCode.toDataURL(qrContent); // returns base64 PNG
+  return { qrCode: qrCodeDataURL };
+}
 
 module.exports = { generateUserQRCode };

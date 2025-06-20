@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { scanUser } = require("../controllers/scanController");
+const { getScanData } = require("../controllers/getScanDataControllers");
 
 /**
  * @swagger
@@ -42,6 +42,6 @@ const { scanUser } = require("../controllers/scanController");
  *       500:
  *         description: Internal server error
  */
-router.post("/", scanUser); // POST /api/scan
+router.get("/", getScanData); // POST /api/scan
 
 module.exports = router;

@@ -208,14 +208,20 @@ const userSchema = new Schema(
       default: "local",
     },
 
+    qrCode: { type: String },
+
+
     profileImageURL: {
       type: String,
       default: "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/profileImages/defaultImage.jpeg",
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
-    iScanned: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    scannedMe: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // iScanned: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // scannedMe: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    iScanned: [mongoose.Schema.Types.Mixed],  // can be object or userId
+    scannedMe: [mongoose.Schema.Types.Mixed]
   },
   { timestamps: true }
 );
