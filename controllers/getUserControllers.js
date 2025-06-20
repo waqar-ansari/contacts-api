@@ -160,6 +160,8 @@ const getUserData = async (req, res) => {
       (Array.isArray(user.iScanned) ? user.iScanned.length : 0) +
       (Array.isArray(user.scannedMe) ? user.scannedMe.length : 0);
 
+    const whoScannedMeCount = Array.isArray(user.scannedMe) ? user.scannedMe.length : 0;
+
     const tagCountAgg = await User.aggregate([
       { $match: { _id: user._id } },
       { $unwind: "$tags" },
@@ -203,6 +205,7 @@ const getUserData = async (req, res) => {
           favouriteCount,
           totalTemplates,
           totalScans,
+          whoScannedMeCount,
           tagCount,
           "templates": {
             whatsappTemplates: {
@@ -255,6 +258,7 @@ const getUserData = async (req, res) => {
           favouriteCount,
           totalTemplates,
           totalScans,
+          whoScannedMeCount,
           tagCount,
           "templates": {
             emailTemplates: {
@@ -287,6 +291,7 @@ const getUserData = async (req, res) => {
       favouriteCount,
       totalTemplates,
       totalScans,
+      whoScannedMeCount,
       tagCount,
       templates: {}
     };
