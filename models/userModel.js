@@ -208,6 +208,31 @@ const userSchema = new Schema(
       default: "local",
     },
 
+    linkedin: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    instagram: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    telegram: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    twitter: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    facebook: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    designation: {
+      type: String,
+      // default: "Dummy Firstname",
+    },
+    
     qrCode: { type: String },
 
 

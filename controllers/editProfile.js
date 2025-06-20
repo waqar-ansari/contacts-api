@@ -153,6 +153,12 @@ const editProfile = async (req, res) => {
       lastname,
       email,
       phonenumbers,
+      linkedin,
+      instagram,
+      telegram,
+      twitter,
+      facebook,
+      designation,
       whatsappTemplate_id,
       whatsappTemplateTitle,
       whatsappTemplateMessage,
@@ -239,6 +245,12 @@ const editProfile = async (req, res) => {
       if (firstname) user.firstname = firstname;
       if (lastname) user.lastname = lastname;
       if (email) user.email = email;
+      if (linkedin) user.linkedin = linkedin;
+      if (instagram) user.instagram = instagram;
+      if (telegram) user.telegram = telegram;
+      if (twitter) user.twitter = twitter;
+      if (facebook) user.facebook = facebook;
+      if (designation) user.designation = designation;
 
       if (phonenumbers) {
         try {
@@ -277,6 +289,14 @@ const editProfile = async (req, res) => {
         lastname: user.lastname,
         email: user.email,
         phonenumbers: user.phonenumbers,
+        qrcode: user.qrcode,
+        linkedin: user.linkedin,
+        instagram: user.instagram,
+        telegram: user.telegram,
+        twitter: user.twitter,
+        facebook: user.facebook,
+        designation: user.designation,
+        provider: user.provider,
         profileImageURL: user.profileImageURL,
         templates: {}
       };
@@ -309,6 +329,14 @@ const editProfile = async (req, res) => {
           email: user.email,
           phonenumbers: user.phonenumbers,
           profileImageURL: user.profileImageURL,
+          qrcode: user.qrcode,  
+          linkedin: user.linkedin,
+          instagram: user.instagram,
+          telegram: user.telegram,
+          twitter: user.twitter,
+          facebook: user.facebook,
+          designation: user.designation,
+          provider: user.provider,
           // whatsappTemplates: user.whatsappTemplates,
           // emailTemplates: user.emailTemplates,
         },
