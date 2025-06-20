@@ -191,6 +191,10 @@ const userSchema = new Schema(
     phonenumbers: {
       type: [String],
     },
+
+    otp: { type: String },
+    otpExpiresAt: { type: Date },
+
     salt: {
       type: String,
       // required: true,
@@ -232,7 +236,7 @@ const userSchema = new Schema(
       type: String,
       // default: "Dummy Firstname",
     },
-    
+
     qrCode: { type: String },
 
 
