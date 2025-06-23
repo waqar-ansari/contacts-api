@@ -52,7 +52,7 @@ const reminderRoutes = require("./routes/reminderRoutes");
 const userInfoRoutes = require("./routes/userInfoRoutes");
 const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const { error } = require("console");
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 console.log("Setting up Express app...");
 
@@ -129,7 +129,7 @@ console.log("Setting up error handling...");
 
     await mongoose.connect(process.env.MONGO_URL);
     console.log("MongoDB connected successfully");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }
