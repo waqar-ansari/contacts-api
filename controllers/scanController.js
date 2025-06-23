@@ -1,4 +1,8 @@
 const User = require("../models/userModel");
+const Contact = require("../models/contactModel"); // adjust the path as needed
+const { mongoose } = require("mongoose");
+
+
 
 // @desc Scan QR and save data
 // @route POST /api/scan
@@ -60,6 +64,30 @@ exports.scanUser = async (req, res) => {
                     createdAt: new Date()
                 });
                 updated = true;
+
+                const contactExists = await Contact.findOne({
+                    createdBy: user._id,
+                    $or: [
+                        { emailaddresses: { $in: [scanner.email] } },
+                        { phonenumbers: { $in: [scanner.phonenumbers[0]] } }
+                    ]
+                });
+
+                if (!contactExists) {
+                    await Contact.create({
+                        contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                        firstname: scanner.firstname || '',
+                        lastname: scanner.lastname || '',
+                        emailaddresses: [scanner.email || ''],
+                        phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
+                        linkedin: scanner.linkedin || '',
+                        instagram: scanner.instagram || '',
+                        telegram: scanner.telegram || '',
+                        twitter: scanner.twitter || '',
+                        facebook: scanner.facebook || '',
+                        createdBy: user._id,
+                    });
+                }
             }
 
             // Add User full info into scanner's iScanned
@@ -101,6 +129,24 @@ exports.scanUser = async (req, res) => {
                     createdAt: new Date()
                 });
                 updated = true;
+                const contactExists = await Contact.findOne({
+                    createdBy: user._id,
+                    $or: [
+                        { emailaddresses: { $in: [email] } },
+                        { phonenumbers: { $in: [phonenumber] } }
+                    ]
+                });
+
+                if (!contactExists) {
+                    await Contact.create({
+                        contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                        firstname: firstname || '',
+                        lastname: lastname || '',
+                        emailaddresses: [email || ''],
+                        phonenumbers: [phonenumber || ''],
+                        createdBy: user._id,
+                    });
+                }
             }
         }
 
