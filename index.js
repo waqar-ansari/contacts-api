@@ -1,4 +1,7 @@
 require("dotenv").config();
+
+console.log("Environment Variables Loaded:");
+
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -17,6 +20,10 @@ const serverless = require("serverless-http");
 
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocs = require("./swaggerConfig");
+
+
+console.log("Connecting to MongoDB...");
+
 const userRoutes = require("./routes/userRoutes");
 const editProfileRoutes = require("./routes/editProfileRoutes");
 const contactRoutes = require("./routes/contactRoutes");
@@ -47,6 +54,9 @@ const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
+console.log("Setting up Express app...");
+
+
 app.use(cors());
 
 app.use(express.json());
@@ -56,6 +66,9 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
+
+console.log("Setting up routes...");
+
 
 // Serve static files (for accessing uploaded images)
 // app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
@@ -95,7 +108,6 @@ app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
 
 
-
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });
@@ -104,10 +116,19 @@ app.use("/", (req, res) => {
 
   res.json({ message: "API Homepage" });
 });
+
+console.log("Setting up error handling...");
+
 (async () => {
+  console.log("Connecting to MongoDB...");
+
   try {
+
+    console.log("MongoDB URL log:", process.env.MONGO_URL);
+
+
     await mongoose.connect(process.env.MONGO_URL);
-    console.log("Connected to Database");
+    console.log("MongoDB connected successfully");
     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);

@@ -18,6 +18,11 @@ const addEditContact = async (req, res) => {
       lastname,
       company,
       designation,
+      linkedin,
+      instagram,
+      telegram,
+      twitter,
+      facebook,
       emailaddresses,
       phonenumbers,
       isFavourite,
@@ -40,6 +45,26 @@ const addEditContact = async (req, res) => {
       meetingLocation,
       meetingLink
     } = req.body;
+
+    // ---------- Normalize Phone Numbers ----------
+    let parsedPhones = [];
+
+    try {
+      parsedPhones = JSON.parse(phonenumbers);
+      if (!Array.isArray(parsedPhones)) {
+        parsedPhones = [parsedPhones];
+      }
+    } catch {
+      parsedPhones = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
+    }
+
+    parsedPhones = parsedPhones.map(num => {
+      if (typeof num === "string") {
+        return num.replace(/[^\d]/g, "");
+      }
+      return String(num);
+    });
+
 
     // // ---------- ✅ Handle Tags ----------
     // let matchedTags = [];
@@ -234,8 +259,13 @@ const addEditContact = async (req, res) => {
         lastname,
         company,
         designation,
+        linkedin,
+        instagram,
+        telegram,
+        twitter,
+        facebook,
         emailaddresses,
-        phonenumbers,
+        phonenumbers: parsedPhones,
         contactImageURL: contactImage,
         isFavourite,
         notes,
@@ -256,8 +286,13 @@ const addEditContact = async (req, res) => {
         lastname,
         company,
         designation,
+        linkedin,
+        instagram,
+        telegram,
+        twitter,
+        facebook,
         emailaddresses,
-        phonenumbers,
+        phonenumbers: parsedPhones,
         isFavourite,
         notes,
         website,

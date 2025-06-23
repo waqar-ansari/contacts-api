@@ -28,6 +28,7 @@ const getContact = async (req, res) => {
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
         { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }
+        
       ];
     }
 

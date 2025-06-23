@@ -1,124 +1,3 @@
-// // const User = require("../models/userModel");
-// // const multer = require("multer");
-// // const path = require("path");
-// // const fs = require("fs");
-
-// // // Configure Multer storage
-// // const storage = multer.diskStorage({
-// //   destination: (req, file, cb) => {
-// //     const uploadDir = path.join(__dirname, "../userImages");
-
-// //     // Check if the folder exists, if not create it
-// //     if (!fs.existsSync(uploadDir)) {
-// //       fs.mkdirSync(uploadDir, { recursive: true });
-// //     }
-
-// //     cb(null, uploadDir);
-// //   },
-// //   filename: (req, file, cb) => {
-// //     const ext = path.extname(file.originalname);
-// //     cb(null, `${Date.now()}${ext}`);
-// //   },
-// // });
-
-// // // Multer config with file size limit
-// // const upload = multer({
-// //   storage: storage,
-// //   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-// // }).single("profileImage");
-
-// // // Edit Profile Controller
-// // const editProfile = async (req, res) => {
-// //   try {
-// //     upload(req, res, async (err) => {
-// //       if (err instanceof multer.MulterError) {
-// //         if (err.code === "LIMIT_FILE_SIZE") {
-// //           return res.status(413).json({
-// //             status: "error",
-// //             message: "File too large. Max size is 10MB.",
-// //           });
-// //         }
-// //         return res
-// //           .status(500)
-// //           .json({ status: "error", message: "Image upload failed" });
-// //       } else if (err) {
-// //         console.error(err);
-// //         return res.status(500).json({
-// //           status: "error",
-// //           message: "Server error during file upload",
-// //         });
-// //       }
-
-// //       const { firstname, lastname, countryCode, number, email } = req.body;
-
-// //       if (
-// //         !firstname &&
-// //         !lastname &&
-// //         !countryCode &&
-// //         !number &&
-// //         !email &&
-// //         !req.file
-// //       ) {
-// //         return res
-// //           .status(400)
-// //           .json({ status: "error", message: "No data provided" });
-// //       }
-
-// //       const userId = req.user._id;
-// //       const user = await User.findById(userId);
-// //       if (!user) {
-// //         return res
-// //           .status(404)
-// //           .json({ status: "error", message: "User not found" });
-// //       }
-
-// //       if (firstname) user.firstname = firstname;
-// //       if (lastname) user.lastname = lastname;
-// //       if (countryCode && number) {
-// //         user.phonenumber = { countryCode, number };
-// //       }
-// //       if (email) user.email = email;
-
-// //       if (req.file) {
-// //         const newImagePath = `/userImages/${req.file.filename}`;
-
-// //         // Remove old image if it's not the default
-// //         if (
-// //           user.profileImageURL &&
-// //           user.profileImageURL !== "/public/images/defaultUserPic.png"
-// //         ) {
-// //           const oldImagePath = path.join(__dirname, "..", user.profileImageURL);
-// //           if (fs.existsSync(oldImagePath)) {
-// //             fs.unlinkSync(oldImagePath);
-// //           }
-// //         }
-
-// //         user.profileImageURL = newImagePath;
-// //       } else if (!user.profileImageURL) {
-// //         user.profileImageURL = "/public/images/defaultUserPic.png";
-// //       }
-
-// //       await user.save();
-
-// //       return res.status(200).json({
-// //         status: "success",
-// //         message: "Profile updated successfully",
-// //         data: {
-// //           id: user._id,
-// //           firstname: user.firstname,
-// //           lastname: user.lastname,
-// //           phonenumber: user.phonenumber,
-// //           email: user.email,
-// //           profileImageURL: user.profileImageURL,
-// //         },
-// //       });
-// //     });
-// //   } catch (error) {
-// //     console.error("Edit Profile Error:", error);
-// //     return res.status(500).json({ status: "error", message: "Server error" });
-// //   }
-// // };
-
 const path = require("path");
 const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
@@ -242,30 +121,69 @@ const editProfile = async (req, res) => {
 
     // === Update Basic Info ===
     if (!whatsappTemplate_id && !emailTemplate_id && !whatsappTemplateTitle && !emailTemplateTitle) {
-      if (firstname) user.firstname = firstname;
-      if (lastname) user.lastname = lastname;
-      if (email) user.email = email;
-      if (linkedin) user.linkedin = linkedin;
-      if (instagram) user.instagram = instagram;
-      if (telegram) user.telegram = telegram;
-      if (twitter) user.twitter = twitter;
-      if (facebook) user.facebook = facebook;
-      if (designation) user.designation = designation;
+      // if (firstname) user.firstname = firstname;
+      // if (lastname) user.lastname = lastname;
+      // if (email) user.email = email;
+      // if (linkedin) user.linkedin = linkedin;
+      // if (instagram) user.instagram = instagram;
+      // if (telegram) user.telegram = telegram;
+      // if (twitter) user.twitter = twitter;
+      // if (facebook) user.facebook = facebook;
+      // if (designation) user.designation = designation;
 
-      if (phonenumbers) {
+      const keys = Object.keys(req.body);
+
+      if (keys.includes('firstname')) user.firstname = firstname;
+      if (keys.includes('lastname')) user.lastname = lastname;
+      if (keys.includes('email')) user.email = email;
+      if (keys.includes('linkedin')) user.linkedin = linkedin;
+      if (keys.includes('instagram')) user.instagram = instagram;
+      if (keys.includes('telegram')) user.telegram = telegram;
+      if (keys.includes('twitter')) user.twitter = twitter;
+      if (keys.includes('facebook')) user.facebook = facebook;
+      if (keys.includes('designation')) user.designation = designation;
+      if (keys.includes('phonenumbers')) {
+        let parsedPhones;
+
         try {
-          user.phonenumbers = JSON.parse(phonenumbers);
+          // If it's a stringified array, parse it
+          parsedPhones = JSON.parse(phonenumbers);
+
+          // If JSON-parsed value is a single number (not array), wrap in array
+          if (!Array.isArray(parsedPhones)) {
+            parsedPhones = [parsedPhones];
+          }
         } catch {
-          user.phonenumbers = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
+          // If not JSON (plain string like '8546892104'), wrap in array
+          parsedPhones = [phonenumbers];
         }
+
+        // ✅ Normalize: remove '+' and non-digit characters (optional)
+        user.phonenumbers = parsedPhones.map(num => {
+          if (typeof num === 'string') {
+            return num.replace(/[^\d]/g, ""); // remove +, spaces, etc.
+          }
+          return String(num);
+        });
       }
+
+
+      // if (phonenumbers) {
+      //   try {
+      //     user.phonenumbers = JSON.parse(phonenumbers);
+      //   } catch {
+      //     user.phonenumbers = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
+      //   }
+      // }
+
 
       if (req.file) {
         const profileImage = await uploadImageToS3(req.file);
         user.profileImageURL = profileImage;
-      } else if (!user.profileImageURL) {
-        user.profileImageURL = "/images/defaultUserPic.png";
       }
+      // else if (!user.profileImageURL) {
+      //   user.profileImageURL = "/images/defaultUserPic.png";
+      // }
     }
 
     const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
@@ -329,7 +247,7 @@ const editProfile = async (req, res) => {
           email: user.email,
           phonenumbers: user.phonenumbers,
           profileImageURL: user.profileImageURL,
-          qrcode: user.qrcode,  
+          qrcode: user.qrcode,
           linkedin: user.linkedin,
           instagram: user.instagram,
           telegram: user.telegram,

@@ -7,6 +7,8 @@ const { getNextSerialNumber } = require("../utils/serialUtils");
 const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
+const twilio = require("twilio");
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 
 const saveSignupData = async (req, res) => {
@@ -17,7 +19,9 @@ const saveSignupData = async (req, res) => {
       password,
       firstname = "",
       lastname = "",
-      verifyToken = ""
+      verifyToken = "",
+      otp = "",
+
     } = req.body;
 
     // === PART 1: Handle Email Verification Token ===
@@ -115,7 +119,7 @@ const saveSignupData = async (req, res) => {
             lastname: scanner.lastname || "",
             email: scanner.email || "",
             phonenumbers: scanner.phonenumbers || [],
-            profileImageURL: scanner.profileImageURL || "/images/defaultUserPic.png"
+            profileImageURL: scanner.profileImageURL || ""
           });
         }
 
@@ -131,6 +135,111 @@ const saveSignupData = async (req, res) => {
       });
     }
 
+
+    // if (phonenumber && password && !email) {
+    //   if (!otp) {
+    //     // Step 1: Send OTP
+    //     const phone = phonenumber.replace(/[^0-9]/g, ""); // Strip + or non-digits
+    //     const formattedPhone = `+${phone}`;
+
+    //     const phoneExists = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
+    //     if (phoneExists) {
+    //       return res.status(409).json({
+    //         status: "error",
+    //         message: "User with this phone number already exists",
+    //       });
+    //     }
+
+    //     await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+    //       .verifications.create({ to: formattedPhone, channel: "sms" });
+
+    //     return res.status(200).json({
+    //       status: "pending",
+    //       message: "OTP sent to phone number",
+    //     });
+    //   } else {
+    //     // Step 2: Verify OTP
+    //     const phone = phonenumber.replace(/[^0-9]/g, "");
+    //     const formattedPhone = `+${phone}`;
+
+    //     const verificationCheck = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+    //       .verificationChecks.create({ to: formattedPhone, code: otp });
+
+    //     if (verificationCheck.status !== "approved") {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "Invalid or expired OTP",
+    //       });
+    //     }
+
+    //     // OTP verified → continue signup
+    //     const serialNumber = await getNextSerialNumber();
+    //     const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+    //       firstname,
+    //       lastname,
+    //       phonenumbers: [phonenumber],
+    //       provider: "local"
+    //     });
+
+    //     const newUser = await User.create({
+    //       password,
+    //       firstname,
+    //       lastname,
+    //       phonenumbers: [phonenumber],
+    //       serialNumber,
+    //       isVerified: true,
+    //       qrCode
+    //     });
+
+    //     // Scanner logic
+    //     const matchConditions = [{ phonenumber }];
+    //     const matchingUsers = await User.find({
+    //       scannedMe: {
+    //         $elemMatch: {
+    //           $or: matchConditions
+    //         }
+    //       }
+    //     });
+
+    //     for (const scanner of matchingUsers) {
+    //       let updated = false;
+
+    //       scanner.scannedMe = scanner.scannedMe.map(entry => {
+    //         if (typeof entry === "object" && entry.phonenumber === phonenumber) {
+    //           updated = true;
+    //           return newUser._id;
+    //         }
+    //         return entry;
+    //       });
+
+    //       if (updated) await scanner.save();
+
+    //       if (!Array.isArray(newUser.iScanned)) newUser.iScanned = [];
+    //       if (!newUser.iScanned.some(entry => entry.toString() === scanner._id.toString())) {
+    //         newUser.iScanned.push({
+    //           _id: scanner._id,
+    //           firstname: scanner.firstname || "",
+    //           lastname: scanner.lastname || "",
+    //           email: scanner.email || "",
+    //           phonenumbers: scanner.phonenumbers || [],
+    //           profileImageURL: scanner.profileImageURL  || ""
+    //         });
+    //       }
+    //     }
+
+    //     await newUser.save();
+
+    //     return res.status(201).json({
+    //       status: "success",
+    //       message: "Phone signup completed successfully",
+    //       data: {
+    //         _id: newUser._id,
+    //         phonenumbers: newUser.phonenumbers,
+    //       },
+    //     });
+    //   }
+    // }
+
     // === PART 2: Initial Signup ===
     if (!password || (!email && !phonenumber)) {
       return res.status(400).json({
@@ -140,15 +249,43 @@ const saveSignupData = async (req, res) => {
     }
 
     // === Check Email Existence ===
+    // if (email && email.trim() !== "") {
+    //   const emailExists = await User.findOne({ email: email.trim() });
+    //   if (emailExists) {
+    //     return res.status(409).json({
+    //       status: "error",
+    //       message: "User with this email already exists",
+    //     });
+    //   }
+    // }
+
+    // === Check Email Existence ===
     if (email && email.trim() !== "") {
       const emailExists = await User.findOne({ email: email.trim() });
+
       if (emailExists) {
+        if (!emailExists.isVerified) {
+          // User exists but not verified → Resend verification email
+          emailExists.emailVerificationToken = crypto.randomBytes(32).toString("hex");
+          await emailExists.save();
+
+          const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${emailExists.emailVerificationToken}`;
+          await sendVerificationEmail(emailExists.email, verificationLink);
+
+          return res.status(200).json({
+            status: "pending",
+            message: "Account already exists but not verified. A new verification email has been sent.",
+          });
+        }
+
+        // If verified, block registration
         return res.status(409).json({
           status: "error",
           message: "User with this email already exists",
         });
       }
     }
+
 
     // === Check Phone Number Existence ===
     if (phonenumber && phonenumber.trim() !== "") {
@@ -257,7 +394,7 @@ const saveSignupData = async (req, res) => {
             lastname: scanner.lastname || "",
             email: scanner.email || "",
             phonenumbers: scanner.phonenumbers || [],
-            profileImageURL: scanner.profileImageURL || "/images/defaultUserPic.png"
+            profileImageURL: scanner.profileImageURL || ""
           });
         }
 

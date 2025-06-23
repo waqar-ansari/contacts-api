@@ -59,7 +59,7 @@ exports.getScanData = async (req, res) => {
         const user = await User.findById(userId)
             .populate({
                 path: "iScanned",
-                select: "firstname lastname email profileImageURL phonenumbers"
+                select: "firstname lastname email profileImageURL phonenumbers linkedin instagram telegram twitter facebook createdAt",
             })
             .lean(); // make it easier to manipulate data
 
@@ -75,6 +75,12 @@ exports.getScanData = async (req, res) => {
             email: scannedUser.email || '',
             phonenumbers: scannedUser.phonenumbers || [],
             profileImageURL: scannedUser.profileImageURL || '',
+            linkedin: scannedUser.linkedin || '',
+            instagram: scannedUser.instagram || '',
+            telegram: scannedUser.telegram || '',
+            twitter: scannedUser.twitter || '',
+            facebook: scannedUser.facebook || '',
+            createdAt: scannedUser.createdAt,
             iScanned: true,
         }));
 
@@ -86,7 +92,7 @@ exports.getScanData = async (req, res) => {
             if (typeof entry === "object" && entry._id && typeof entry._id === "object") {
                 // This is an ObjectId ref to User — populate it manually
                 const fullUser = await User.findById(entry._id)
-                    .select("firstname lastname email profileImageURL phonenumbers")
+                    .select("firstname lastname email profileImageURL phonenumbers  linkedin instagram telegram twitter facebook createdAt")
                     .lean();
 
                 if (fullUser && !user.iScanned.some(u => u?._id?.toString() === fullUser._id.toString())) {
@@ -97,6 +103,12 @@ exports.getScanData = async (req, res) => {
                         email: fullUser.email || '',
                         phonenumbers: fullUser.phonenumbers || [],
                         profileImageURL: fullUser.profileImageURL || '',
+                        linkedin: fullUser.linkedin || '',
+                        instagram: fullUser.instagram || '',
+                        telegram: fullUser.telegram || '',
+                        twitter: fullUser.twitter || '',
+                        facebook: fullUser.facebook || '',
+                        createdAt: fullUser.createdAt,
                         iScanned: false,
                     });
                 }
@@ -108,7 +120,13 @@ exports.getScanData = async (req, res) => {
                     lastname: entry.lastname || '',
                     email: entry.email || '',
                     phonenumbers: [entry.phonenumber || ''],
-                    profileImageURL: '/images/defaultUserPic.png',
+                    linkedin: entry.linkedin || '',
+                    instagram: entry.instagram || '',
+                    telegram: entry.telegram || '',
+                    twitter: entry.twitter || '',
+                    facebook: entry.facebook || '',
+                    createdAt: new Date(), // Use current date for temp entries
+                    profileImageURL: '',
                     iScanned: false,
                 });
             }
