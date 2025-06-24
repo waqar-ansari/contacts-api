@@ -35,6 +35,9 @@ const saveSignupData = async (req, res) => {
         });
       }
 
+      // user.isVerified = true;
+      // user.emailVerificationToken = undefined;
+
       user.isVerified = true;
       user.emailVerificationToken = undefined;
 
@@ -69,7 +72,6 @@ const saveSignupData = async (req, res) => {
         matchConditions.push({ email: user.email });
       }
 
-      console.log(user.email);
 
       if (user.phonenumbers?.[0]) {
         matchConditions.push({ phonenumber: user.phonenumbers[0] });
@@ -85,7 +87,6 @@ const saveSignupData = async (req, res) => {
         })
         : [];
 
-      console.log(matchingUsers);
 
 
       for (const scanner of matchingUsers) {
@@ -128,10 +129,15 @@ const saveSignupData = async (req, res) => {
 
       await user.save();
 
+      const token = createTokenforUser(user);
+
 
       return res.status(200).json({
         status: "success",
         message: "Email verified successfully. You can now log in.",
+        data: {
+          "token" : token,
+        }
       });
     }
 
@@ -264,19 +270,20 @@ const saveSignupData = async (req, res) => {
       const emailExists = await User.findOne({ email: email.trim() });
 
       if (emailExists) {
-        if (!emailExists.isVerified) {
-          // User exists but not verified → Resend verification email
-          emailExists.emailVerificationToken = crypto.randomBytes(32).toString("hex");
-          await emailExists.save();
+        // if (!emailExists.isVerified) {
+        //   // User exists but not verified → Resend verification email
+        //   emailExists.emailVerificationToken = crypto.randomBytes(32).toString("hex");
+        //   await emailExists.save();
 
-          const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${emailExists.emailVerificationToken}`;
-          await sendVerificationEmail(emailExists.email, verificationLink);
+        //   const verificationLink = `https://contacts-user-web.vercel/user-verification?verificationToken=${emailExists.emailVerificationToken}`;
+        //   await sendVerificationEmail(emailExists.email, verificationLink);
 
-          return res.status(200).json({
-            status: "pending",
-            message: "Account already exists but not verified. A new verification email has been sent.",
-          });
-        }
+        //   return res.status(200).json({
+        //     status: "pending",
+        //     message: "Account already exists but not verified. A new verification email has been sent.",
+        //     verificationLink: verificationLink,
+        //   });
+        // }
 
         // If verified, block registration
         return res.status(409).json({
@@ -408,6 +415,10 @@ const saveSignupData = async (req, res) => {
     if (newUser.email && newUser.emailVerificationToken) {
       const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}`;
       await sendVerificationEmail(newUser.email, verificationLink);
+
+      console.log(verificationLink);
+      
+
     }
 
     return res.status(201).json({
@@ -432,7 +443,56 @@ const saveSignupData = async (req, res) => {
   }
 };
 
+const resendVerificationLink = async (req, res) => {
+  try {
+    const { email = "" } = req.body;
 
+    if (!email || email.trim() === "") {
+      return res.status(400).json({
+        status: "error",
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "User with this email does not exist",
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email is already verified",
+      });
+    }
+
+    // Generate new token and save
+    user.emailVerificationToken = crypto.randomBytes(32).toString("hex");
+    await user.save();
+
+    // Build link and send email
+    const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${user.emailVerificationToken}`;
+    await sendVerificationEmail(user.email, verificationLink);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Verification email resent successfully",
+      verificationLink,
+    });
+
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to resend verification link",
+      error: error.message,
+    });
+  }
+};
 
 const unifiedLogin = async (req, res) => {
   try {
@@ -448,24 +508,68 @@ const unifiedLogin = async (req, res) => {
     //   }
     // }
 
+    // if ((email || phonenumber) && password && !googleToken && !appleToken) {
+    //   try {
+    //     const user = await User.findOne({ $or: [{ email }, { phonenumbers: { $in: [phonenumber] } }] });
+
+    //     if (!user) {
+    //       return res.status(401).json({ status: "error", message: "User not found" });
+    //     }
+    //     console.log("🟢 Incoming login request body:", req.body);
+
+
+    //     console.log("🔍 User found during login:", {
+    //       id: user._id,
+    //       email: user.email,
+    //       isVerified: user.isVerified
+    //     });
+    //     if (email && !user.isVerified) {
+    //       return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
+    //     }
+
+    //     const token = await User.matchPasswordAndGenerateToken({ email, phonenumber, password });
+    //     return res.json({ status: "success", message: "Login successful", data: { token } });
+    //   } catch (err) {
+    //     return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
+    //   }
+    // }
+
     if ((email || phonenumber) && password && !googleToken && !appleToken) {
       try {
-        const user = await User.findOne({ $or: [{ email }, { phonenumbers: { $in: [phonenumber] } }] });
+        const trimmedEmail = email?.trim()?.toLowerCase();
+        const trimmedPhone = phonenumber?.trim();
+
+        const queryConditions = [];
+        if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
+        if (trimmedPhone) queryConditions.push({ phonenumbers: { $in: [trimmedPhone] } });
+
+        if (queryConditions.length === 0) {
+          return res.status(400).json({ status: "error", message: "Email or phone number is required" });
+        }
+
+        const user = await User.findOne({ $or: queryConditions });
 
         if (!user) {
           return res.status(401).json({ status: "error", message: "User not found" });
         }
 
-        if (email && !user.isVerified) {
+        if (trimmedEmail && !user.isVerified) {
           return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
         }
 
-        const token = await User.matchPasswordAndGenerateToken({ email, phonenumber, password });
+        const token = await User.matchPasswordAndGenerateToken({
+          email: trimmedEmail,
+          phonenumber: trimmedPhone,
+          password
+        });
+
         return res.json({ status: "success", message: "Login successful", data: { token } });
+
       } catch (err) {
         return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
       }
     }
+
 
     // === GOOGLE LOGIN ===
     if (googleToken && !email && !password && !appleToken && !phonenumber) {
@@ -609,4 +713,5 @@ const unifiedLogin = async (req, res) => {
 module.exports = {
   saveSignupData,
   unifiedLogin,
+  resendVerificationLink,
 };

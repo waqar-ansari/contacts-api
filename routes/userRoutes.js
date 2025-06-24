@@ -3,6 +3,7 @@ const {
   requestOtp,
   saveSignupData,
   unifiedLogin,
+  resendVerificationLink,
 } = require("../controllers/userControllers");
 
 const router = Router();
@@ -47,6 +48,9 @@ const router = Router();
 // router.post("/signup/request-otp", requestOtp);
 
 router.post("/signup", saveSignupData);
+
+router.post("/resendVerificationLink", resendVerificationLink);
+
 
 
 /**

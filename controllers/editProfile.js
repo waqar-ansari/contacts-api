@@ -142,29 +142,44 @@ const editProfile = async (req, res) => {
       if (keys.includes('twitter')) user.twitter = twitter;
       if (keys.includes('facebook')) user.facebook = facebook;
       if (keys.includes('designation')) user.designation = designation;
+      // if (keys.includes('phonenumbers')) {
+      //   let parsedPhones;
+
+      //   try {
+      //     // If it's a stringified array, parse it
+      //     parsedPhones = JSON.parse(phonenumbers);
+
+      //     // If JSON-parsed value is a single number (not array), wrap in array
+      //     if (!Array.isArray(parsedPhones)) {
+      //       parsedPhones = [parsedPhones];
+      //     }
+      //   } catch {
+      //     // If not JSON (plain string like '8546892104'), wrap in array
+      //     parsedPhones = [phonenumbers];
+      //   }
+
+      //   // ✅ Normalize: remove '+' and non-digit characters (optional)
+      //   user.phonenumbers = parsedPhones.map(num => {
+      //     if (typeof num === 'string') {
+      //       return num.replace(/[^\d]/g, ""); // remove +, spaces, etc.
+      //     }
+      //     return String(num);
+      //   });
+      // }
+
       if (keys.includes('phonenumbers')) {
         let parsedPhones;
 
         try {
-          // If it's a stringified array, parse it
           parsedPhones = JSON.parse(phonenumbers);
-
-          // If JSON-parsed value is a single number (not array), wrap in array
-          if (!Array.isArray(parsedPhones)) {
-            parsedPhones = [parsedPhones];
-          }
+          if (!Array.isArray(parsedPhones)) parsedPhones = [parsedPhones];
         } catch {
-          // If not JSON (plain string like '8546892104'), wrap in array
           parsedPhones = [phonenumbers];
         }
 
-        // ✅ Normalize: remove '+' and non-digit characters (optional)
-        user.phonenumbers = parsedPhones.map(num => {
-          if (typeof num === 'string') {
-            return num.replace(/[^\d]/g, ""); // remove +, spaces, etc.
-          }
-          return String(num);
-        });
+        user.phonenumbers = parsedPhones
+          .map(num => typeof num === 'string' ? num.replace(/[^\d]/g, "") : String(num))
+          .filter(num => num !== ""); // ✅ Remove empty strings
       }
 
 

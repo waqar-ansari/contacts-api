@@ -1,45 +1,82 @@
 const User = require("../models/userModel");
 
-exports.completeUserInfo = async (req, res) => {
+exports.getDefaultOptions = (req, res) => {
   try {
-    const userId = req.user?._id;
+    const defaultOptions = {
+      helps: [
+        "Managing Sales pipelines",
+        "Organizing key relationships",
+        "Process automation",
+        "Something else"
+      ],
+      goals: [
+        "For personal use",
+        "Testing for my company/team",
+        "Other"
+      ],
+      categories: [
+        "Sales", "Marketing", "IT", "Procurement", "Consultant",
+        "C-Level", "HR", "Field Representative", "Freelancer", "Other"
+      ],
+      employeeCounts: [
+        "1-4", "5-19", "20-49", "50-99", "100-249",
+        "250-499", "500-999", "1000+"
+      ]
+    };
 
-    if (!userId) {
-      return res.status(401).json({
-        status: "error",
-        message: "Unauthorized: User ID not found",
-      });
+    res.status(200).json({ status: "success", defaultOptions });
+  } catch (error) {
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+exports.submitUserOnboarding = async (req, res) => {
+  try {
+    const {
+      helps = [],
+      goals = [],
+      categories = [],
+      employeeCount = "",
+      companyName = "",
+      isFirstCRM = false
+    } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    const { helps, companyName, isFirstCRM, industry } = req.body;
+    // Ensure userInfo object exists
+    if (!user.userInfo) user.userInfo = {};
 
-    if (!helps || !Array.isArray(helps) || !companyName || typeof isFirstCRM !== "boolean" || !industry) {
-      return res.status(400).json({
-        status: "error",
-        message: "All fields (helps[], companyName, isFirstCRM, industry) are required",
-      });
-    }
+    user.userInfo.helps = helps;
+    user.userInfo.goals = goals;
+    user.userInfo.categories = categories;
+    user.userInfo.employeeCount = employeeCount;
+    user.userInfo.companyName = companyName;
+    user.userInfo.isFirstCRM = isFirstCRM;
 
-    const allowedIndustries = ["Agency", "Real Estate", "Software/Technology", "Financial Services"];
-    if (!allowedIndustries.includes(industry)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid industry selected",
-      });
-    }
+    await user.save();
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        userInfo: {
-          helps,
-          companyName,
-          isFirstCRM,
-          industry,
-        },
-      },
-      { new: true }
-    );
+    res.status(200).json({
+      status: "success",
+      message: "User onboarding data saved",
+      userInfo: user.userInfo
+    });
+  } catch (error) {
+    console.error("Onboarding error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to save onboarding data",
+      error: error.message
+    });
+  }
+};
+
+
+exports.getUserOnboardingData = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("userInfo email");
 
     if (!user) {
       return res.status(404).json({
@@ -48,16 +85,18 @@ exports.completeUserInfo = async (req, res) => {
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       status: "success",
-      message: "User information updated successfully",
-      data: user.userInfo,
+      userId: user._id,
+      email: user.email,
+      userInfo: user.userInfo,
     });
   } catch (error) {
-    console.error("Error in completeUserInfo:", error);
     res.status(500).json({
       status: "error",
-      message: "Internal server error",
+      message: "Failed to fetch user onboarding data",
+      error: error.message,
     });
   }
 };
+

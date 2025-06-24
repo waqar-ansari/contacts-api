@@ -169,8 +169,10 @@ const userSchema = new Schema(
       // default: null, // ✅ makes sure null is used instead of ""
     },
     emailVerificationToken: String,
-    isVerified: { type: Boolean, default: false },
-    // tags: [
+    isVerified: {
+      type: Boolean,
+      default: false
+    },    // tags: [
     //   {
     //     _id: false,
     //     tag_id: {
@@ -229,6 +231,18 @@ const userSchema = new Schema(
         type: [String],
         default: []
       },
+      goals: {
+        type: [String],
+        default: []
+      },
+      categories: {
+        type: [String],
+        default: []
+      },
+      employeeCount: {
+        type: String,
+        default: ""
+      },
       companyName: {
         type: String,
         default: ""
@@ -239,10 +253,16 @@ const userSchema = new Schema(
       },
       industry: {
         type: String,
-        enum: ["Agency", "Real Estate", "Software/Technology", "Financial Services"],
-        default: "Agency" // or any of the valid options
+        enum: [
+          "Agency", "Real Estate", "Software/Technology", "Financial Services",
+          "Sales", "Marketing", "IT", "Procurement", "Consultant", "C-Level",
+          "HR", "Field Representative", "Freelancer", "Other"
+        ],
+        default: "Agency"
       }
     },
+
+
 
 
     // phonenumbers: [
