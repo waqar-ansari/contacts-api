@@ -78,8 +78,8 @@ exports.submitUserOnboarding = async (req, res) => {
   try {
     const {
       helps = [],
-      goals = [],
-      categories = [],
+      goals = "",
+      categories = "",
       employeeCount = "",
       companyName = "",
       isFirstCRM = false,

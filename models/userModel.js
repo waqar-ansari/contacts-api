@@ -243,12 +243,12 @@ const userSchema = new Schema(
         default: []
       },
       goals: {
-        type: [String],
-        default: []
+        type: String,
+        default: ""
       },
       categories: {
-        type: [String],
-        default: []
+        type: String,
+        default: ""
       },
       employeeCount: {
         type: String,
