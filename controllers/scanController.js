@@ -24,13 +24,49 @@ exports.scanUser = async (req, res) => {
 
         if (ScannerID) {
             // Case 1: Scanner is a registered user
-            const scanner = await User.findById(ScannerID);
+            // const scanner = await User.findById(ScannerID);
 
+            // if (!scanner) {
+            //     return res.status(404).json({ status: "error", message: "Scanner (ScannerID) not found" });
+            // }
+
+
+            const scanner = await User.findById(ScannerID);
             if (!scanner) {
                 return res.status(404).json({ status: "error", message: "Scanner (ScannerID) not found" });
             }
 
             if (!Array.isArray(scanner.iScanned)) scanner.iScanned = [];
+            if (!Array.isArray(scanner.scannedMe)) scanner.scannedMe = [];
+            if (!Array.isArray(user.iScanned)) user.iScanned = [];
+            if (!Array.isArray(user.scannedMe)) user.scannedMe = [];
+
+            // ✅ MUTUAL CHECK: has scan already happened in either direction?
+            const alreadyConnected = (
+                user.scannedMe?.some(entry =>
+                    typeof entry === 'object' && entry._id?.toString() === scanner._id.toString()
+                ) ||
+                scanner.scannedMe?.some(entry =>
+                    typeof entry === 'object' && entry._id?.toString() === user._id.toString()
+                ) ||
+                user.iScanned?.some(entry =>
+                    typeof entry === 'object' && entry._id?.toString() === scanner._id.toString()
+                ) ||
+                scanner.iScanned?.some(entry =>
+                    typeof entry === 'object' && entry._id?.toString() === user._id.toString()
+                )
+            );
+
+            if (alreadyConnected) {
+                return res.status(200).json({
+                    status: "success",
+                    message: "Users already connected. Scan skipped.",
+                    data: {
+                        scannedMe: user.scannedMe
+                    }
+                });
+            }
+
 
             // // Add ScannerID into scanned user's scannedMe (if not already present)
             // if (!user.scannedMe.includes(ScannerID)) {

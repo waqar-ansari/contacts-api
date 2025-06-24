@@ -193,7 +193,7 @@ const userSchema = new Schema(
 
     signupMethod: {
       type: String,
-      enum: ["email", "phone", "google", "apple"],
+      enum: ["email", "phoneNumber", "google", "apple"],
       default: "email"  // or leave unset until signup
     },
 
@@ -258,19 +258,6 @@ const userSchema = new Schema(
         type: String,
         default: ""
       },
-      isFirstCRM: {
-        type: Boolean,
-        default: false
-      },
-      industry: {
-        type: String,
-        enum: [
-          "Agency", "Real Estate", "Software/Technology", "Financial Services",
-          "Sales", "Marketing", "IT", "Procurement", "Consultant", "C-Level",
-          "HR", "Field Representative", "Freelancer", "Other"
-        ],
-        default: "Agency"
-      }
     },
 
 

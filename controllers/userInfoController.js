@@ -82,7 +82,6 @@ exports.submitUserOnboarding = async (req, res) => {
       categories = "",
       employeeCount = "",
       companyName = "",
-      isFirstCRM = false,
       firstname = "",
       lastname = "",
       gender = "",
@@ -120,7 +119,6 @@ exports.submitUserOnboarding = async (req, res) => {
     user.userInfo.categories = categories;
     user.userInfo.employeeCount = employeeCount;
     user.userInfo.companyName = companyName;
-    user.userInfo.isFirstCRM = isFirstCRM;
 
     await user.save();
 

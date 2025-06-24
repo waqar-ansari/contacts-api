@@ -333,7 +333,7 @@ const saveSignupData = async (req, res) => {
     } else {
       // If phone signup: immediately verified and generate QR code
       newUserData.isVerified = true;
-      newUserData.signupMethod = "phone";
+      newUserData.signupMethod = "phoneNumber";
       const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
         firstname,
         lastname,
@@ -437,6 +437,7 @@ const saveSignupData = async (req, res) => {
         _id: newUser._id,
         email: newUser.email || null,
         phonenumbers: newUser.phonenumbers,
+        "registeredWith": newUser.signupMethod,
       },
     });
 
