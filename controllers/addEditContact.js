@@ -47,23 +47,40 @@ const addEditContact = async (req, res) => {
     } = req.body;
 
     // ---------- Normalize Phone Numbers ----------
-    let parsedPhones = [];
+let parsedPhones = [];
 
-    try {
-      parsedPhones = JSON.parse(phonenumbers);
-      if (!Array.isArray(parsedPhones)) {
-        parsedPhones = [parsedPhones];
-      }
-    } catch {
-      parsedPhones = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
+if (phonenumbers) {
+  try {
+    // Case 1: Valid JSON array string like '["1234","5678"]' or plain number: 1111111
+    const temp = JSON.parse(phonenumbers);
+    console.log("Parsed phone numbers:", temp);
+    
+    const phoneArray = Array.isArray(temp) ? temp : [temp];
+    console.log("Phone array:", phoneArray);
+    
+    parsedPhones = phoneArray
+      .filter(num => num !== null && num !== undefined && num !== "undefined")
+      .map(num => String(num).replace(/[^\d]/g, ""));
+      
+    console.log("Normalized phone numbers:", parsedPhones);
+      
+  } catch (e) {
+    // Case 2: Plain string like "1111111"
+    if (typeof phonenumbers === "string" && phonenumbers.trim() !== "" && phonenumbers !== "undefined") {
+      parsedPhones = [phonenumbers.replace(/[^\d]/g, "")];
     }
+  }
+}
 
-    parsedPhones = parsedPhones.map(num => {
-      if (typeof num === "string") {
-        return num.replace(/[^\d]/g, "");
-      }
-      return String(num);
-    });
+
+
+console.log("Parsed Phones:", phonenumbers, parsedPhones);
+
+
+
+
+
+
 
 
     // // ---------- ✅ Handle Tags ----------
@@ -254,7 +271,11 @@ const addEditContact = async (req, res) => {
         });
       }
 
+      const generatedId = new mongoose.Types.ObjectId();
+
       const contactPayload = {
+        _id: generatedId,
+        contact_id: generatedId,
         firstname,
         lastname,
         company,
@@ -278,9 +299,8 @@ const addEditContact = async (req, res) => {
       if (meetingObj) contactPayload.meetings = [meetingObj];
 
       contactData = await Contact.create(contactPayload);
-      contactData.contact_id = contactData._id;
-      await contactData.save();
-    } else {
+    }
+    else {
       const updateFields = {
         firstname,
         lastname,
