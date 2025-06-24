@@ -161,6 +161,12 @@ const userSchema = new Schema(
       type: String,
       // default: "Dummy Lastname",
     },
+
+    gender: {
+      type: String,
+      // default: "Dummy Lastname",
+    },
+
     email: {
       type: String,
       unique: true,
@@ -185,6 +191,11 @@ const userSchema = new Schema(
     //   },
     // ],
 
+    signupMethod: {
+      type: String,
+      enum: ["email", "phone", "google", "apple"],
+      default: "email"  // or leave unset until signup
+    },
 
     tags: {
       type: [

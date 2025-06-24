@@ -41,6 +41,10 @@ const saveSignupData = async (req, res) => {
       user.isVerified = true;
       user.emailVerificationToken = undefined;
 
+      if (!user.signupMethod) {
+        user.signupMethod = "email";
+      }
+
       if (!user.qrCode) {
         const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
           firstname: user.firstname,
@@ -136,7 +140,8 @@ const saveSignupData = async (req, res) => {
         status: "success",
         message: "Email verified successfully. You can now log in.",
         data: {
-          "token" : token,
+          "token": token,
+          "registeredWith": user.signupMethod
         }
       });
     }
@@ -324,9 +329,11 @@ const saveSignupData = async (req, res) => {
     if (email && email.trim() !== "") {
       newUserData.email = email.trim();
       newUserData.emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      newUserData.signupMethod = "email";
     } else {
       // If phone signup: immediately verified and generate QR code
       newUserData.isVerified = true;
+      newUserData.signupMethod = "phone";
       const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
         firstname,
         lastname,
@@ -417,7 +424,7 @@ const saveSignupData = async (req, res) => {
       await sendVerificationEmail(newUser.email, verificationLink);
 
       console.log(verificationLink);
-      
+
 
     }
 
@@ -620,7 +627,8 @@ const unifiedLogin = async (req, res) => {
             lastname,
             provider: "google",
             serialNumber,
-            qrCode
+            qrCode,
+            signupMethod: "google",
           });
         }
 
@@ -693,7 +701,8 @@ const unifiedLogin = async (req, res) => {
             firstname,
             lastname,
             serialNumber,
-            qrCode
+            qrCode,
+            signupMethod: "apple",
           });
         }
 

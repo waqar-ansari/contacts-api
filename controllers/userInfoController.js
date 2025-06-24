@@ -30,6 +30,50 @@ exports.getDefaultOptions = (req, res) => {
   }
 };
 
+// exports.submitUserOnboarding = async (req, res) => {
+//   try {
+//     const {
+//       helps = [],
+//       goals = [],
+//       categories = [],
+//       employeeCount = "",
+//       companyName = "",
+//       isFirstCRM = false
+//     } = req.body;
+
+//     const user = await User.findById(req.user._id);
+//     if (!user) {
+//       return res.status(404).json({ status: "error", message: "User not found" });
+//     }
+
+//     // Ensure userInfo object exists
+//     if (!user.userInfo) user.userInfo = {};
+
+//     user.userInfo.helps = helps;
+//     user.userInfo.goals = goals;
+//     user.userInfo.categories = categories;
+//     user.userInfo.employeeCount = employeeCount;
+//     user.userInfo.companyName = companyName;
+//     user.userInfo.isFirstCRM = isFirstCRM;
+
+//     await user.save();
+
+//     res.status(200).json({
+//       status: "success",
+//       message: "User onboarding data saved",
+//       userInfo: user.userInfo
+//     });
+//   } catch (error) {
+//     console.error("Onboarding error:", error);
+//     res.status(500).json({
+//       status: "error",
+//       message: "Failed to save onboarding data",
+//       error: error.message
+//     });
+//   }
+// };
+
+
 exports.submitUserOnboarding = async (req, res) => {
   try {
     const {
@@ -38,13 +82,35 @@ exports.submitUserOnboarding = async (req, res) => {
       categories = [],
       employeeCount = "",
       companyName = "",
-      isFirstCRM = false
+      isFirstCRM = false,
+      firstname = "",
+      lastname = "",
+      gender = "",
+      email = "",
+      phonenumber = ""
     } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ status: "error", message: "User not found" });
     }
+
+    // Conditionally update email or phonenumber
+    if (!user.email && email) {
+      user.email = email.trim();
+    }
+
+    if ((!user.phonenumbers || user.phonenumbers.length === 0) && phonenumber) {
+      const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+      if (cleanedPhone) {
+        user.phonenumbers = [cleanedPhone];
+      }
+    }
+
+    // Update basic fields
+    if (firstname) user.firstname = firstname;
+    if (lastname) user.lastname = lastname;
+    if (gender) user.gender = gender;
 
     // Ensure userInfo object exists
     if (!user.userInfo) user.userInfo = {};
@@ -61,7 +127,14 @@ exports.submitUserOnboarding = async (req, res) => {
     res.status(200).json({
       status: "success",
       message: "User onboarding data saved",
-      userInfo: user.userInfo
+      data: {
+        email: user.email,
+        phonenumbers: user.phonenumbers,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        gender: user.gender,
+        userInfo: user.userInfo
+      }
     });
   } catch (error) {
     console.error("Onboarding error:", error);
@@ -72,6 +145,7 @@ exports.submitUserOnboarding = async (req, res) => {
     });
   }
 };
+
 
 
 exports.getUserOnboardingData = async (req, res) => {
