@@ -590,31 +590,15 @@ const unifiedLogin = async (req, res) => {
 
         const { email } = ticket.getPayload();
         let user = await User.findOne({ email });
+        let isFirstTime = false;
 
-        // if (!user) {
-        //   user = await User.create({ email, firstname: firstName, lastname: lastName, provider: "google" });
-        // }
-
-        // const { qrCode } = await generateUserQRCode(firstname, serialNumber);
-
-
-        // if (!user) {
-        //   const serialNumber = await getNextSerialNumber();
-        //   user = await User.create({
-        //     email,
-        //     firstname: ticket.getPayload().given_name || "Google",
-        //     lastname: ticket.getPayload().family_name || "User",
-        //     provider: "google",
-        //     serialNumber,
-        //     qrCode
-        //   });
-        // }
 
         if (!user) {
+          isFirstTime = true;  // ✅ This means first time Google login (new user)
           const serialNumber = await getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
-
+          user.isVerified = true; // Automatically verified on Google login
           const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
             firstname,
             lastname,
@@ -635,7 +619,14 @@ const unifiedLogin = async (req, res) => {
 
 
         const token = createTokenforUser(user);
-        return res.json({ status: "success", message: "Google login successful", data: { token } });
+        return res.json({
+          status: "success", message: "Google login successful",
+          data: {
+            "token": token,
+            "registeredWith": user.signupMethod,
+            "isFirstTime": isFirstTime
+          }
+        });
       } catch (err) {
         console.log(err);
 
