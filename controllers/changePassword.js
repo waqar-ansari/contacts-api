@@ -6,7 +6,7 @@ const changePassword = async (req, res) => {
     const { newPassword } = req.body;
 
     if (!newPassword) {
-      return res.status(400).json({ message: "Both passwords are required" });
+      return res.status(400).json({ message: "New passwords are required" });
     }
 
     const userId = req.user._id;

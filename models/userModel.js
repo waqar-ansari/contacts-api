@@ -174,6 +174,14 @@ const userSchema = new Schema(
       trim: true,
       // default: null, // ✅ makes sure null is used instead of ""
     },
+    googleId: String,
+    googleEmail: String,
+    googleAccessToken: String,
+    googleRefreshToken: String,
+    googleConnected: {
+      type: Boolean,
+      default: false,
+    },
     emailVerificationToken: String,
     isVerified: {
       type: Boolean,
@@ -259,8 +267,6 @@ const userSchema = new Schema(
         default: ""
       },
     },
-
-
 
 
     // phonenumbers: [
