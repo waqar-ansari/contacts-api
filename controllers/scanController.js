@@ -23,14 +23,6 @@ exports.scanUser = async (req, res) => {
         let updated = false;
 
         if (ScannerID) {
-            // Case 1: Scanner is a registered user
-            // const scanner = await User.findById(ScannerID);
-
-            // if (!scanner) {
-            //     return res.status(404).json({ status: "error", message: "Scanner (ScannerID) not found" });
-            // }
-
-
             const scanner = await User.findById(ScannerID);
             if (!scanner) {
                 return res.status(404).json({ status: "error", message: "Scanner (ScannerID) not found" });
@@ -101,7 +93,36 @@ exports.scanUser = async (req, res) => {
                 });
                 updated = true;
 
-                const contactExists = await Contact.findOne({
+                const contactExistsForScanner = await Contact.findOne({
+                    createdBy: scanner._id,
+                    $or: [
+                        { emailaddresses: { $in: [user.email] } },
+                        { phonenumbers: { $in: [user.phonenumbers[0]] } }
+                    ]
+                });
+
+                if (!contactExistsForScanner) {
+                    const newContactIdForScanner = new mongoose.Types.ObjectId();
+
+                    await Contact.create({
+                        _id: newContactIdForScanner,
+                        contact_id: newContactIdForScanner,
+                        firstname: user.firstname || '',
+                        lastname: user.lastname || '',
+                        emailaddresses: [user.email || ''],
+                        phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
+                        linkedin: user.linkedin || '',
+                        instagram: user.instagram || '',
+                        telegram: user.telegram || '',
+                        twitter: user.twitter || '',
+                        facebook: user.facebook || '',
+                        createdBy: scanner._id,
+                    });
+
+                }
+
+                // Second: Save contact in user's contacts (scanner info)
+                const contactExistsForUser = await Contact.findOne({
                     createdBy: user._id,
                     $or: [
                         { emailaddresses: { $in: [scanner.email] } },
@@ -109,9 +130,12 @@ exports.scanUser = async (req, res) => {
                     ]
                 });
 
-                if (!contactExists) {
+                if (!contactExistsForUser) {
+                    const newContactIdForUser = new mongoose.Types.ObjectId();
+
                     await Contact.create({
-                        contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                        _id: newContactIdForUser,
+                        contact_id: newContactIdForUser,
                         firstname: scanner.firstname || '',
                         lastname: scanner.lastname || '',
                         emailaddresses: [scanner.email || ''],
@@ -123,6 +147,7 @@ exports.scanUser = async (req, res) => {
                         facebook: scanner.facebook || '',
                         createdBy: user._id,
                     });
+
                 }
             }
 
@@ -201,6 +226,3 @@ exports.scanUser = async (req, res) => {
         return res.status(500).json({ status: "error", message: "Scan error", error: error.message });
     }
 };
-
-
-

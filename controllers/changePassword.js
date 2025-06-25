@@ -3,9 +3,9 @@ const User = require("../models/userModel");
 
 const changePassword = async (req, res) => {
   try {
-    const { oldPassword, newPassword } = req.body;
+    const { newPassword } = req.body;
 
-    if (!oldPassword || !newPassword) {
+    if (!newPassword) {
       return res.status(400).json({ message: "Both passwords are required" });
     }
 
@@ -19,15 +19,15 @@ const changePassword = async (req, res) => {
     }
 
     // ✅ Hash old password
-    const hashedOldPassword = crypto
-      .createHmac("sha256", user.salt)
-      .update(oldPassword)
-      .digest("hex");
+    // const hashedOldPassword = crypto
+    //   .createHmac("sha256", user.salt)
+    //   .update(oldPassword)
+    //   .digest("hex");
 
     // ❌ Check if old password matches
-    if (hashedOldPassword !== user.password) {
-      return res.status(400).json({ message: "Old password is incorrect" });
-    }
+    // if (hashedOldPassword !== user.password) {
+    //   return res.status(400).json({ message: "Old password is incorrect" });
+    // }
 
     // ✅ Hash new password
     const hashedNewPassword = crypto

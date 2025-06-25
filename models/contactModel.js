@@ -46,7 +46,6 @@ const contactSchema = new Schema(
       type: Schema.Types.ObjectId,
       // type: mongoose.Schema.Types.ObjectId,
       unique: true,
-      // default: () => new mongoose.Types.ObjectId() // ✅ ADD THIS LINE
     },
     firstname: {
       type: String,
