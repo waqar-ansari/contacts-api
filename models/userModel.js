@@ -174,6 +174,7 @@ const userSchema = new Schema(
       trim: true,
       // default: null, // ✅ makes sure null is used instead of ""
     },
+
     googleId: String,
     googleEmail: String,
     googleAccessToken: String,
@@ -182,6 +183,18 @@ const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
+
+    microsoftId: String,
+    microsoftEmail: String,
+    microsoftAccessToken: String,
+    microsoftConnected: { type: Boolean, default: false },
+
+    smtpHost: String,
+    smtpPort: Number,
+    smtpUser: String,
+    smtpPass: String,
+    smtpConnected: { type: Boolean, default: false },
+
     emailVerificationToken: String,
     isVerified: {
       type: Boolean,
