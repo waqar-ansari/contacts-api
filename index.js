@@ -52,8 +52,9 @@ const reminderRoutes = require("./routes/reminderRoutes");
 const userInfoRoutes = require("./routes/userInfoRoutes");
 const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const googleConnect = require("./routes/googleConnectRoutes");
+const sendEmail = require("./routes/sendEmailRoutes");
 const { error } = require("console");
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 console.log("Setting up Express app...");
 
@@ -114,6 +115,7 @@ app.use("/password", authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
 app.use("/scan", scanRoutes);
 app.use("/scan/get_data", checkForAuthentication(), getScanDataRoutes);
+app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
@@ -140,7 +142,7 @@ console.log("Setting up error handling...");
 
     await mongoose.connect(process.env.MONGO_URL);
     console.log("MongoDB connected successfully");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }

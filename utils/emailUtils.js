@@ -33,7 +33,7 @@ const transporter = nodemailer.createTransport({
 
 const sendVerificationEmail = async (email, link) => {
   const mailOptions = {
-    from: '"Contacts Management" <makvanayash12@gmail.com>',
+    from: '"Contacts Management" <noreplay@contactmanagemant.com>',
     to: email,
     subject: "Verify Your Email",
     html: `

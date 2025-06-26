@@ -5,17 +5,17 @@ const querystring = require('querystring');
 
 // Google OAuth Setup
 //for live
-const CLIENT_ID = '401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com';
-const CLIENT_SECRET = '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';
-const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
+// const CLIENT_ID = '401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com';
+// const CLIENT_SECRET = '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';
+// const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
 // const MICROSOFT_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
 // const MICROSOFT_CLIENT_SECRET = 'YOUR_MICROSOFT_CLIENT_SECRET';
 // const MICROSOFT_REDIRECT_URI = 'https://yourdomain.com/connect/microsoft-callback';
 
 //for local
-// const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
-// const CLIENT_SECRET = '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';
-// const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
+const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
+const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
 const MICROSOFT_CLIENT_ID = 'c74e3dd9-5e49-417e-b256-75739bbc1716';
 const MICROSOFT_CLIENT_SECRET = '0ef8618f-ef3e-4fdf-b992-3ae4453ea5db';
 const MICROSOFT_REDIRECT_URI = 'http://localhost:3003/connect/microsoft-callback';
@@ -25,7 +25,7 @@ const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 // 1. API to Generate Google OAuth URL
 exports.connectGoogle = async (req, res) => {
-    const userId  = req.user._id;
+    const userId = req.user._id;
 
     try {
         const user = await User.findById(userId);
@@ -85,14 +85,21 @@ exports.googleCallback = async (req, res) => {
         await user.save();
 
         res.json({ status: 'success', message: 'Google connected successfully', user });
-        // return res.redirect('https://yourfrontenddomain.com/dashboard');
+        // const redirectUrl = new URL('https://contacts-user-web.vercel.app/general-settings/emailSetup');
+        // redirectUrl.searchParams.append('googleId', user.googleId);
+        // redirectUrl.searchParams.append('googleEmail', user.googleEmail);
+        // redirectUrl.searchParams.append('googleAccessToken', user.googleAccessToken);
+        // redirectUrl.searchParams.append('googleRefreshToken', user.googleRefreshToken);
+        // redirectUrl.searchParams.append('googleConnected', user.googleConnected);
+        // return res.redirect(redirectUrl.toString());
+
     } catch (error) {
         res.status(500).json({ status: 'error', message: 'Google callback failed', error });
     }
 };
 
 exports.connectMicrosoft = async (req, res) => {
-    const  userId  = req.user._id;
+    const userId = req.user._id;
 
     const params = querystring.stringify({
         client_id: MICROSOFT_CLIENT_ID,
