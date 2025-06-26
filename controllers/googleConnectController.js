@@ -58,9 +58,49 @@ exports.connectGoogle = async (req, res) => {
 };
 
 // 2. Google OAuth Callback API
+// exports.googleCallback = async (req, res) => {
+//     const { code, state } = req.query;
+//     const userId = state;  // ✅ Now state contains userId
+
+//     try {
+//         const { tokens } = await oauth2Client.getToken(code);
+//         oauth2Client.setCredentials(tokens);
+
+//         const googleUser = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+//             headers: { Authorization: `Bearer ${tokens.access_token}` },
+//         });
+
+//         const user = await User.findById(userId);
+
+//         if (!user) {
+//             return res.status(404).json({ status: 'error', message: 'User not found' });
+//         }
+
+//         // Save Google info for this user - no email check needed
+//         user.googleId = googleUser.data.id;
+//         user.googleEmail = googleUser.data.email;    // ✅ This can be any Google email
+//         user.googleAccessToken = tokens.access_token;
+//         user.googleRefreshToken = tokens.refresh_token;
+//         user.googleConnected = true;
+//         await user.save();
+
+//         res.json({ status: 'success', message: 'Google connected successfully', user });
+//         // const redirectUrl = new URL('https://contacts-user-web.vercel.app/general-settings/emailSetup');
+//         // redirectUrl.searchParams.append('googleId', user.googleId);
+//         // redirectUrl.searchParams.append('googleEmail', user.googleEmail);
+//         // redirectUrl.searchParams.append('googleAccessToken', user.googleAccessToken);
+//         // redirectUrl.searchParams.append('googleRefreshToken', user.googleRefreshToken);
+//         // redirectUrl.searchParams.append('googleConnected', user.googleConnected);
+//         // return res.redirect(redirectUrl.toString());
+
+//     } catch (error) {
+//         res.status(500).json({ status: 'error', message: 'Google callback failed', error });
+//     }
+// };
+
 exports.googleCallback = async (req, res) => {
     const { code, state } = req.query;
-    const userId = state;  // ✅ Now state contains userId
+    const userId = state;
 
     try {
         const { tokens } = await oauth2Client.getToken(code);
@@ -71,32 +111,46 @@ exports.googleCallback = async (req, res) => {
         });
 
         const user = await User.findById(userId);
-
         if (!user) {
-            return res.status(404).json({ status: 'error', message: 'User not found' });
+            return res.send(`<script>window.opener.postMessage({ status: 'error', message: 'User not found' }, '*'); window.close();</script>`);
         }
 
-        // Save Google info for this user - no email check needed
+        // Save Google info
         user.googleId = googleUser.data.id;
-        user.googleEmail = googleUser.data.email;    // ✅ This can be any Google email
+        user.googleEmail = googleUser.data.email;
         user.googleAccessToken = tokens.access_token;
         user.googleRefreshToken = tokens.refresh_token;
         user.googleConnected = true;
         await user.save();
 
-        res.json({ status: 'success', message: 'Google connected successfully', user });
-        // const redirectUrl = new URL('https://contacts-user-web.vercel.app/general-settings/emailSetup');
-        // redirectUrl.searchParams.append('googleId', user.googleId);
-        // redirectUrl.searchParams.append('googleEmail', user.googleEmail);
-        // redirectUrl.searchParams.append('googleAccessToken', user.googleAccessToken);
-        // redirectUrl.searchParams.append('googleRefreshToken', user.googleRefreshToken);
-        // redirectUrl.searchParams.append('googleConnected', user.googleConnected);
-        // return res.redirect(redirectUrl.toString());
+        // ✅ Send Google details back to frontend main window using postMessage
+        const resultData = {
+            status: 'success',
+            message: 'Google connected successfully',
+            googleId: user.googleId,
+            googleEmail: user.googleEmail,
+            googleAccessToken: user.googleAccessToken,
+            googleRefreshToken: user.googleRefreshToken,
+            googleConnected: user.googleConnected
+        };
+
+        return res.send(`
+            <script>
+                window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+                window.close();
+            </script>
+        `);
 
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Google callback failed', error });
+        return res.send(`
+            <script>
+                window.opener.postMessage({ status: 'error', message: 'Google callback failed', error: '${error.message}' }, '*');
+                window.close();
+            </script>
+        `);
     }
 };
+
 
 exports.connectMicrosoft = async (req, res) => {
     const userId = req.user._id;
