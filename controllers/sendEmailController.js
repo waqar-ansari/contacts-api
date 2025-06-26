@@ -1,10 +1,15 @@
 const nodemailer = require('nodemailer');
 
 // Your fixed backend SMTP config
-const SMTP_HOST = 'smtp.gmail.com';
+// const SMTP_HOST = 'smtp.gmail.com';
+// const SMTP_PORT = 465;
+// const SMTP_USER = 'makvanayash12@gmail.com';
+// const SMTP_PASS = 'fybb lnri tmrq otmg';
+
+const SMTP_HOST = 'smtp.titan.email';
 const SMTP_PORT = 465;
-const SMTP_USER = 'makvanayash12@gmail.com';
-const SMTP_PASS = 'fybb lnri tmrq otmg';
+const SMTP_USER = 'noreply@contacts.management';
+const SMTP_PASS = 'bZ}JTus_PQ{qWvA';
 
 exports.sendEmail = async (req, res) => {
     const { from, to, subject, text, html } = req.body;
