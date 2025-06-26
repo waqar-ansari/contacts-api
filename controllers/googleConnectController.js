@@ -5,17 +5,17 @@ const querystring = require('querystring');
 
 // Google OAuth Setup
 //for live
-const CLIENT_ID = '401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com';
-const CLIENT_SECRET = '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';
-const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
+// const CLIENT_ID = '401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com';
+// const CLIENT_SECRET = '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';
+// const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
 // const MICROSOFT_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
 // const MICROSOFT_CLIENT_SECRET = 'YOUR_MICROSOFT_CLIENT_SECRET';
 // const MICROSOFT_REDIRECT_URI = 'https://yourdomain.com/connect/microsoft-callback';
 
 //for local
-// const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
-// const CLIENT_SECRET = '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';
-// const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
+const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
+const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
 const MICROSOFT_CLIENT_ID = 'c74e3dd9-5e49-417e-b256-75739bbc1716';
 const MICROSOFT_CLIENT_SECRET = '0ef8618f-ef3e-4fdf-b992-3ae4453ea5db';
 const MICROSOFT_REDIRECT_URI = 'http://localhost:3003/connect/microsoft-callback';
@@ -136,7 +136,7 @@ exports.googleCallback = async (req, res) => {
 
         return res.send(`
             <script>
-                window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+                window.opener.postMessage(${resultData}, '*');
                 window.close();
             </script>
         `);
