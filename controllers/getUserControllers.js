@@ -208,6 +208,11 @@ const getUserData = async (req, res) => {
           facebook: user.facebook,
           designation: user.designation,
           serialNumber: user.serialNumber,
+          googleId: user.googleId,
+          googleEmail: user.googleEmail,
+          googleAccessToken: user.googleAccessToken,
+          googleRefreshToken: user.googleRefreshToken,
+          googleConnected: user.googleConnected,
           shareProfileCount: user.shareProfileCount || 0,
           contactCount,
           favouriteCount,
@@ -268,6 +273,11 @@ const getUserData = async (req, res) => {
           twitter: user.twitter,
           facebook: user.facebook,
           designation: user.designation,
+          googleId: user.googleId,
+          googleEmail: user.googleEmail,
+          googleAccessToken: user.googleAccessToken,
+          googleRefreshToken: user.googleRefreshToken,
+          googleConnected: user.googleConnected,
           shareProfileCount: user.shareProfileCount || 0,
           contactCount,
           favouriteCount,
@@ -308,6 +318,11 @@ const getUserData = async (req, res) => {
       twitter: user.twitter,
       facebook: user.facebook,
       designation: user.designation,
+      googleId: user.googleId,
+      googleEmail: user.googleEmail,
+      googleAccessToken: user.googleAccessToken,
+      googleRefreshToken: user.googleRefreshToken,
+      googleConnected: user.googleConnected,
       shareProfileCount: user.shareProfileCount || 0,
       contactCount,
       favouriteCount,
@@ -384,4 +399,3 @@ const getUserData = async (req, res) => {
 };
 
 module.exports = { getUserData };
-

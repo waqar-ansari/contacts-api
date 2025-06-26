@@ -3,8 +3,10 @@ const nodemailer = require("nodemailer");
 const transporter = nodemailer.createTransport({
   service: "smtp",
   auth: {
-    user: "noreply@contacts.management",
-    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+    // user: "noreply@contacts.management",
+    // pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+    user: "makvanayash12@gmail.com",
+    pass: "fybb lnri tmrq otmg", // App Password, not normal password
   },
 });
 
