@@ -8,38 +8,48 @@ const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
 const twilio = require("twilio");
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
+const axios = require('axios');
+require('dotenv').config();
 
 
-const sendWhatsAppOtp = async (phone, otp) => {
-  const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
-  const payload = {
-    messaging_product: "whatsapp",
-    to: phone,  // Full international number like: 919876543210
-    type: "template",
-    template: {
-      name: "otp_template",  // Your approved WhatsApp template name
-      language: { code: "en_US" },
-      components: [
-        {
-          type: "body",
-          parameters: [
-            { type: "text", text: otp }
-          ]
-        }
-      ]
-    }
-  };
+const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
-  const headers = {
-    Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-    "Content-Type": "application/json",
-  };
+    const payload = {
+      messaging_product: "whatsapp",
+      to: toPhoneNumber,   // ✅ Must have + at this point (example: +917046658651)
+      type: "template",
+      template: {
+        name: "otp",  // ✅ Must match your template name
+        language: { code: "english" },  // ✅ Use correct language code
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: otp }
+            ]
+          }
+        ]
+      }
+    };
 
-  await axios.post(url, payload, { headers });
+    const headers = {
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json"
+    };
+
+    const response = await axios.post(url, payload, { headers });
+    console.log("✅ WhatsApp OTP Sent:", response.data);
+
+  } catch (error) {
+    console.error("❌ WhatsApp API Error:", error.response?.data || error.message);
+    throw error;
+  }
 };
+
 
 
 const saveSignupData = async (req, res) => {
@@ -178,72 +188,99 @@ const saveSignupData = async (req, res) => {
     }
 
 
-     if (phonenumber && password && !email) {
-      if (!otp) {
-        const phone = phonenumber.replace(/[^0-9]/g, "");  // remove + or special chars
-        const formattedPhone = `${phone}`;  // Must be full international number like 9198xxxxxx
+    const otpStore = {};  // ✅ Temporary in-memory store (use Redis/DB in production)
 
-        const phoneExists = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
-        if (phoneExists) {
-          return res.status(409).json({
+    const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+    if (phonenumber && password && !email) {
+      // ✅ Step 1: Always sanitize phone (remove all non-numeric chars)
+      const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");  // Always something like: 917046658651
+
+      // ✅ Step 2: Check in DB without +
+      const phoneExists = await User.findOne({
+        phonenumbers: { $in: [sanitizedPhone] },
+        isVerified: true
+      });
+
+      if (phoneExists) {
+        return res.status(409).json({
+          status: "error",
+          message: "User with this phone number already exists",
+        });
+      }
+
+      // ✅ Step 3: Send OTP if otp not present in request
+      if (!otp) {
+        const generatedOtp = generateOtp();
+        otpStore[sanitizedPhone] = {
+          otp: generatedOtp,
+          expiresAt: Date.now() + 10 * 60 * 1000  // 10 mins
+        };
+
+        try {
+          const phoneForWhatsappApi = `+${sanitizedPhone}`;  // ✅ Send with + for WhatsApp API
+          await sendWhatsAppOtp(phoneForWhatsappApi, generatedOtp);
+        } catch (error) {
+          console.error("OTP Send Failed ❌", error.response?.data || error.message);
+          return res.status(500).json({
             status: "error",
-            message: "User with this phone number already exists",
+            message: "Failed to send WhatsApp OTP",
+            error: error.response?.data || error.message
           });
         }
-
-        const generatedOtp = generateOtp();
-        otpStore[phonenumber] = generatedOtp;
-
-        await sendWhatsAppOtp(formattedPhone, generatedOtp);
 
         return res.status(200).json({
           status: "pending",
           message: "OTP sent to your WhatsApp number",
         });
-      } else {
-        // OTP verification
-        if (otpStore[phonenumber] !== otp) {
-          return res.status(400).json({
-            status: "error",
-            message: "Invalid or expired OTP",
-          });
-        }
+      }
 
-        delete otpStore[phonenumber];
+      // ✅ Step 4: Verify OTP
+      const savedOtpData = otpStore[sanitizedPhone];
 
-        // ✅ OTP verified → Create user
-        const serialNumber = await getNextSerialNumber();
-        const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
-          firstname,
-          lastname,
-          phonenumbers: [phonenumber],
-          provider: "local"
-        });
-
-        const newUser = await User.create({
-          password,
-          firstname,
-          lastname,
-          phonenumbers: [phonenumber],
-          serialNumber,
-          isVerified: true,
-          qrCode,
-          signupMethod: "phoneNumber"
-        });
-
-        await newUser.save();
-
-        return res.status(201).json({
-          status: "success",
-          message: "Phone signup completed successfully",
-          data: {
-            _id: newUser._id,
-            phonenumbers: newUser.phonenumbers,
-          },
+      if (
+        !savedOtpData ||
+        savedOtpData.otp !== otp ||
+        savedOtpData.expiresAt < Date.now()
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid or expired OTP",
         });
       }
-    }
 
+      // ✅ Step 5: OTP Valid → Create user
+      const serialNumber = await getNextSerialNumber();
+      const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+        firstname,
+        lastname,
+        phonenumbers: [sanitizedPhone],
+        provider: "local"
+      });
+
+      const newUser = await User.create({
+        password,
+        firstname,
+        lastname,
+        phonenumbers: [sanitizedPhone],  // ✅ Save without +
+        serialNumber,
+        isVerified: true,
+        qrCode,
+        signupMethod: "phoneNumber"
+      });
+
+      // ✅ Clear OTP from memory
+      delete otpStore[sanitizedPhone];
+
+      return res.status(201).json({
+        status: "success",
+        message: "Phone signup completed successfully",
+        data: {
+          _id: newUser._id,
+          phonenumbers: newUser.phonenumbers,
+        },
+      });
+    }
 
 
     // if (phonenumber && password && !email) {
@@ -814,4 +851,5 @@ module.exports = {
   saveSignupData,
   unifiedLogin,
   resendVerificationLink,
+  sendWhatsAppOtp
 };

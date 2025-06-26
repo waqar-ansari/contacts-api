@@ -10,15 +10,15 @@ const CLIENT_SECRET = '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';
 const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
 // const MICROSOFT_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
 // const MICROSOFT_CLIENT_SECRET = 'YOUR_MICROSOFT_CLIENT_SECRET';
-// const MICROSOFT_REDIRECT_URI = 'https://yourdomain.com/connect/microsoft-callback';
+const MICROSOFT_REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/microsoft-callback';
 
 //for local
 // const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
 // const CLIENT_SECRET = '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';
 // const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
-const MICROSOFT_CLIENT_ID = 'c74e3dd9-5e49-417e-b256-75739bbc1716';
-const MICROSOFT_CLIENT_SECRET = '0ef8618f-ef3e-4fdf-b992-3ae4453ea5db';
-const MICROSOFT_REDIRECT_URI = 'http://localhost:3003/connect/microsoft-callback';
+const MICROSOFT_CLIENT_ID = '00928e23-cb26-4316-923c-6c98a7c7d904';
+const MICROSOFT_CLIENT_SECRET = '6128Q~Vz-uZeskDzcHL3DeNyMxDzG5PY~MT2iccl';
+// const MICROSOFT_REDIRECT_URI = 'http://localhost:3003/connect/microsoft-callback';
 
 
 const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
@@ -58,46 +58,6 @@ exports.connectGoogle = async (req, res) => {
 };
 
 // 2. Google OAuth Callback API
-// exports.googleCallback = async (req, res) => {
-//     const { code, state } = req.query;
-//     const userId = state;  // ✅ Now state contains userId
-
-//     try {
-//         const { tokens } = await oauth2Client.getToken(code);
-//         oauth2Client.setCredentials(tokens);
-
-//         const googleUser = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-//             headers: { Authorization: `Bearer ${tokens.access_token}` },
-//         });
-
-//         const user = await User.findById(userId);
-
-//         if (!user) {
-//             return res.status(404).json({ status: 'error', message: 'User not found' });
-//         }
-
-//         // Save Google info for this user - no email check needed
-//         user.googleId = googleUser.data.id;
-//         user.googleEmail = googleUser.data.email;    // ✅ This can be any Google email
-//         user.googleAccessToken = tokens.access_token;
-//         user.googleRefreshToken = tokens.refresh_token;
-//         user.googleConnected = true;
-//         await user.save();
-
-//         res.json({ status: 'success', message: 'Google connected successfully', user });
-//         // const redirectUrl = new URL('https://contacts-user-web.vercel.app/general-settings/emailSetup');
-//         // redirectUrl.searchParams.append('googleId', user.googleId);
-//         // redirectUrl.searchParams.append('googleEmail', user.googleEmail);
-//         // redirectUrl.searchParams.append('googleAccessToken', user.googleAccessToken);
-//         // redirectUrl.searchParams.append('googleRefreshToken', user.googleRefreshToken);
-//         // redirectUrl.searchParams.append('googleConnected', user.googleConnected);
-//         // return res.redirect(redirectUrl.toString());
-
-//     } catch (error) {
-//         res.status(500).json({ status: 'error', message: 'Google callback failed', error });
-//     }
-// };
-
 exports.googleCallback = async (req, res) => {
     const { code, state } = req.query;
     const userId = state;
@@ -177,6 +137,8 @@ exports.googleCallback = async (req, res) => {
 };
 
 
+
+
 exports.connectMicrosoft = async (req, res) => {
     const userId = req.user._id;
 
@@ -226,9 +188,49 @@ exports.microsoftCallback = async (req, res) => {
         user.microsoftConnected = true;
         await user.save();
 
-        res.json({ status: 'success', message: 'Microsoft account connected', user });
+        const resultData = {
+            status: 'success',
+            message: 'Microsoft account connected',
+            microsoftId: user.microsoftId,
+            microsoftEmail: user.microsoftEmail,
+            microsoftAccessToken: user.microsoftAccessToken,
+            microsoftConnected: user.microsoftConnected
+        };
+
+        // res.json({ status: 'success', message: 'Microsoft account connected', user });
+
+        return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Microsoft account connected Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
+
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Microsoft OAuth failed', error: error.message });
+        // res.status(500).json({ status: 'error', message: 'Microsoft OAuth failed', error: error.message });
+        return res.send(`
+            <script>
+                window.opener.postMessage({ status: 'error', message: 'Microsoft OAuth failed', error: '${error.message}' }, '*');
+                window.close();
+            </script>
+        `);
     }
 };
 

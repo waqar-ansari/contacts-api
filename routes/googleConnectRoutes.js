@@ -8,5 +8,4 @@ router.post('/microsoft', googleConnectController.connectMicrosoft);
 router.get('/microsoft-callback', googleConnectController.microsoftCallback);
 
 
-
 module.exports = router;

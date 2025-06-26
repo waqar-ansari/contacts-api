@@ -52,6 +52,7 @@ const reminderRoutes = require("./routes/reminderRoutes");
 const userInfoRoutes = require("./routes/userInfoRoutes");
 const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const googleConnect = require("./routes/googleConnectRoutes");
+const disconnectAccountRoutes = require("./routes/disconnectAccountRoutes");
 const sendEmail = require("./routes/sendEmailRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
@@ -94,7 +95,7 @@ app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
 
 app.use("/connect", (req, res, next) => {
-    const skipAuthPaths = ["/google-callback"];
+    const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
     if (skipAuthPaths.includes(req.path)) {
         return next(); // No token required for callback
     }
@@ -108,8 +109,7 @@ app.use(
   contactRoutes
 );
 app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
-
-
+app.use("/disconnect", checkForAuthentication(), disconnectAccountRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use("/password", authRoutes);
 app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
