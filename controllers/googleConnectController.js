@@ -134,12 +134,37 @@ exports.googleCallback = async (req, res) => {
             googleConnected: user.googleConnected
         };
 
+        // return res.send(`
+        //     <script>
+        //         window.opener.postMessage(${resultData}, '*');
+        //         window.close();
+        //     </script>
+        // `);
+
         return res.send(`
-            <script>
-                window.opener.postMessage(${resultData}, '*');
-                window.close();
-            </script>
-        `);
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Google Account Connected Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
+
 
     } catch (error) {
         return res.send(`
