@@ -12,34 +12,34 @@ const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TO
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 
 
-// const sendWhatsAppOtp = async (phone, otp) => {
-//   const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+const sendWhatsAppOtp = async (phone, otp) => {
+  const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
-//   const payload = {
-//     messaging_product: "whatsapp",
-//     to: phone,  // Full international number like: 919876543210
-//     type: "template",
-//     template: {
-//       name: "otp_template",  // Your approved WhatsApp template name
-//       language: { code: "en_US" },
-//       components: [
-//         {
-//           type: "body",
-//           parameters: [
-//             { type: "text", text: otp }
-//           ]
-//         }
-//       ]
-//     }
-//   };
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,  // Full international number like: 919876543210
+    type: "template",
+    template: {
+      name: "otp_template",  // Your approved WhatsApp template name
+      language: { code: "en_US" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: otp }
+          ]
+        }
+      ]
+    }
+  };
 
-//   const headers = {
-//     Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-//     "Content-Type": "application/json",
-//   };
+  const headers = {
+    Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+    "Content-Type": "application/json",
+  };
 
-//   await axios.post(url, payload, { headers });
-// };
+  await axios.post(url, payload, { headers });
+};
 
 
 const saveSignupData = async (req, res) => {
@@ -178,71 +178,71 @@ const saveSignupData = async (req, res) => {
     }
 
 
-    //  if (phonenumber && password && !email) {
-    //   if (!otp) {
-    //     const phone = phonenumber.replace(/[^0-9]/g, "");  // remove + or special chars
-    //     const formattedPhone = `${phone}`;  // Must be full international number like 9198xxxxxx
+     if (phonenumber && password && !email) {
+      if (!otp) {
+        const phone = phonenumber.replace(/[^0-9]/g, "");  // remove + or special chars
+        const formattedPhone = `${phone}`;  // Must be full international number like 9198xxxxxx
 
-    //     const phoneExists = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
-    //     if (phoneExists) {
-    //       return res.status(409).json({
-    //         status: "error",
-    //         message: "User with this phone number already exists",
-    //       });
-    //     }
+        const phoneExists = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
+        if (phoneExists) {
+          return res.status(409).json({
+            status: "error",
+            message: "User with this phone number already exists",
+          });
+        }
 
-    //     const generatedOtp = generateOtp();
-    //     otpStore[phonenumber] = generatedOtp;
+        const generatedOtp = generateOtp();
+        otpStore[phonenumber] = generatedOtp;
 
-    //     await sendWhatsAppOtp(formattedPhone, generatedOtp);
+        await sendWhatsAppOtp(formattedPhone, generatedOtp);
 
-    //     return res.status(200).json({
-    //       status: "pending",
-    //       message: "OTP sent to your WhatsApp number",
-    //     });
-    //   } else {
-    //     // OTP verification
-    //     if (otpStore[phonenumber] !== otp) {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "Invalid or expired OTP",
-    //       });
-    //     }
+        return res.status(200).json({
+          status: "pending",
+          message: "OTP sent to your WhatsApp number",
+        });
+      } else {
+        // OTP verification
+        if (otpStore[phonenumber] !== otp) {
+          return res.status(400).json({
+            status: "error",
+            message: "Invalid or expired OTP",
+          });
+        }
 
-    //     delete otpStore[phonenumber];
+        delete otpStore[phonenumber];
 
-    //     // ✅ OTP verified → Create user
-    //     const serialNumber = await getNextSerialNumber();
-    //     const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
-    //       firstname,
-    //       lastname,
-    //       phonenumbers: [phonenumber],
-    //       provider: "local"
-    //     });
+        // ✅ OTP verified → Create user
+        const serialNumber = await getNextSerialNumber();
+        const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+          firstname,
+          lastname,
+          phonenumbers: [phonenumber],
+          provider: "local"
+        });
 
-    //     const newUser = await User.create({
-    //       password,
-    //       firstname,
-    //       lastname,
-    //       phonenumbers: [phonenumber],
-    //       serialNumber,
-    //       isVerified: true,
-    //       qrCode,
-    //       signupMethod: "phoneNumber"
-    //     });
+        const newUser = await User.create({
+          password,
+          firstname,
+          lastname,
+          phonenumbers: [phonenumber],
+          serialNumber,
+          isVerified: true,
+          qrCode,
+          signupMethod: "phoneNumber"
+        });
 
-    //     await newUser.save();
+        await newUser.save();
 
-    //     return res.status(201).json({
-    //       status: "success",
-    //       message: "Phone signup completed successfully",
-    //       data: {
-    //         _id: newUser._id,
-    //         phonenumbers: newUser.phonenumbers,
-    //       },
-    //     });
-    //   }
-    // }
+        return res.status(201).json({
+          status: "success",
+          message: "Phone signup completed successfully",
+          data: {
+            _id: newUser._id,
+            phonenumbers: newUser.phonenumbers,
+          },
+        });
+      }
+    }
 
 
 
