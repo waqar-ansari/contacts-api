@@ -196,7 +196,7 @@ exports.microsoftCallback = async (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Google Connected</title>
+        <title>Microsoft Connected</title>
         <style>
             body { 
                 font-family: Arial, sans-serif; 
@@ -263,23 +263,61 @@ exports.connectSMTP = async (req, res) => {
 
         await user.save();
 
-        res.json({
+        // res.json({
+        //     status: 'success',
+        //     message: 'SMTP connected and saved to user profile',
+        //     smtpHost: SMTP_HOST,
+        //     smtpPort: SMTP_PORT,
+        //     smtpUser: SMTP_USER,
+        //     smtpSecure: true,
+        //     smtpConnected: true
+        // });
+
+        const resultData = {
             status: 'success',
-            message: 'SMTP connected and saved to user profile',
-            smtpHost: SMTP_HOST,
-            smtpPort: SMTP_PORT,
-            smtpUser: SMTP_USER,
-            smtpSecure: true,
-            smtpConnected: true
-        });
+            message: 'SMTP account connected',
+            smtpHost: user.smtpHost,
+            smtpPort: user.smtpPort,
+            smtpUser: user.smtpUser,
+            smtpPass: user.smtpPass,
+            smtpSecure: user.smtpSecure,
+            smtpConnected: user.smtpConnected
+        };
+
+        // res.json({ status: 'success', message: 'Microsoft account connected', user });
+
+        return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SMTP Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">SMTP account connected Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
 
     } catch (error) {
-        console.error('SMTP Connection Error:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'SMTP connection failed',
-            error: error.message
-        });
+        // res.status(500).json({ status: 'error', message: 'Microsoft OAuth failed', error: error.message });
+        return res.send(`
+            <script>
+                window.opener.postMessage({ status: 'error', message: 'Microsoft OAuth failed', error: '${error.message}' }, '*');
+                window.close();
+            </script>
+        `);
     }
 };
 
