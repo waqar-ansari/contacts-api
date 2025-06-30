@@ -4,6 +4,8 @@ const User = require("../models/userModel");
 const s3 = require("../utils/s3");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
+const { createGoogleMeetEvent } = require("../utils/googleCalendar");
+
 
 const addEditContact = async (req, res) => {
   try {
@@ -47,41 +49,32 @@ const addEditContact = async (req, res) => {
     } = req.body;
 
     // ---------- Normalize Phone Numbers ----------
-let parsedPhones = [];
+    let parsedPhones = [];
 
-if (phonenumbers) {
-  try {
-    // Case 1: Valid JSON array string like '["1234","5678"]' or plain number: 1111111
-    const temp = JSON.parse(phonenumbers);
-    console.log("Parsed phone numbers:", temp);
-    
-    const phoneArray = Array.isArray(temp) ? temp : [temp];
-    console.log("Phone array:", phoneArray);
-    
-    parsedPhones = phoneArray
-      .filter(num => num !== null && num !== undefined && num !== "undefined")
-      .map(num => String(num).replace(/[^\d]/g, ""));
-      
-    console.log("Normalized phone numbers:", parsedPhones);
-      
-  } catch (e) {
-    // Case 2: Plain string like "1111111"
-    if (typeof phonenumbers === "string" && phonenumbers.trim() !== "" && phonenumbers !== "undefined") {
-      parsedPhones = [phonenumbers.replace(/[^\d]/g, "")];
+    if (phonenumbers) {
+      try {
+        // Case 1: Valid JSON array string like '["1234","5678"]' or plain number: 1111111
+        const temp = JSON.parse(phonenumbers);
+        console.log("Parsed phone numbers:", temp);
+
+        const phoneArray = Array.isArray(temp) ? temp : [temp];
+        console.log("Phone array:", phoneArray);
+
+        parsedPhones = phoneArray
+          .filter(num => num !== null && num !== undefined && num !== "undefined")
+          .map(num => String(num).replace(/[^\d]/g, ""));
+
+        console.log("Normalized phone numbers:", parsedPhones);
+
+      } catch (e) {
+        // Case 2: Plain string like "1111111"
+        if (typeof phonenumbers === "string" && phonenumbers.trim() !== "" && phonenumbers !== "undefined") {
+          parsedPhones = [phonenumbers.replace(/[^\d]/g, "")];
+        }
+      }
     }
-  }
-}
 
-
-
-console.log("Parsed Phones:", phonenumbers, parsedPhones);
-
-
-
-
-
-
-
+    console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
     // // ---------- ✅ Handle Tags ----------
     // let matchedTags = [];
@@ -235,9 +228,85 @@ console.log("Parsed Phones:", phonenumbers, parsedPhones);
     }
 
     // ---------- Handle Meeting ----------
+    // const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
+    // let meetingObj = null;
+    // if (meetingProvided) {
+    //   meetingObj = {};
+    //   if (meeting_id) {
+    //     meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
+    //   } else {
+    //     meetingObj.meeting_id = new mongoose.Types.ObjectId();
+    //     meetingObj.createdAt = new Date();
+    //   }
+
+    //   if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
+    //   if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
+    //   if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
+    //   if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
+    //   if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
+    //   if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
+
+    //   if (meetingType) meetingObj.meetingType = meetingType;
+    //   if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
+    //   if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
+
+    //   if (!isCreating && meeting_id) {
+    //     meetingObj.updatedAt = new Date();
+    //   }
+    // }
+
+    // ---------- Handle Meeting ----------
+    // const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
+    // let meetingObj = null;
+    // if (meetingProvided) {
+    //   // ✅ For online meeting: Check Google connection
+    //   if (meetingType === "online") {
+    //     if (!user.googleAccessToken || !user.googleRefreshToken) {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "To create an online meeting, please first connect your Google account.",
+    //       });
+    //     }
+    //   }
+
+    //   meetingObj = {};
+    //   if (meeting_id) {
+    //     meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
+    //   } else {
+    //     meetingObj.meeting_id = new mongoose.Types.ObjectId();
+    //     meetingObj.createdAt = new Date();
+    //   }
+
+    //   if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
+    //   if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
+    //   if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
+    //   if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
+    //   if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
+    //   if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
+
+    //   if (meetingType) meetingObj.meetingType = meetingType;
+    //   if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
+    //   if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
+
+    //   if (!isCreating && meeting_id) {
+    //     meetingObj.updatedAt = new Date();
+    //   }
+    // }
+
+    const timezone = req.body.timezone || 'UTC';  // ✅ Get timezone from user if provided
     const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
-    let meetingObj = null;
+
     if (meetingProvided) {
+      // ✅ For online meeting: Check Google connection
+      if (meetingType === "online") {
+        if (!user.googleAccessToken || !user.googleRefreshToken) {
+          return res.status(400).json({
+            status: "error",
+            message: "To create an online meeting, please first connect your Google account.",
+          });
+        }
+      }
+
       meetingObj = {};
       if (meeting_id) {
         meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
@@ -254,13 +323,29 @@ console.log("Parsed Phones:", phonenumbers, parsedPhones);
       if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
 
       if (meetingType) meetingObj.meetingType = meetingType;
-      if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
-      if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
+
+      // ✅ Auto-generate Google Meet link for online meetings
+      if (meetingType === "online") {
+        try {
+          const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
+          if (generatedLink) {
+            meetingObj.meetingLink = generatedLink;
+          }
+        } catch (error) {
+          console.error("Failed to create Google Meet link:", error);
+        }
+      }
+
+      if (meetingType === "offline" && meetingLocation) {
+        meetingObj.meetingLocation = meetingLocation;
+      }
 
       if (!isCreating && meeting_id) {
         meetingObj.updatedAt = new Date();
       }
     }
+
+
 
     let contactData;
     if (isCreating) {

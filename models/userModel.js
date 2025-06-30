@@ -189,10 +189,11 @@ const userSchema = new Schema(
     microsoftAccessToken: String,
     microsoftConnected: { type: Boolean, default: false },
 
-    smtpHost: String,
-    smtpPort: Number,
-    smtpUser: String,
-    smtpPass: String,
+    smtpHost: { type: String },
+    smtpPort: { type: Number },
+    smtpUser: { type: String },
+    smtpPass: { type: String },
+    smtpSecure: { type: Boolean, default: true },
     smtpConnected: { type: Boolean, default: false },
 
     emailVerificationToken: String,

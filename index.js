@@ -51,7 +51,7 @@ const getScanDataRoutes = require("./routes/getScanDataRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const userInfoRoutes = require("./routes/userInfoRoutes");
 const getUserCardRoutes = require("./routes/getUserCardRoutes");
-const googleConnect = require("./routes/googleConnectRoutes");
+const accountConnect = require("./routes/accountConnectRoutes");
 const disconnectAccountRoutes = require("./routes/disconnectAccountRoutes");
 const sendEmail = require("./routes/sendEmailRoutes");
 const { error } = require("console");
@@ -100,7 +100,7 @@ app.use("/connect", (req, res, next) => {
         return next(); // No token required for callback
     }
     return checkForAuthentication()(req, res, next);
-}, googleConnect);
+}, accountConnect);
 
 app.use(
   "/addEditContact",

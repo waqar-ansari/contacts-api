@@ -1,25 +1,19 @@
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
+const nodemailer = require('nodemailer');
 const User = require('../models/userModel'); // Your User Model
 const querystring = require('querystring');
+require("dotenv").config();
+
 
 // Google OAuth Setup
-//for live
-const CLIENT_ID = '401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com';
-const CLIENT_SECRET = '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';
-const REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/google-callback';
-// const MICROSOFT_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
-// const MICROSOFT_CLIENT_SECRET = 'YOUR_MICROSOFT_CLIENT_SECRET';
-const MICROSOFT_REDIRECT_URI = 'https://100rjobf76.execute-api.eu-north-1.amazonaws.com/connect/microsoft-callback';
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI2;
 
-//for local
-// const CLIENT_ID = '690630511368-pfehj1kgnim33509j2d04ok6quinj6vd.apps.googleusercontent.com';
-// const CLIENT_SECRET = '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';
-// const REDIRECT_URI = 'http://localhost:3003/connect/google-callback';
-const MICROSOFT_CLIENT_ID = '00928e23-cb26-4316-923c-6c98a7c7d904';
-const MICROSOFT_CLIENT_SECRET = '6128Q~Vz-uZeskDzcHL3DeNyMxDzG5PY~MT2iccl';
-// const MICROSOFT_REDIRECT_URI = 'http://localhost:3003/connect/microsoft-callback';
-
+const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
+const MICROSOFT_REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI;
 
 const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
@@ -37,6 +31,8 @@ exports.connectGoogle = async (req, res) => {
         const scopes = [
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/gmail.send',  // ✅ Required for sending email
+            'https://www.googleapis.com/auth/calendar',
         ];
 
         const params = querystring.stringify({
@@ -136,9 +132,6 @@ exports.googleCallback = async (req, res) => {
     }
 };
 
-
-
-
 exports.connectMicrosoft = async (req, res) => {
     const userId = req.user._id;
 
@@ -147,7 +140,7 @@ exports.connectMicrosoft = async (req, res) => {
         response_type: 'code',
         redirect_uri: MICROSOFT_REDIRECT_URI,
         response_mode: 'query',
-        scope: 'User.Read offline_access',
+        scope: 'User.Read Mail.Send offline_access',
         state: userId,
     });
 
@@ -233,5 +226,62 @@ exports.microsoftCallback = async (req, res) => {
         `);
     }
 };
+
+exports.connectSMTP = async (req, res) => {
+    const userId = req.user._id;
+
+    try {
+        // ✅ Find user
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 'error', message: 'User not found' });
+        }
+
+        const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = req.body;
+
+        // ✅ Create SMTP transporter
+        const transporter = nodemailer.createTransport({
+            host: SMTP_HOST,
+            port: SMTP_PORT,
+            secure: true,  // Using SSL/TLS
+            auth: {
+                user: SMTP_USER,
+                pass: SMTP_PASS
+            }
+        });
+
+        // ✅ Verify SMTP connection (without sending mail)
+        await transporter.verify();
+
+        // ✅ Save SMTP details to user document
+        user.smtpHost = SMTP_HOST;
+        user.smtpPort = SMTP_PORT;
+        user.smtpUser = SMTP_USER;
+        user.smtpPass = SMTP_PASS;
+        user.smtpSecure = true;
+        user.smtpConnected = true;
+
+        await user.save();
+
+        res.json({
+            status: 'success',
+            message: 'SMTP connected and saved to user profile',
+            smtpHost: SMTP_HOST,
+            smtpPort: SMTP_PORT,
+            smtpUser: SMTP_USER,
+            smtpSecure: true,
+            smtpConnected: true
+        });
+
+    } catch (error) {
+        console.error('SMTP Connection Error:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'SMTP connection failed',
+            error: error.message
+        });
+    }
+};
+
 
 

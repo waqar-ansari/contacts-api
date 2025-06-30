@@ -24,7 +24,7 @@ const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
       type: "template",
       template: {
         name: "otp",  // ✅ Must match your template name
-        language: { code: "english" },  // ✅ Use correct language code
+        language: { code: "en_US" },  // ✅ Use correct language code
         components: [
           {
             type: "body",
