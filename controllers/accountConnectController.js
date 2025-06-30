@@ -314,12 +314,9 @@ exports.connectSMTP = async (req, res) => {
         // res.status(500).json({ status: 'error', message: 'Microsoft OAuth failed', error: error.message });
         return res.send(`
             <script>
-                window.opener.postMessage({ status: 'error', message: 'Microsoft OAuth failed', error: '${error.message}' }, '*');
+                window.opener.postMessage({ status: 'error', message: 'SMTP OAuth failed', error: '${error.message}' }, '*');
                 window.close();
             </script>
         `);
     }
 };
-
-
-

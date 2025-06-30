@@ -20,16 +20,26 @@ const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
 
     const payload = {
       messaging_product: "whatsapp",
-      to: toPhoneNumber,   // ✅ Must have + at this point (example: +917046658651)
+      to: toPhoneNumber,
       type: "template",
       template: {
-        name: "otp",  // ✅ Must match your template name
-        language: { code: "en_US" },  // ✅ Use correct language code
+        name: "otp",
+        language: {
+          code: "en_US"
+        },
         components: [
           {
             type: "body",
             parameters: [
               { type: "text", text: otp }
+            ]
+          },
+          {
+            type: "button",
+            sub_type: "url",
+            index: 0,
+            parameters: [
+              { type: "text", text: otp }  // Just the OTP (must be ≤ 15 characters)
             ]
           }
         ]
@@ -188,37 +198,160 @@ const saveSignupData = async (req, res) => {
     }
 
 
-    const otpStore = {};  // ✅ Temporary in-memory store (use Redis/DB in production)
 
-    const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+    // if (phonenumber && password && !email) {
+    //   const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+
+    //   const existingUser = await User.findOne({
+    //     phonenumbers: { $in: [sanitizedPhone] },
+    //     isVerified: true
+    //   });
+
+    //   if (existingUser) {
+    //     return res.status(409).json({
+    //       status: "error",
+    //       message: "User with this phone number already exists",
+    //     });
+    //   }
+
+    //   // ✅ If OTP not sent yet → Generate and Save OTP in User model
+    //   if (!otp) {
+    //     const generatedOtp = generateOtp();
+    //     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+
+    //     // ✅ Either Update if existing unverified user exists or Create temp user record
+    //     const tempUser = await User.findOneAndUpdate(
+    //       { phonenumbers: { $in: [sanitizedPhone] }, isVerified: false },
+    //       {
+    //         otp: generatedOtp,
+    //         otpExpiresAt,
+    //         firstname,
+    //         lastname,
+    //       },
+    //       { upsert: true, new: true, setDefaultsOnInsert: true }
+    //     );
+
+    //     try {
+    //       const phoneForWhatsappApi = `+${sanitizedPhone}`;
+    //       await sendWhatsAppOtp(phoneForWhatsappApi, generatedOtp);
+    //     } catch (error) {
+    //       console.error("OTP Send Failed ❌", error.response?.data || error.message);
+    //       return res.status(500).json({
+    //         status: "error",
+    //         message: "Failed to send WhatsApp OTP",
+    //         error: error.response?.data || error.message
+    //       });
+    //     }
+
+    //     return res.status(200).json({
+    //       status: "pending",
+    //       message: "OTP sent to your WhatsApp number",
+    //     });
+    //   }
+
+    //   // ✅ If OTP is present → Verify OTP
+    //   const userToVerify = await User.findOne({
+    //     phonenumbers: { $in: [sanitizedPhone] },
+    //     isVerified: false,
+    //   });
+
+    //   if (
+    //     !userToVerify ||
+    //     userToVerify.otp !== otp ||
+    //     userToVerify.otpExpiresAt < new Date()
+    //   ) {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Invalid or expired OTP",
+    //     });
+    //   }
+
+    //   // ✅ OTP is valid → Finalize user signup
+    //   const serialNumber = await getNextSerialNumber();
+    //   const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+    //     firstname,
+    //     lastname,
+    //     phonenumbers: [sanitizedPhone],
+    //     provider: "local"
+    //   });
+
+    //   userToVerify.serialNumber = serialNumber;
+    //   userToVerify.isVerified = true;
+    //   userToVerify.qrCode = qrCode;
+    //   userToVerify.signupMethod = "phoneNumber";
+    //   userToVerify.password = password;
+    //   userToVerify.firstname = firstname;
+    //   userToVerify.lastname = lastname;
+
+    //   // ✅ Clear OTP fields
+    //   userToVerify.otp = undefined;
+    //   userToVerify.otpExpiresAt = undefined;
+
+    //   await userToVerify.save();
+
+    //   return res.status(201).json({
+    //     status: "success",
+    //     message: "Phone signup completed successfully",
+    //     data: {
+    //       _id: userToVerify._id,
+    //       phonenumbers: userToVerify.phonenumbers,
+    //     },
+    //   });
+    // }
 
     if (phonenumber && password && !email) {
-      // ✅ Step 1: Always sanitize phone (remove all non-numeric chars)
-      const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");  // Always something like: 917046658651
+      const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
 
-      // ✅ Step 2: Check in DB without +
-      const phoneExists = await User.findOne({
+      const existingVerifiedUser = await User.findOne({
         phonenumbers: { $in: [sanitizedPhone] },
         isVerified: true
       });
 
-      if (phoneExists) {
+      if (existingVerifiedUser) {
         return res.status(409).json({
           status: "error",
           message: "User with this phone number already exists",
         });
       }
 
-      // ✅ Step 3: Send OTP if otp not present in request
+      // ✅ Find unverified user (for resend or verification)
+      let user = await User.findOne({
+        phonenumbers: { $in: [sanitizedPhone] },
+        isVerified: false,
+      });
+
+      const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+      // ✅ If OTP not present → Generate and Send OTP
       if (!otp) {
         const generatedOtp = generateOtp();
-        otpStore[sanitizedPhone] = {
-          otp: generatedOtp,
-          expiresAt: Date.now() + 10 * 60 * 1000  // 10 mins
-        };
+        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins from now
+
+        if (!user) {
+          user = await User.findOneAndUpdate(
+            { phonenumbers: { $in: [sanitizedPhone] }, isVerified: false },
+            {
+              $set: {
+                otp: generatedOtp,
+                otpExpiresAt,
+                firstname,
+                lastname,
+                signupMethod: "phoneNumber"
+              }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        } else {
+          user.otp = generatedOtp;
+          user.otpExpiresAt = otpExpiresAt;
+          user.firstname = firstname;
+          user.lastname = lastname;
+          await user.save();
+        }
+
 
         try {
-          const phoneForWhatsappApi = `+${sanitizedPhone}`;  // ✅ Send with + for WhatsApp API
+          const phoneForWhatsappApi = `+${sanitizedPhone}`;
           await sendWhatsAppOtp(phoneForWhatsappApi, generatedOtp);
         } catch (error) {
           console.error("OTP Send Failed ❌", error.response?.data || error.message);
@@ -235,13 +368,17 @@ const saveSignupData = async (req, res) => {
         });
       }
 
-      // ✅ Step 4: Verify OTP
-      const savedOtpData = otpStore[sanitizedPhone];
+      // ✅ If OTP is present → Verify OTP
+      if (!user) {
+        return res.status(400).json({
+          status: "error",
+          message: "No signup request found for this phone number. Please request a new OTP.",
+        });
+      }
 
       if (
-        !savedOtpData ||
-        savedOtpData.otp !== otp ||
-        savedOtpData.expiresAt < Date.now()
+        user.otp !== otp ||
+        user.otpExpiresAt < new Date()
       ) {
         return res.status(400).json({
           status: "error",
@@ -249,7 +386,7 @@ const saveSignupData = async (req, res) => {
         });
       }
 
-      // ✅ Step 5: OTP Valid → Create user
+      // ✅ OTP Valid → Finalize signup
       const serialNumber = await getNextSerialNumber();
       const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
         firstname,
@@ -258,29 +395,31 @@ const saveSignupData = async (req, res) => {
         provider: "local"
       });
 
-      const newUser = await User.create({
-        password,
-        firstname,
-        lastname,
-        phonenumbers: [sanitizedPhone],  // ✅ Save without +
-        serialNumber,
-        isVerified: true,
-        qrCode,
-        signupMethod: "phoneNumber"
-      });
+      user.serialNumber = serialNumber;
+      user.isVerified = true;
+      user.qrCode = qrCode;
+      user.signupMethod = "phoneNumber";
+      user.password = password;
+      user.firstname = firstname;
+      user.lastname = lastname;
 
-      // ✅ Clear OTP from memory
-      delete otpStore[sanitizedPhone];
+      // Clear OTP fields
+      user.otp = undefined;
+      user.otpExpiresAt = undefined;
+
+      await user.save();
 
       return res.status(201).json({
         status: "success",
         message: "Phone signup completed successfully",
         data: {
-          _id: newUser._id,
-          phonenumbers: newUser.phonenumbers,
+          _id: user._id,
+          phonenumbers: user.phonenumbers,
         },
       });
     }
+
+
 
 
     // if (phonenumber && password && !email) {

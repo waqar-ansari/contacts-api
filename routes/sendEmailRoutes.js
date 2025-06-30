@@ -1,12 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendEmail, sendEmailMicrosoft, sendEmailSMTP } = require('../controllers/sendEmailController');
+const { sendEmail } = require('../controllers/sendEmailController');
 
-router.post('/google', sendEmail);
-
-router.post('/microsoft', sendEmailMicrosoft);
-
-router.post('/smtp', sendEmailSMTP);
-
+router.post('/', sendEmail);
 
 module.exports = router;
