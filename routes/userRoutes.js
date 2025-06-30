@@ -1,9 +1,9 @@
 const { Router } = require("express");
 const {
-  requestOtp,
-  saveSignupData,
+  signupWithEmail,
   unifiedLogin,
   resendVerificationLink,
+  signupWithPhoneNumber,
 } = require("../controllers/userControllers");
 
 const router = Router();
@@ -47,7 +47,10 @@ const router = Router();
  */
 // router.post("/signup/request-otp", requestOtp);
 
-router.post("/signup", saveSignupData);
+router.post("/signup/email", signupWithEmail);
+
+router.post("/signup/phoneNumber", signupWithPhoneNumber);
+
 
 router.post("/resendVerificationLink", resendVerificationLink);
 
