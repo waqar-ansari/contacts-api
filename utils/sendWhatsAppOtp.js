@@ -39,10 +39,10 @@ const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
         };
 
         const response = await axios.post(url, payload, { headers });
-        console.log("✅ WhatsApp OTP Sent:", response.data);
+        console.log("WhatsApp OTP Sent:", response.data);
 
     } catch (error) {
-        console.error("❌ WhatsApp API Error:", error.response?.data || error.message);
+        console.error("WhatsApp API Error:", error.response?.data || error.message);
         throw error;
     }
 };
