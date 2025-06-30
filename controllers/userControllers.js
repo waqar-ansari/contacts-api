@@ -7,7 +7,6 @@ const { getNextSerialNumber } = require("../utils/serialUtils");
 const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
-const twilio = require("twilio");
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 const axios = require('axios');
 require('dotenv').config();
