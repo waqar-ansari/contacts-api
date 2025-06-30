@@ -9,54 +9,55 @@ const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 const axios = require('axios');
+const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp'); // ✅ Assuming you already have this
 require('dotenv').config();
 
 
-const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
-  try {
-    const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+// const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
+//   try {
+//     const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
-    const payload = {
-      messaging_product: "whatsapp",
-      to: toPhoneNumber,
-      type: "template",
-      template: {
-        name: "otp",
-        language: {
-          code: "en_US"
-        },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: otp }
-            ]
-          },
-          {
-            type: "button",
-            sub_type: "url",
-            index: 0,
-            parameters: [
-              { type: "text", text: otp }  // Just the OTP (must be ≤ 15 characters)
-            ]
-          }
-        ]
-      }
-    };
+//     const payload = {
+//       messaging_product: "whatsapp",
+//       to: toPhoneNumber,
+//       type: "template",
+//       template: {
+//         name: "otp",
+//         language: {
+//           code: "en_US"
+//         },
+//         components: [
+//           {
+//             type: "body",
+//             parameters: [
+//               { type: "text", text: otp }
+//             ]
+//           },
+//           {
+//             type: "button",
+//             sub_type: "url",
+//             index: 0,
+//             parameters: [
+//               { type: "text", text: otp }  // Just the OTP (must be ≤ 15 characters)
+//             ]
+//           }
+//         ]
+//       }
+//     };
 
-    const headers = {
-      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-      "Content-Type": "application/json"
-    };
+//     const headers = {
+//       Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+//       "Content-Type": "application/json"
+//     };
 
-    const response = await axios.post(url, payload, { headers });
-    console.log("✅ WhatsApp OTP Sent:", response.data);
+//     const response = await axios.post(url, payload, { headers });
+//     console.log("✅ WhatsApp OTP Sent:", response.data);
 
-  } catch (error) {
-    console.error("❌ WhatsApp API Error:", error.response?.data || error.message);
-    throw error;
-  }
-};
+//   } catch (error) {
+//     console.error("❌ WhatsApp API Error:", error.response?.data || error.message);
+//     throw error;
+//   }
+// };
 
 // const signupWithEmail = async (req, res) => {
 //   try {
@@ -262,6 +263,8 @@ const sendWhatsAppOtp = async (toPhoneNumber, otp) => {
 //     });
 //   }
 // };
+
+
 
 const signupWithEmail = async (req, res) => {
   try {
@@ -679,42 +682,7 @@ const unifiedLogin = async (req, res) => {
   try {
     const { email = "", phonenumber = "", password = "", googleToken, appleToken } = req.body;
 
-    // // === EMAIL or PHONENUMBER + PASSWORD ===
-    // if ((email || phonenumber) && password && !googleToken && !appleToken) {
-    //   try {
-    //     const token = await User.matchPasswordAndGenerateToken({ email, phonenumber, password });
-    //     return res.json({ status: "success", message: "Login successful", data: { token } });
-    //   } catch (err) {
-    //     return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
-    //   }
-    // }
-
-    // if ((email || phonenumber) && password && !googleToken && !appleToken) {
-    //   try {
-    //     const user = await User.findOne({ $or: [{ email }, { phonenumbers: { $in: [phonenumber] } }] });
-
-    //     if (!user) {
-    //       return res.status(401).json({ status: "error", message: "User not found" });
-    //     }
-    //     console.log("🟢 Incoming login request body:", req.body);
-
-
-    //     console.log("🔍 User found during login:", {
-    //       id: user._id,
-    //       email: user.email,
-    //       isVerified: user.isVerified
-    //     });
-    //     if (email && !user.isVerified) {
-    //       return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
-    //     }
-
-    //     const token = await User.matchPasswordAndGenerateToken({ email, phonenumber, password });
-    //     return res.json({ status: "success", message: "Login successful", data: { token } });
-    //   } catch (err) {
-    //     return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
-    //   }
-    // }
-
+    //email and phoneNumber Login
     if ((email || phonenumber) && password && !googleToken && !appleToken) {
       try {
         const trimmedEmail = email?.trim()?.toLowerCase();
@@ -736,6 +704,10 @@ const unifiedLogin = async (req, res) => {
 
         if (trimmedEmail && !user.isVerified) {
           return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
+        }
+
+        if (trimmedPhone && !user.isVerified) {
+          return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
         }
 
         const token = await User.matchPasswordAndGenerateToken({
