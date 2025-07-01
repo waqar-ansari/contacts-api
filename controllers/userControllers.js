@@ -536,7 +536,6 @@ const unifiedLogin = async (req, res) => {
           const serialNumber = await getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
-          user.isVerified = true; // Automatically verified on Google login
           const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
             firstname,
             lastname,
@@ -552,6 +551,7 @@ const unifiedLogin = async (req, res) => {
             serialNumber,
             qrCode,
             signupMethod: "google",
+            isVerified: true,      // ✅ Set isVerified at creation time
           });
         }
 
