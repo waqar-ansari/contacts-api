@@ -176,7 +176,7 @@ const signupWithEmail = async (req, res) => {
 
 const signupWithPhoneNumber = async (req, res) => {
   try {
-    const { phonenumber, password, otp, firstname, lastname } = req.body;
+    const { phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
 
     if (!phonenumber || !password) {
       return res.status(400).json({
@@ -192,18 +192,65 @@ const signupWithPhoneNumber = async (req, res) => {
     let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
 
     // === Step 1: If No OTP in Request → Generate and Send OTP ===
-    if (!otp) {
+    // if (!otp) {
 
-      if (phonenumber && phonenumber.trim() !== "") {
-        const phoneExists = await User.findOne({
-          phonenumbers: { $in: [phonenumber] },
+    //   if (phonenumber && phonenumber.trim() !== "") {
+    //     const phoneExists = await User.findOne({
+    //       phonenumbers: { $in: [phonenumber] },
+    //     });
+    //     if (phoneExists) {
+    //       return res.status(409).json({
+    //         status: "error",
+    //         message: "User with this phone number already exists",
+    //       });
+    //     }
+    //   }
+
+    //   const generatedOtp = generateOtp();
+    //   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
+    //   const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
+
+    //   user = await User.findOneAndUpdate(
+    //     { phonenumbers: { $in: [sanitizedPhone] } },
+    //     {
+    //       $setOnInsert: { serialNumber: tempSerialNumber },
+    //       $set: {
+    //         otp: generatedOtp,
+    //         otpExpiresAt,
+    //         firstname,
+    //         lastname,
+    //         signupMethod: "phoneNumber",
+    //         phonenumbers: [sanitizedPhone], // ✅ Always set as array
+    //       },
+    //     },
+    //     { upsert: true, new: true, setDefaultsOnInsert: true }
+    //   );
+
+    //   try {
+    //     const phoneForWhatsAppApi = `+${sanitizedPhone}`;
+    //     await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
+    //   } catch (error) {
+    //     console.error("OTP Send Failed ❌", error.response?.data || error.message);
+    //     return res.status(500).json({
+    //       status: "error",
+    //       message: "Failed to send WhatsApp OTP",
+    //       error: error.response?.data || error.message,
+    //     });
+    //   }
+
+    //   return res.status(200).json({
+    //     status: "pending",
+    //     message: "OTP sent to your WhatsApp number",
+    //   });
+    // }
+
+    if (!otp || resendOtp) {
+      // ✅ Check if user already exists and is verified
+      if (user && user.isVerified && !resendOtp) {
+        return res.status(409).json({
+          status: "error",
+          message: "User with this phone number already exists. Please login.",
         });
-        if (phoneExists) {
-          return res.status(409).json({
-            status: "error",
-            message: "User with this phone number already exists",
-          });
-        }
       }
 
       const generatedOtp = generateOtp();
@@ -220,7 +267,7 @@ const signupWithPhoneNumber = async (req, res) => {
             firstname,
             lastname,
             signupMethod: "phoneNumber",
-            phonenumbers: [sanitizedPhone], // ✅ Always set as array
+            phonenumbers: [sanitizedPhone],
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -240,9 +287,10 @@ const signupWithPhoneNumber = async (req, res) => {
 
       return res.status(200).json({
         status: "pending",
-        message: "OTP sent to your WhatsApp number",
+        message: resendOtp ? "OTP resent to your WhatsApp number" : "OTP sent to your WhatsApp number",
       });
     }
+
 
     // === Step 2: If OTP present → Verify OTP and Create User ===
 

@@ -56,7 +56,7 @@ const accountConnect = require("./routes/accountConnectRoutes");
 const disconnectAccountRoutes = require("./routes/disconnectAccountRoutes");
 const sendEmail = require("./routes/sendEmailRoutes");
 const { error } = require("console");
-// const PORT = process.env.PORT;
+const PORT = process.env.PORT;
 
 console.log("Setting up Express app...");
 
