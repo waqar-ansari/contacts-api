@@ -56,7 +56,7 @@ const accountConnect = require("./routes/accountConnectRoutes");
 const disconnectAccountRoutes = require("./routes/disconnectAccountRoutes");
 const sendEmail = require("./routes/sendEmailRoutes");
 const { error } = require("console");
-const PORT = process.env.PORT;
+// const PORT = process.env.PORT;
 
 console.log("Setting up Express app...");
 
@@ -134,19 +134,47 @@ app.use("/", (req, res) => {
 
 console.log("Setting up error handling...");
 
-(async () => {
-  console.log("Connecting to MongoDB...");
+// (async () => {
+//   console.log("Connecting to MongoDB...");
 
-  try {
+//   try {
 
-    console.log("MongoDB URL log:", process.env.MONGO_URL);
+//     console.log("MongoDB URL log:", process.env.MONGO_URL);
 
 
-    await mongoose.connect(process.env.MONGO_URL);
-    console.log("MongoDB connected successfully");
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-  } catch (err) {
-    console.error("Database connection failed:", err);
+//     await mongoose.connect(process.env.MONGO_URL);
+//     console.log("MongoDB connected successfully");
+//     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+//   } catch (err) {
+//     console.error("Database connection failed:", err);
+//   }
+// })();
+// module.exports.handler = serverless(app);
+
+let isConnected = false;
+
+const connectToDatabase = async () => {
+  if (isConnected) {
+    return;
   }
-})();
-module.exports.handler = serverless(app);
+  try {
+    console.log("Console 7 MongoDB URL log:", process.env.MONGO_URL);
+    await mongoose.connect(process.env.MONGO_URL, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+
+    });
+    isConnected = true;
+    console.log("Console 8 MongoDB connected successfully");
+  } catch (err) {
+    console.error("Console 9 Database connection failed:", err);
+    throw err;
+  }
+};
+
+console.log("Console 10 last log before export");
+
+module.exports.handler = serverless(async (event, context) => {
+  await connectToDatabase();
+  return app(event, context);
+});
