@@ -1,128 +1,3 @@
-// const Contact = require("../models/contactModel");
-// const User = require("../models/userModel");
-
-// const getUserData = async (req, res) => {
-//   try {
-//     const {
-//       searchWhatsappTemplates = "",
-//       searchEmailTemplates = "",
-//       whatsappTemplatePage = 1,
-//       whatsappTemplateLimit = 10,
-//       emailTemplatePage = 1,
-//       emailTemplateLimit = 10,
-//       whatsappTemplateIsFavourite = false,
-//       emailTemplateIsFavourite = false,
-//       favouriteWhatsappTemplatesPage = 1,
-//       favouriteWhastappTemplatesContactsLimit = 10,
-//       favouriteWhatsappTemplatesContactsSearch = "",
-//       favouriteEmailTemplatesPage = 1,
-//       favouriteEmailTemplatesContactsLimit = 10,
-//       favouriteEmailTemplatesContactsSearch = ""
-//     } = req.body;
-
-//     const data = await User.findById(req.user._id)
-//       .select("-createdAt -updatedAt -__v -salt -password -tags -iScanned -scannedMe -reminders")
-//       .lean();
-
-//     const contactCount = await Contact.countDocuments({ createdBy: data._id });
-//     const favouriteCount = await Contact.countDocuments({
-//       createdBy: data._id,
-//       isFavourite: true,
-//     });
-
-//     const tagCountValue = await User.aggregate([
-//       { $match: { _id: data._id } },
-//       { $unwind: "$tags" },
-//       { $count: "tagCount" },
-//     ]);
-//     const tagCount = tagCountValue.length > 0 ? tagCountValue[0].tagCount : 0;
-
-//     // Prepare user data
-//     data.contactCount = contactCount;
-//     data.favouriteCount = favouriteCount;
-//     data.tagCount = tagCount;
-//     data.id = data._id;
-//     delete data._id;
-
-//     if (data.tags) {
-//       data.tags.forEach((tag) => delete tag._id);
-//     }
-
-//     const favouriteWhatsappTemplatesSkip = (favouriteWhatsappTemplatesPage - 1) * favouriteWhastappTemplatesContactsLimit;
-
-//     const favouriteEmailTemplatesSkip = (favouriteEmailTemplatesPage - 1) * favouriteEmailTemplatesContactsLimit;
-
-//     // WhatsApp Templates
-//     let whatsappTemplates = Array.isArray(data.whatsappTemplates) ? data.whatsappTemplates : [];
-//     if (searchWhatsappTemplates) {
-//       const lowerSearch = searchWhatsappTemplates.toLowerCase();
-//       whatsappTemplates = whatsappTemplates.filter((t) =>
-//         (t.whatsappTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
-//         (t.whatsappTemplateMessage || "").toLowerCase().includes(lowerSearch)
-//       );
-//     }
-//     const whatsappTotal = whatsappTemplates.length;
-//     const whatsappTotalPages = Math.ceil(whatsappTotal / whatsappTemplateLimit);
-//     const whatsappPaginated = whatsappTemplates.slice(
-//       (whatsappTemplatePage - 1) * whatsappTemplateLimit,
-//       whatsappTemplatePage * whatsappTemplateLimit
-//     );
-
-//     // Email Templates
-//     let emailTemplates = Array.isArray(data.emailTemplates) ? data.emailTemplates : [];
-//     if (searchEmailTemplates) {
-//       const lowerSearch = searchEmailTemplates.toLowerCase();
-//       emailTemplates = emailTemplates.filter((t) =>
-//         (t.emailTemplateTitle || "").toLowerCase().includes(lowerSearch) ||
-//         (t.emailTemplateSubject || "").toLowerCase().includes(lowerSearch) ||
-//         (t.emailTemplateBody || "").toLowerCase().includes(lowerSearch)
-//       );
-//     }
-//     const emailTotal = emailTemplates.length;
-//     const emailTotalPages = Math.ceil(emailTotal / emailTemplateLimit);
-//     const emailPaginated = emailTemplates.slice(
-//       (emailTemplatePage - 1) * emailTemplateLimit,
-//       emailTemplatePage * emailTemplateLimit
-//     );
-
-//     data.templates = {
-//       whatsappTemplates: {
-//         whatsappTemplatesData: whatsappPaginated,
-//         whatsappTemplatePagination: {
-//           currentPage: Number(whatsappTemplatePage),
-//           totalPages: whatsappTotalPages,
-//           totalTemplates: whatsappTotal
-//         }
-//       },
-//       emailTemplates: {
-//         emailTemplatesData: emailPaginated,
-//         emailTemplatePagination: {
-//           currentPage: Number(emailTemplatePage),
-//           totalPages: emailTotalPages,
-//           totalTemplates: emailTotal
-//         }
-//       }
-//     };
-
-//     delete data.whatsappTemplates;
-//     delete data.emailTemplates;
-
-//     return res.json({
-//       status: "success",
-//       message: "User fetched successfully.",
-//       data,
-//     });
-//   } catch (error) {
-//     console.error("Error fetching user:", error);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Error fetching the User",
-//     });
-//   }
-// };
-
-// module.exports = { getUserData };
-
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 
@@ -208,22 +83,33 @@ const getUserData = async (req, res) => {
           facebook: user.facebook,
           designation: user.designation,
           serialNumber: user.serialNumber,
-          googleId: user.googleId,
-          googleEmail: user.googleEmail,
-          googleAccessToken: user.googleAccessToken,
-          googleRefreshToken: user.googleRefreshToken,
-          googleConnected: user.googleConnected,
-          microsoftId: user.microsoftId,
-          microsoftEmail: user.microsoftEmail,
-          microsoftAccessToken: user.microsoftAccessToken,
-          microsoftRefreshToken: user.microsoftRefreshToken,
-          microsoftConnected: user.microsoftConnected,
-          smtpHost: user.smtpHost,
-          smtpPort: user.smtpPort,
-          smtpUser: user.smtpUser,
-          smtpPass: user.smtpPass,
-          smtpSecure: user.smtpSecure,
-          smtpConnected: user.smtpConnected,
+          accounts: [
+            {
+              type: "google",
+              googleId: user.googleId,
+              googleEmail: user.googleEmail,
+              googleAccessToken: user.googleAccessToken,
+              googleRefreshToken: user.googleRefreshToken,
+              googleConnected: user.googleConnected,
+            },
+            {
+              type: "microsoft",
+              microsoftId: user.microsoftId,
+              microsoftEmail: user.microsoftEmail,
+              microsoftAccessToken: user.microsoftAccessToken,
+              microsoftRefreshToken: user.microsoftRefreshToken,
+              microsoftConnected: user.microsoftConnected,
+            },
+            {
+              type: "smtp",
+              smtpHost: user.smtpHost,
+              smtpPort: user.smtpPort,
+              smtpUser: user.smtpUser,
+              smtpPass: user.smtpPass,
+              smtpSecure: user.smtpSecure,
+              smtpConnected: user.smtpConnected,
+            },
+          ],
           shareProfileCount: user.shareProfileCount || 0,
           contactCount,
           favouriteCount,
@@ -284,22 +170,33 @@ const getUserData = async (req, res) => {
           twitter: user.twitter,
           facebook: user.facebook,
           designation: user.designation,
-          googleId: user.googleId,
-          googleEmail: user.googleEmail,
-          googleAccessToken: user.googleAccessToken,
-          googleRefreshToken: user.googleRefreshToken,
-          googleConnected: user.googleConnected,
-          microsoftId: user.microsoftId,
-          microsoftEmail: user.microsoftEmail,
-          microsoftAccessToken: user.microsoftAccessToken,
-          microsoftRefreshToken: user.microsoftRefreshToken,
-          microsoftConnected: user.microsoftConnected,
-          smtpHost: user.smtpHost,
-          smtpPort: user.smtpPort,
-          smtpUser: user.smtpUser,
-          smtpPass: user.smtpPass,
-          smtpSecure: user.smtpSecure,
-          smtpConnected: user.smtpConnected,
+          accounts: [
+            {
+              type: "google",
+              googleId: user.googleId,
+              googleEmail: user.googleEmail,
+              googleAccessToken: user.googleAccessToken,
+              googleRefreshToken: user.googleRefreshToken,
+              googleConnected: user.googleConnected,
+            },
+            {
+              type: "microsoft",
+              microsoftId: user.microsoftId,
+              microsoftEmail: user.microsoftEmail,
+              microsoftAccessToken: user.microsoftAccessToken,
+              microsoftRefreshToken: user.microsoftRefreshToken,
+              microsoftConnected: user.microsoftConnected,
+            },
+            {
+              type: "smtp",
+              smtpHost: user.smtpHost,
+              smtpPort: user.smtpPort,
+              smtpUser: user.smtpUser,
+              smtpPass: user.smtpPass,
+              smtpSecure: user.smtpSecure,
+              smtpConnected: user.smtpConnected,
+            },
+          ],
           shareProfileCount: user.shareProfileCount || 0,
           contactCount,
           favouriteCount,
@@ -340,22 +237,33 @@ const getUserData = async (req, res) => {
       twitter: user.twitter,
       facebook: user.facebook,
       designation: user.designation,
-      googleId: user.googleId,
-      googleEmail: user.googleEmail,
-      googleAccessToken: user.googleAccessToken,
-      googleRefreshToken: user.googleRefreshToken,
-      googleConnected: user.googleConnected,
-      microsoftId: user.microsoftId,
-      microsoftEmail: user.microsoftEmail,
-      microsoftAccessToken: user.microsoftAccessToken,
-      microsoftRefreshToken: user.microsoftRefreshToken,
-      microsoftConnected: user.microsoftConnected,
-      smtpHost: user.smtpHost,
-      smtpPort: user.smtpPort,
-      smtpUser: user.smtpUser,
-      smtpPass: user.smtpPass,
-      smtpSecure: user.smtpSecure,
-      smtpConnected: user.smtpConnected,
+      accounts: [
+        {
+          type: "google",
+          googleId: user.googleId,
+          googleEmail: user.googleEmail,
+          googleAccessToken: user.googleAccessToken,
+          googleRefreshToken: user.googleRefreshToken,
+          googleConnected: user.googleConnected,
+        },
+        {
+          type: "microsoft",
+          microsoftId: user.microsoftId,
+          microsoftEmail: user.microsoftEmail,
+          microsoftAccessToken: user.microsoftAccessToken,
+          microsoftRefreshToken: user.microsoftRefreshToken,
+          microsoftConnected: user.microsoftConnected,
+        },
+        {
+          type: "smtp",
+          smtpHost: user.smtpHost,
+          smtpPort: user.smtpPort,
+          smtpUser: user.smtpUser,
+          smtpPass: user.smtpPass,
+          smtpSecure: user.smtpSecure,
+          smtpConnected: user.smtpConnected,
+        },
+      ],
       shareProfileCount: user.shareProfileCount || 0,
       contactCount,
       favouriteCount,

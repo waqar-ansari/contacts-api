@@ -347,6 +347,7 @@ const addEditContact = async (req, res) => {
 
     const timezone = req.body.timezone || 'UTC';  // ✅ Get timezone from user if provided
     const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
+    let meetingObj = null;  // ✅ This line fixes your error
 
     if (meetingProvided) {
       // ✅ For online meeting: Check Google connection
