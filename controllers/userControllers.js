@@ -481,9 +481,14 @@ const unifiedLogin = async (req, res) => {
         const trimmedEmail = email?.trim()?.toLowerCase();
         const trimmedPhone = phonenumber?.trim();
 
+        let normalizedPhone = trimmedPhone;
+        if (normalizedPhone?.startsWith('+')) {
+          normalizedPhone = normalizedPhone.slice(1);
+        }
+
         const queryConditions = [];
         if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
-        if (trimmedPhone) queryConditions.push({ phonenumbers: { $in: [trimmedPhone] } });
+        if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
 
         if (queryConditions.length === 0) {
           return res.status(400).json({ status: "error", message: "Email or phone number is required" });
@@ -499,13 +504,13 @@ const unifiedLogin = async (req, res) => {
           return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
         }
 
-        if (trimmedPhone && !user.isVerified) {
+        if (normalizedPhone && !user.isVerified) {
           return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
         }
 
         const token = await User.matchPasswordAndGenerateToken({
           email: trimmedEmail,
-          phonenumber: trimmedPhone,
+          phonenumber: normalizedPhone,
           password
         });
 
