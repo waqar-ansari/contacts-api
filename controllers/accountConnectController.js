@@ -4,6 +4,8 @@ const nodemailer = require('nodemailer');
 const User = require('../models/userModel'); // Your User Model
 const querystring = require('querystring');
 require("dotenv").config();
+const mongoose = require("mongoose");
+
 
 
 // Google OAuth Setup
@@ -254,6 +256,7 @@ exports.connectSMTP = async (req, res) => {
         await transporter.verify();
 
         // ✅ Save SMTP details to user document
+        user.smtpId = new mongoose.Types.ObjectId();
         user.smtpHost = SMTP_HOST;
         user.smtpPort = SMTP_PORT;
         user.smtpUser = SMTP_USER;
@@ -267,11 +270,12 @@ exports.connectSMTP = async (req, res) => {
             status: 'success',
             message: 'SMTP connected successfully',
             data: {
-                smtpHost: SMTP_HOST,
-                smtpPort: SMTP_PORT,
-                smtpUser: SMTP_USER,
-                smtpSecure: true,
-                smtpConnected: true
+                smtpId: user.smtpId,                     // ✅ Return smtpId here
+                smtpHost: user.smtpHost,
+                smtpPort: user.smtpPort,
+                smtpUser: user.smtpUser,
+                smtpSecure: user.smtpSecure,
+                smtpConnected: user.smtpConnected
             }
         });
     } catch (error) {

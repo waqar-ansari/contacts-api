@@ -175,7 +175,7 @@ const userSchema = new Schema(
       // default: null, // ✅ makes sure null is used instead of ""
     },
 
-    googleId: String,
+    googleId: { type: String },  // ✅ Store Google user ID as String
     googleEmail: String,
     googleAccessToken: String,
     googleRefreshToken: String,
@@ -184,11 +184,12 @@ const userSchema = new Schema(
       default: false,
     },
 
-    microsoftId: String,
+    microsoftId: { type: String },  // ✅ Store Microsoft ID as String (not ObjectId)
     microsoftEmail: String,
     microsoftAccessToken: String,
     microsoftConnected: { type: Boolean, default: false },
 
+    smtpId: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },  // SMTP ID can stay ObjectId
     smtpHost: { type: String },
     smtpPort: { type: Number },
     smtpUser: { type: String },

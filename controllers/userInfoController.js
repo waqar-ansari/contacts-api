@@ -165,6 +165,33 @@ exports.submitUserOnboarding = async (req, res) => {
       return res.status(404).json({ status: "error", message: "User not found" });
     }
 
+    if (email) {
+      const existingEmailUser = await User.findOne({
+        _id: { $ne: req.user._id },
+        email: email.trim(),
+      });
+      if (existingEmailUser) {
+        return res.status(400).json({
+          status: "error",
+          message: "Email is already used by another user",
+        });
+      }
+    }
+
+    if (phonenumber) {
+      const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+      const existingPhoneUser = await User.findOne({
+        _id: { $ne: req.user._id },
+        phonenumbers: cleanedPhone,
+      });
+      if (existingPhoneUser) {
+        return res.status(400).json({
+          status: "error",
+          message: "Phone number is already used by another user",
+        });
+      }
+    }
+
     // ✅ If user signed up with phone number, but now also providing email, save it if not already saved
     if (!user.email && email) {
       user.email = email.trim();
