@@ -70,7 +70,7 @@ exports.disconnectSMTP = async (req, res) => {
 
         res.json({
             status: 'success',
-            message: 'SMTP disconnected and details cleared from user profile'
+            message: 'SMTP account disconnected successfully'
         });
 
     } catch (error) {

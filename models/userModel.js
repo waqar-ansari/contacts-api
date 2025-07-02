@@ -76,13 +76,13 @@ const userSchema = new Schema(
         {
           whatsappTemplate_id: new mongoose.Types.ObjectId(),
           whatsappTemplateTitle: "Welcome Message",
-          whatsappTemplateMessage: "Hey {{firstname}}! 👋 Welcome to our platform. Let me know if you need any help getting started.",
+          whatsappTemplateMessage: "Hey {{firstName}}! 👋 Welcome to our platform. Let me know if you need any help getting started.",
           whatsappTemplateIsFavourite: true
         },
         {
           whatsappTemplate_id: new mongoose.Types.ObjectId(),
           whatsappTemplateTitle: "Follow-up",
-          whatsappTemplateMessage: "Hi {{firstname}}, just checking in to see if you had a chance to review our last conversation.",
+          whatsappTemplateMessage: "Hi {{firstName}}, just checking in to see if you had a chance to review our last conversation.",
           whatsappTemplateIsFavourite: false
         },
         {
@@ -94,13 +94,13 @@ const userSchema = new Schema(
         {
           whatsappTemplate_id: new mongoose.Types.ObjectId(),
           whatsappTemplateTitle: "Thank You",
-          whatsappTemplateMessage: "Thanks a lot for your time today, {{firstname}}! 😊 Looking forward to staying in touch.",
+          whatsappTemplateMessage: "Thanks a lot for your time today, {{firstName}}! 😊 Looking forward to staying in touch.",
           whatsappTemplateIsFavourite: true
         },
         {
           whatsappTemplate_id: new mongoose.Types.ObjectId(),
           whatsappTemplateTitle: "Support Offer",
-          whatsappTemplateMessage: "Hi {{firstname}}, if you have any questions or need assistance, feel free to reply to this message. We're here to help! 🙌",
+          whatsappTemplateMessage: "Hi {{firstName}}, if you have any questions or need assistance, feel free to reply to this message. We're here to help! 🙌",
           whatsappTemplateIsFavourite: false
         }
       ]
@@ -113,35 +113,35 @@ const userSchema = new Schema(
           emailTemplate_id: new mongoose.Types.ObjectId(),
           emailTemplateTitle: "Welcome Email",
           emailTemplateSubject: "Welcome to Our Platform!",
-          emailTemplateBody: "Hi {{firstname}},\n\nThank you for joining us! We're excited to have you on board.\n\nBest,\nTeam",
+          emailTemplateBody: "Hi {{firstName}},\n\nThank you for joining us! We're excited to have you on board.\n\nBest,\nTeam",
           emailTemplateIsFavourite: true
         },
         {
           emailTemplate_id: new mongoose.Types.ObjectId(),
           emailTemplateTitle: "Follow-up Email",
           emailTemplateSubject: "Just checking in",
-          emailTemplateBody: "Hi {{firstname}},\n\nI wanted to follow up on our last conversation. Let me know if you have any questions.\n\nRegards,\n{{senderName}}",
+          emailTemplateBody: "Hi {{firstName}},\n\nI wanted to follow up on our last conversation. Let me know if you have any questions.\n\nRegards,\n{{senderName}}",
           emailTemplateIsFavourite: false
         },
         {
           emailTemplate_id: new mongoose.Types.ObjectId(),
           emailTemplateTitle: "Meeting Reminder",
           emailTemplateSubject: "Upcoming Meeting Reminder",
-          emailTemplateBody: "Hi {{firstname}},\n\nThis is a quick reminder for our meeting scheduled on {{meetingDate}}.\n\nThanks,\n{{senderName}}",
+          emailTemplateBody: "Hi {{firstName}},\n\nThis is a quick reminder for our meeting scheduled on {{meetingDate}}.\n\nThanks,\n{{senderName}}",
           emailTemplateIsFavourite: false
         },
         {
           emailTemplate_id: new mongoose.Types.ObjectId(),
           emailTemplateTitle: "Thank You Email",
           emailTemplateSubject: "Thank You!",
-          emailTemplateBody: "Hi {{firstname}},\n\nJust wanted to thank you for your time today. Looking forward to our next steps.\n\nCheers,\n{{senderName}}",
+          emailTemplateBody: "Hi {{firstName}},\n\nJust wanted to thank you for your time today. Looking forward to our next steps.\n\nCheers,\n{{senderName}}",
           emailTemplateIsFavourite: true
         },
         {
           emailTemplate_id: new mongoose.Types.ObjectId(),
           emailTemplateTitle: "Feedback Request",
           emailTemplateSubject: "We'd love your feedback!",
-          emailTemplateBody: "Hi {{firstname}},\n\nWe hope you're enjoying our service. We'd appreciate it if you could share your thoughts or suggestions.\n\nWarm regards,\nTeam",
+          emailTemplateBody: "Hi {{firstName}},\n\nWe hope you're enjoying our service. We'd appreciate it if you could share your thoughts or suggestions.\n\nWarm regards,\nTeam",
           emailTemplateIsFavourite: false
         }
       ]
