@@ -110,7 +110,8 @@ exports.scanUser = async (req, res) => {
                         firstname: user.firstname || '',
                         lastname: user.lastname || '',
                         emailaddresses: [user.email || ''],
-                        phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
+                        // phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
+                        phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
                         linkedin: user.linkedin || '',
                         instagram: user.instagram || '',
                         telegram: user.telegram || '',
@@ -139,7 +140,8 @@ exports.scanUser = async (req, res) => {
                         firstname: scanner.firstname || '',
                         lastname: scanner.lastname || '',
                         emailaddresses: [scanner.email || ''],
-                        phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
+                        // phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
+                        phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
                         linkedin: scanner.linkedin || '',
                         instagram: scanner.instagram || '',
                         telegram: scanner.telegram || '',
@@ -204,7 +206,7 @@ exports.scanUser = async (req, res) => {
                         firstname: firstname || '',
                         lastname: lastname || '',
                         emailaddresses: [email || ''],
-                        phonenumbers: [phonenumber || ''],
+                        phonenumbers: phonenumber ? [phonenumber] : [],
                         createdBy: user._id,
                     });
                 }
