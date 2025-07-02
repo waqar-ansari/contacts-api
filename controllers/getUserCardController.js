@@ -40,7 +40,7 @@
 //     await user.save();
 
 //     console.log(`${user.firstname} shareProfile count: ${user.shareProfileCount}`);
-   
+
 
 //     return res.status(200).json({
 //       status: "success",
@@ -103,6 +103,7 @@ exports.getUserInfo = async (req, res) => {
 
     // Select limited fields for response
     const selectedData = {
+      id: user._id,
       firstname: user.firstname,
       lastname: user.lastname,
       email: user.email,

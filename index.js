@@ -55,6 +55,7 @@ const getUserCardRoutes = require("./routes/getUserCardRoutes");
 const accountConnect = require("./routes/accountConnectRoutes");
 const disconnectAccountRoutes = require("./routes/disconnectAccountRoutes");
 const sendEmail = require("./routes/sendEmailRoutes");
+const checkEmailPhoneDuplicate = require("./routes/checkEmailPhoneRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -96,11 +97,11 @@ app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
 
 app.use("/connect", (req, res, next) => {
-    const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
-    if (skipAuthPaths.includes(req.path)) {
-        return next(); // No token required for callback
-    }
-    return checkForAuthentication()(req, res, next);
+  const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
+  if (skipAuthPaths.includes(req.path)) {
+    return next(); // No token required for callback
+  }
+  return checkForAuthentication()(req, res, next);
 }, accountConnect);
 
 app.use(
@@ -121,6 +122,7 @@ app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
+app.use("/check-duplicate-user", checkForAuthentication(), checkEmailPhoneDuplicate);
 
 
 app.use("/check", (req, res) => {

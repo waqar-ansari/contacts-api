@@ -76,6 +76,69 @@ const addEditContact = async (req, res) => {
 
     console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
+    // ---------- ✅ Check Duplicate Email or Phone ----------
+    const emailList = Array.isArray(emailaddresses) ? emailaddresses : (emailaddresses ? [emailaddresses] : []);
+    const phoneList = parsedPhones;
+
+    let duplicateEmail = false;
+    let duplicatePhone = false;
+
+    if (emailList.length || phoneList.length) {
+      const duplicateQuery = {
+        createdBy: req.user._id,
+        _id: { $ne: contact_id },  // Exclude current contact if editing
+        $or: [],
+      };
+
+      if (emailList.length) {
+        duplicateQuery.$or.push({ emailaddresses: { $in: emailList } });
+      }
+
+      if (phoneList.length) {
+        duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
+      }
+
+      if (duplicateQuery.$or.length > 0) {
+        const existingContacts = await Contact.find(duplicateQuery);
+
+        if (existingContacts.length > 0) {
+          for (const contact of existingContacts) {
+            if (!duplicateEmail && emailList.length) {
+              if (contact.emailaddresses.some(email => emailList.includes(email))) {
+                duplicateEmail = true;
+              }
+            }
+
+            if (!duplicatePhone && phoneList.length) {
+              if (contact.phonenumbers.some(phone => phoneList.includes(phone))) {
+                duplicatePhone = true;
+              }
+            }
+
+            // If both found, stop checking
+            if (duplicateEmail && duplicatePhone) break;
+          }
+
+          let message = "";
+          if (duplicateEmail && duplicatePhone) {
+            message = "Email address and phone number are already used in another contact.";
+          } else if (duplicateEmail) {
+            message = "Email address is already used in another contact.";
+          } else if (duplicatePhone) {
+            message = "Phone number is already used in another contact.";
+          }
+
+          return res.status(400).json({
+            status: "error",
+            message,
+          });
+        }
+      }
+    }
+
+
+
+
     // // ---------- ✅ Handle Tags ----------
     // let matchedTags = [];
     // let tagsProvided = false;
