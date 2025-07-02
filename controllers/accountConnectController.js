@@ -266,11 +266,13 @@ exports.connectSMTP = async (req, res) => {
         res.json({
             status: 'success',
             message: 'SMTP connected successfully',
-            smtpHost: SMTP_HOST,
-            smtpPort: SMTP_PORT,
-            smtpUser: SMTP_USER,
-            smtpSecure: true,
-            smtpConnected: true
+            data: {
+                smtpHost: SMTP_HOST,
+                smtpPort: SMTP_PORT,
+                smtpUser: SMTP_USER,
+                smtpSecure: true,
+                smtpConnected: true
+            }
         });
     } catch (error) {
         res.status(500).json({ status: 'error', message: 'SMTP OAuth failed', error: error.message });
