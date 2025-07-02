@@ -508,6 +508,36 @@ const unifiedLogin = async (req, res) => {
           return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
         }
 
+        // ✅ Prevent wrong login method
+        if (user.signupMethod === "google") {
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with Google. Please use Google login."
+          });
+        }
+
+        if (user.signupMethod === "apple") {
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with Apple. Please use Apple login."
+          });
+        }
+
+        if (user.signupMethod === "phoneNumber" && trimmedEmail) {
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with phone number. Please login with phone number and password."
+          });
+        }
+
+        if (user.signupMethod === "email" && normalizedPhone) {
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with email. Please login with email and password."
+          });
+        }
+
+
         const token = await User.matchPasswordAndGenerateToken({
           email: trimmedEmail,
           phonenumber: normalizedPhone,

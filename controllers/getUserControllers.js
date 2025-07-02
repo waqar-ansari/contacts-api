@@ -83,6 +83,7 @@ const getUserData = async (req, res) => {
           facebook: user.facebook,
           designation: user.designation,
           serialNumber: user.serialNumber,
+          signupMethod: user.signupMethod,
           accounts: [
             {
               type: "google",
@@ -171,6 +172,7 @@ const getUserData = async (req, res) => {
           twitter: user.twitter,
           facebook: user.facebook,
           designation: user.designation,
+          signupMethod: user.signupMethod,
           accounts: [
             {
               type: "google",
@@ -239,6 +241,7 @@ const getUserData = async (req, res) => {
       twitter: user.twitter,
       facebook: user.facebook,
       designation: user.designation,
+      signupMethod: user.signupMethod,
       accounts: [
         {
           type: "google",
