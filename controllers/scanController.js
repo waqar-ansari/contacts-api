@@ -2,11 +2,6 @@ const User = require("../models/userModel");
 const Contact = require("../models/contactModel"); // adjust the path as needed
 const { mongoose } = require("mongoose");
 
-
-
-// @desc Scan QR and save data
-// @route POST /api/scan
-
 exports.scanUser = async (req, res) => {
     const { UserID, ScannerID, firstname, lastname, email, phonenumber } = req.body;
 
@@ -50,15 +45,11 @@ exports.scanUser = async (req, res) => {
             );
 
             if (alreadyConnected) {
-                return res.status(200).json({
-                    status: "success",
-                    message: "Users already connected. Scan skipped.",
-                    data: {
-                        scannedMe: user.scannedMe
-                    }
+                return res.status(400).json({
+                    status: "error",
+                    message: "Users already connected.",
                 });
             }
-
 
             // // Add ScannerID into scanned user's scannedMe (if not already present)
             // if (!user.scannedMe.includes(ScannerID)) {
@@ -164,7 +155,9 @@ exports.scanUser = async (req, res) => {
                     firstname: user.firstname || '',
                     lastname: user.lastname || '',
                     email: user.email || '',
-                    phonenumber: Array.isArray(user.phonenumbers) ? user.phonenumbers[0] || '' : '',
+                    phonenumber: (Array.isArray(user.phonenumbers) && user.phonenumbers.length > 0 && user.phonenumbers[0])
+                        ? user.phonenumbers[0]
+                        : '',
                     linkedin: user.linkedin || '',
                     instagram: user.instagram || '',
                     telegram: user.telegram || '',
@@ -174,6 +167,7 @@ exports.scanUser = async (req, res) => {
                 });
                 await scanner.save(); // Save scanner updates
             }
+
 
 
         } else {
@@ -215,14 +209,22 @@ exports.scanUser = async (req, res) => {
 
         if (updated) await user.save();
 
+        const responseData = {
+            userScannedMe: user.scannedMe,
+            userIScanned: user.iScanned || []
+        };
+
+        if (ScannerID) {
+            const scanner = await User.findById(ScannerID).lean(); // get latest data
+            responseData.scannerScannedMe = scanner?.scannedMe || [];
+            responseData.scannerIScanned = scanner?.iScanned || [];
+        }
+
         return res.status(200).json({
             status: "success",
             message: "Scan successful",
-            data: {
-                scannedMe: user.scannedMe
-            }
+            data: responseData
         });
-
     } catch (error) {
         console.error("Scan error:", error);
         return res.status(500).json({ status: "error", message: "Scan error", error: error.message });
