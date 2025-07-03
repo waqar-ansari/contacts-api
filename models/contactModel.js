@@ -28,8 +28,6 @@ const meetingSchema = new Schema(
     meetingDescription: String,
     meetingStartDate: Date,
     meetingStartTime: String,
-    meetingEndDate: Date,
-    meetingEndTime: String,
     meetingType: {
       type: String,
       enum: ["online", "offline"],

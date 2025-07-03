@@ -29,20 +29,20 @@ const deleteTask = async (req, res) => {
         if (!updatedContact) {
             return res.status(404).json({
                 status: "error",
-                message: "Task not found in this contact or unauthorized access",
+                message: "Note not found in this contact or unauthorized access",
             });
         }
 
         return res.status(200).json({
             status: "success",
-            message: "Task deleted successfully",
+            message: "Note deleted successfully",
             data: { task_id: task_id },
         });
     } catch (error) {
         console.error("Delete Task Error:", error);
         return res.status(500).json({
             status: "error",
-            message: "An error occurred while deleting the task",
+            message: "An error occurred while deleting the Note",
         });
     }
 };

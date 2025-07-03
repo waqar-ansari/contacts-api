@@ -1,55 +1,3 @@
-// const User = require("../models/userModel");
-
-// exports.getScanData = async (req, res) => {
-//     const userId = req.user._id;
-
-//     try {
-//         const user = await User.findById(userId)
-//             .populate("iScanned", "firstname lastname email profileImageURL phonenumbers")
-//             .populate("scannedMe", "firstname lastname email profileImageURL phonenumbers");
-
-//         if (!user) {
-//             return res.status(404).json({ status: "error", message: "User not found" });
-//         }
-
-//         const iScannedUsers = user.iScanned.map((scannedUser) => ({
-//             id: scannedUser._id,
-//             firstname: scannedUser.firstname,
-//             lastname: scannedUser.lastname,
-//             email: scannedUser.email,
-//             phonenumbers: scannedUser.phonenumbers,
-//             profileImageURL: scannedUser.profileImageURL,
-//             iScanned: true,
-//         }));
-
-//         const scannedMeUsers = user.scannedMe
-//             .filter(u =>
-//                 u?._id && !user.iScanned.some(
-//                     scanned => scanned?._id && scanned._id.equals(u._id)
-//                 )
-//             ).map((scannedByUser) => ({
-//                 id: scannedByUser._id,
-//                 firstname: scannedByUser.firstname,
-//                 lastname: scannedByUser.lastname,
-//                 email: scannedByUser.email,
-//                 phonenumbers: scannedByUser.phonenumbers,
-//                 profileImageURL: scannedByUser.profileImageURL,
-//                 iScanned: false,
-//             }));
-
-//         const combined = [...iScannedUsers, ...scannedMeUsers];
-
-//         return res.status(200).json({
-//             status: "success",
-//             message: "Scan data fetched",
-//             data: combined,
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         return res.status(500).json({ status: "error", message: "Failed to fetch scan data" });
-//     }
-// };
-
 const User = require("../models/userModel");
 
 exports.getScanData = async (req, res) => {
@@ -74,7 +22,9 @@ exports.getScanData = async (req, res) => {
             firstname: scannedUser.firstname || '',
             lastname: scannedUser.lastname || '',
             email: scannedUser.email || '',
-            phonenumbers: scannedUser.phonenumber || [],
+            phonenumbers: Array.isArray(scannedUser.phonenumber)
+                ? scannedUser.phonenumber
+                : (scannedUser.phonenumber ? [scannedUser.phonenumber] : []),
             profileImageURL: scannedUser.profileImageURL || '',
             linkedin: scannedUser.linkedin || '',
             instagram: scannedUser.instagram || '',
@@ -105,7 +55,9 @@ exports.getScanData = async (req, res) => {
                         firstname: fullUser.firstname || '',
                         lastname: fullUser.lastname || '',
                         email: fullUser.email || '',
-                        phonenumbers: fullUser.phonenumbers || [],
+                        phonenumbers: Array.isArray(fullUser.phonenumbers)
+                            ? fullUser.phonenumbers
+                            : (fullUser.phonenumbers ? [fullUser.phonenumbers] : []),
                         profileImageURL: fullUser.profileImageURL || '',
                         linkedin: fullUser.linkedin || '',
                         instagram: fullUser.instagram || '',
@@ -123,7 +75,9 @@ exports.getScanData = async (req, res) => {
                     firstname: entry.firstname || '',
                     lastname: entry.lastname || '',
                     email: entry.email || '',
-                    phonenumbers: [entry.phonenumber || ''],
+                    phonenumbers: Array.isArray(entry.phonenumber)
+                        ? entry.phonenumber
+                        : (entry.phonenumber ? [entry.phonenumber] : []),
                     linkedin: entry.linkedin || '',
                     instagram: entry.instagram || '',
                     telegram: entry.telegram || '',

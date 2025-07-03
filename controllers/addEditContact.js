@@ -41,8 +41,8 @@ const addEditContact = async (req, res) => {
       meetingDescription,
       meetingStartDate,
       meetingStartTime,
-      meetingEndDate,
-      meetingEndTime,
+      // meetingEndDate,
+      // meetingEndTime,
       meetingType,
       meetingLocation,
       meetingLink
@@ -135,9 +135,6 @@ const addEditContact = async (req, res) => {
         }
       }
     }
-
-
-
 
     // // ---------- ✅ Handle Tags ----------
     // let matchedTags = [];
@@ -291,125 +288,8 @@ const addEditContact = async (req, res) => {
     }
 
     // ---------- Handle Meeting ----------
-    // const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
-    // let meetingObj = null;
-    // if (meetingProvided) {
-    //   meetingObj = {};
-    //   if (meeting_id) {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
-    //   } else {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId();
-    //     meetingObj.createdAt = new Date();
-    //   }
-
-    //   if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
-    //   if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
-    //   if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
-    //   if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
-    //   if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
-    //   if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
-
-    //   if (meetingType) meetingObj.meetingType = meetingType;
-    //   if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
-    //   if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
-
-    //   if (!isCreating && meeting_id) {
-    //     meetingObj.updatedAt = new Date();
-    //   }
-    // }
-
-    // ---------- Handle Meeting ----------
-    // const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
-    // let meetingObj = null;
-    // if (meetingProvided) {
-    //   // ✅ For online meeting: Check Google connection
-    //   if (meetingType === "online") {
-    //     if (!user.googleAccessToken || !user.googleRefreshToken) {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "To create an online meeting, please first connect your Google account.",
-    //       });
-    //     }
-    //   }
-
-    //   meetingObj = {};
-    //   if (meeting_id) {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
-    //   } else {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId();
-    //     meetingObj.createdAt = new Date();
-    //   }
-
-    //   if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
-    //   if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
-    //   if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
-    //   if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
-    //   if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
-    //   if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
-
-    //   if (meetingType) meetingObj.meetingType = meetingType;
-    //   if (meetingType === "online" && meetingLink) meetingObj.meetingLink = meetingLink;
-    //   if (meetingType === "offline" && meetingLocation) meetingObj.meetingLocation = meetingLocation;
-
-    //   if (!isCreating && meeting_id) {
-    //     meetingObj.updatedAt = new Date();
-    //   }
-    // }
-
-    // const timezone = req.body.timezone || 'UTC';  // ✅ Get timezone from user if provided
-    // const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
-
-    // if (meetingProvided) {
-    //   // ✅ For online meeting: Check Google connection
-    //   if (meetingType === "online") {
-    //     if (!user.googleAccessToken || !user.googleRefreshToken) {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "To create an online meeting, please first connect your Google account.",
-    //       });
-    //     }
-    //   }
-
-    //   meetingObj = {};
-    //   if (meeting_id) {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId(meeting_id);
-    //   } else {
-    //     meetingObj.meeting_id = new mongoose.Types.ObjectId();
-    //     meetingObj.createdAt = new Date();
-    //   }
-
-    //   if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
-    //   if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
-    //   if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
-    //   if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
-    //   if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
-    //   if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
-
-    //   if (meetingType) meetingObj.meetingType = meetingType;
-
-    //   // ✅ Auto-generate Google Meet link for online meetings
-    //   if (meetingType === "online") {
-    //     try {
-    //       const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
-    //       if (generatedLink) {
-    //         meetingObj.meetingLink = generatedLink;
-    //       }
-    //     } catch (error) {
-    //       console.error("Failed to create Google Meet link:", error);
-    //     }
-    //   }
-
-    //   if (meetingType === "offline" && meetingLocation) {
-    //     meetingObj.meetingLocation = meetingLocation;
-    //   }
-
-    //   if (!isCreating && meeting_id) {
-    //     meetingObj.updatedAt = new Date();
-    //   }
-    // }
-
     const timezone = req.body.timezone || 'UTC';  // ✅ Get timezone from user if provided
-    const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType || meetingEndDate || meetingEndTime;
+    const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType;
     let meetingObj = null;  // ✅ This line fixes your error
 
     if (meetingProvided) {
@@ -442,8 +322,8 @@ const addEditContact = async (req, res) => {
           if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
           if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
           if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
-          if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
-          if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
+          // if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
+          // if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
           if (meetingType) meetingObj.meetingType = meetingType;
           if (meetingType === "offline" && meetingLocation) {
             meetingObj.meetingLocation = meetingLocation;
@@ -453,8 +333,8 @@ const addEditContact = async (req, res) => {
           // ✅ ---- Type change: Offline → Online ----
           if (oldType === "offline" && meetingType === "online") {
             try {
-              if (!meetingObj.meetingStartDate || !meetingObj.meetingEndDate) {
-                console.error("Start or End Date missing during offline → online type change");
+              if (!meetingObj.meetingStartDate) {
+                console.error("Start Date missing during offline → online type change");
               } else {
                 const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
                 if (generatedLink) {
@@ -499,8 +379,8 @@ const addEditContact = async (req, res) => {
         if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
         if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
         if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
-        if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
-        if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
+        // if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
+        // if (meetingEndDate) meetingObj.meetingEndDate = meetingEndDate;
         if (meetingType) meetingObj.meetingType = meetingType;
         if (meetingType === "offline" && meetingLocation) {
           meetingObj.meetingLocation = meetingLocation;
@@ -509,8 +389,8 @@ const addEditContact = async (req, res) => {
         // ✅ Google Meet creation for new meeting (if online)
         if (meetingType === "online") {
           try {
-            if (!meetingObj.meetingStartDate || !meetingObj.meetingEndDate) {
-              console.error("Meeting Start Date or End Date missing for new Google Meet creation!");
+            if (!meetingObj.meetingStartDate) {
+              console.error("Meeting Start Date missing for new Google Meet creation!");
             } else {
               const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
               if (generatedLink) {
@@ -663,8 +543,8 @@ const addEditContact = async (req, res) => {
         meetingDescription: m.meetingDescription,
         meetingStartDate: m.meetingStartDate,
         meetingStartTime: m.meetingStartTime,
-        meetingEndDate: m.meetingEndDate,
-        meetingEndTime: m.meetingEndTime,
+        // meetingEndDate: m.meetingEndDate,
+        // meetingEndTime: m.meetingEndTime,
         meetingType: m.meetingType,
         meetingLocation: m.meetingLocation,
         meetingLink: m.meetingLink,
@@ -685,9 +565,9 @@ const addEditContact = async (req, res) => {
     } else if (meetingProvided) {
       message = "Meeting created successfully";
     } else if (task_id) {
-      message = "Task updated successfully";
+      message = "Note updated successfully";
     } else if (taskProvided) {
-      message = "Task created successfully";
+      message = "Note created successfully";
     } else {
       message = isCreating ? "Contact created successfully" : "Contact updated successfully";
     }
