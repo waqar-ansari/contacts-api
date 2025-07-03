@@ -4,6 +4,8 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
 const { generateUserQRCode } = require("../utils/qrUtils");
+// const crypto = require("crypto"); // ✅ for randomBytes, createHmac, etc.
+// const { sendVerificationEmail } = require("../utils/emailUtils");
 
 
 const uploadImageToS3 = async (file) => {
@@ -121,15 +123,6 @@ const editProfile = async (req, res) => {
 
     // === Update Basic Info ===
     if (!whatsappTemplate_id && !emailTemplate_id && !whatsappTemplateTitle && !emailTemplateTitle) {
-      // if (firstname) user.firstname = firstname;
-      // if (lastname) user.lastname = lastname;
-      // if (email) user.email = email;
-      // if (linkedin) user.linkedin = linkedin;
-      // if (instagram) user.instagram = instagram;
-      // if (telegram) user.telegram = telegram;
-      // if (twitter) user.twitter = twitter;
-      // if (facebook) user.facebook = facebook;
-      // if (designation) user.designation = designation;
 
       const keys = Object.keys(req.body);
 
@@ -183,22 +176,105 @@ const editProfile = async (req, res) => {
       }
 
 
-      // if (phonenumbers) {
-      //   try {
-      //     user.phonenumbers = JSON.parse(phonenumbers);
-      //   } catch {
-      //     user.phonenumbers = Array.isArray(phonenumbers) ? phonenumbers : [phonenumbers];
-      //   }
-      // }
+//       if (keys.includes("email")) {
+//         const trimmedEmail = email?.trim()?.toLowerCase();
+//         const requestedMethod = req.body.signupMethod?.toLowerCase(); // coming from client
+//         const currentMethod = user.signupMethod;
+
+//         // === Case 1: Switching from Google OR PhoneNumber to Email login ===
+//         if ((currentMethod === "google" || currentMethod === "phoneNumber") && requestedMethod === "email") {
+//           if (!req.body.password) {
+//             return res.status(400).json({
+//               status: "error",
+//               message: "Please provide a password to switch to email login.",
+//             });
+//           }
+
+//           if (!trimmedEmail) {
+//             return res.status(400).json({
+//               status: "error",
+//               message: "Please provide a valid email to switch login method.",
+//             });
+//           }
+
+//           // Hash password using crypto
+//           const salt = crypto.randomBytes(16).toString("hex");
+//           const hashedPassword = crypto
+//             .createHmac("sha256", salt)
+//             .update(req.body.password)
+//             .digest("hex");
+
+//           // Save email, hashed password, and switch login method
+//           user.email = trimmedEmail;
+//           user.password = hashedPassword;
+//           user.salt = salt;
+//           user.signupMethod = "email";
+//           user.provider = "local"; // still local, not google/apple
+//           user.isVerified = false;
+
+//           // Generate verification token
+//           const token = crypto.randomBytes(32).toString("hex");
+//           user.emailVerificationToken = token;
+
+//           const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${token}`;
+// console.log(verificationLink);
+
+//           await sendVerificationEmail(trimmedEmail, verificationLink);
+
+//           await user.save();
+
+//           return res.status(200).json({
+//             status: "pending_verification",
+//             message: "Verification email sent. Please verify to activate email login.",
+//           });
+//         }
+
+//         // === Case 2: Verifying email using token ===
+//         if (req.body.verifyToken) {
+//           const userToVerify = await User.findOne({
+//             email: trimmedEmail,
+//             emailVerificationToken: req.body.verifyToken,
+//           });
+
+//           if (!userToVerify) {
+//             return res.status(400).json({
+//               status: "error",
+//               message: "Invalid or expired verification token.",
+//             });
+//           }
+
+//           userToVerify.isVerified = true;
+//           userToVerify.signupMethod = "email";
+//           userToVerify.provider = "local";
+//           userToVerify.emailVerificationToken = undefined;
+
+//           await userToVerify.save();
+
+//           return res.status(200).json({
+//             status: "success",
+//             message: "Email verified successfully. You can now log in using email and password.",
+//           });
+//         }
+
+//         // === Case 3: Normal email update (for existing email-based users) ===
+//         if (currentMethod === "email") {
+//           user.email = trimmedEmail;
+//         } else {
+//           // If Google or PhoneNumber user tries to update email without switch
+//           if (trimmedEmail !== user.email) {
+//             return res.status(400).json({
+//               status: "error",
+//               message: "Email change not allowed unless explicitly switching to email login.",
+//             });
+//           }
+//         }
+//       }
 
 
       if (req.file) {
         const profileImage = await uploadImageToS3(req.file);
         user.profileImageURL = profileImage;
       }
-      // else if (!user.profileImageURL) {
-      //   user.profileImageURL = "/images/defaultUserPic.png";
-      // }
     }
 
     const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {

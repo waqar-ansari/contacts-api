@@ -156,7 +156,8 @@ exports.submitUserOnboarding = async (req, res) => {
       lastname = "",
       gender = "",
       email = "",
-      phonenumber = ""
+      phonenumber = "",
+      designation = ""
     } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -212,6 +213,7 @@ exports.submitUserOnboarding = async (req, res) => {
     if (firstname) user.firstname = firstname;
     if (lastname) user.lastname = lastname;
     if (gender) user.gender = gender;
+    if (designation) user.designation = designation;
 
     // ✅ Ensure userInfo object exists
     if (!user.userInfo) user.userInfo = {};
@@ -233,6 +235,7 @@ exports.submitUserOnboarding = async (req, res) => {
         firstname: user.firstname,
         lastname: user.lastname,
         gender: user.gender,
+        designation: user.designation,
         userInfo: user.userInfo
       }
     });
