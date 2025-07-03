@@ -84,64 +84,64 @@ exports.scanUser = async (req, res) => {
                 });
                 updated = true;
 
-                const contactExistsForScanner = await Contact.findOne({
-                    createdBy: scanner._id,
-                    $or: [
-                        { emailaddresses: { $in: [user.email] } },
-                        { phonenumbers: { $in: [user.phonenumbers[0]] } }
-                    ]
-                });
+                // const contactExistsForScanner = await Contact.findOne({
+                //     createdBy: scanner._id,
+                //     $or: [
+                //         { emailaddresses: { $in: [user.email] } },
+                //         { phonenumbers: { $in: [user.phonenumbers[0]] } }
+                //     ]
+                // });
 
-                if (!contactExistsForScanner) {
-                    const newContactIdForScanner = new mongoose.Types.ObjectId();
+                // if (!contactExistsForScanner) {
+                //     const newContactIdForScanner = new mongoose.Types.ObjectId();
 
-                    await Contact.create({
-                        _id: newContactIdForScanner,
-                        contact_id: newContactIdForScanner,
-                        firstname: user.firstname || '',
-                        lastname: user.lastname || '',
-                        emailaddresses: [user.email || ''],
-                        // phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
-                        phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
-                        linkedin: user.linkedin || '',
-                        instagram: user.instagram || '',
-                        telegram: user.telegram || '',
-                        twitter: user.twitter || '',
-                        facebook: user.facebook || '',
-                        createdBy: scanner._id,
-                    });
+                //     await Contact.create({
+                //         _id: newContactIdForScanner,
+                //         contact_id: newContactIdForScanner,
+                //         firstname: user.firstname || '',
+                //         lastname: user.lastname || '',
+                //         emailaddresses: [user.email || ''],
+                //         // phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
+                //         phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
+                //         linkedin: user.linkedin || '',
+                //         instagram: user.instagram || '',
+                //         telegram: user.telegram || '',
+                //         twitter: user.twitter || '',
+                //         facebook: user.facebook || '',
+                //         createdBy: scanner._id,
+                //     });
 
-                }
+                // }
 
-                // Second: Save contact in user's contacts (scanner info)
-                const contactExistsForUser = await Contact.findOne({
-                    createdBy: user._id,
-                    $or: [
-                        { emailaddresses: { $in: [scanner.email] } },
-                        { phonenumbers: { $in: [scanner.phonenumbers[0]] } }
-                    ]
-                });
+                // // Second: Save contact in user's contacts (scanner info)
+                // const contactExistsForUser = await Contact.findOne({
+                //     createdBy: user._id,
+                //     $or: [
+                //         { emailaddresses: { $in: [scanner.email] } },
+                //         { phonenumbers: { $in: [scanner.phonenumbers[0]] } }
+                //     ]
+                // });
 
-                if (!contactExistsForUser) {
-                    const newContactIdForUser = new mongoose.Types.ObjectId();
+                // if (!contactExistsForUser) {
+                //     const newContactIdForUser = new mongoose.Types.ObjectId();
 
-                    await Contact.create({
-                        _id: newContactIdForUser,
-                        contact_id: newContactIdForUser,
-                        firstname: scanner.firstname || '',
-                        lastname: scanner.lastname || '',
-                        emailaddresses: [scanner.email || ''],
-                        // phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
-                        phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
-                        linkedin: scanner.linkedin || '',
-                        instagram: scanner.instagram || '',
-                        telegram: scanner.telegram || '',
-                        twitter: scanner.twitter || '',
-                        facebook: scanner.facebook || '',
-                        createdBy: user._id,
-                    });
+                //     await Contact.create({
+                //         _id: newContactIdForUser,
+                //         contact_id: newContactIdForUser,
+                //         firstname: scanner.firstname || '',
+                //         lastname: scanner.lastname || '',
+                //         emailaddresses: [scanner.email || ''],
+                //         // phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
+                //         phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
+                //         linkedin: scanner.linkedin || '',
+                //         instagram: scanner.instagram || '',
+                //         telegram: scanner.telegram || '',
+                //         twitter: scanner.twitter || '',
+                //         facebook: scanner.facebook || '',
+                //         createdBy: user._id,
+                //     });
 
-                }
+                // }
             }
 
             // Add User full info into scanner's iScanned
@@ -166,6 +166,33 @@ exports.scanUser = async (req, res) => {
                     createdAt: new Date()
                 });
                 await scanner.save(); // Save scanner updates
+                // ✅ Add contact for scanner (based on iScanned only)
+                const contactExistsForScanner = await Contact.findOne({
+                    createdBy: scanner._id,
+                    $or: [
+                        { emailaddresses: { $in: [user.email] } },
+                        { phonenumbers: { $in: [user.phonenumbers[0]] } }
+                    ]
+                });
+
+                if (!contactExistsForScanner) {
+                    const newContactIdForScanner = new mongoose.Types.ObjectId();
+
+                    await Contact.create({
+                        _id: newContactIdForScanner,
+                        contact_id: newContactIdForScanner,
+                        firstname: user.firstname || '',
+                        lastname: user.lastname || '',
+                        emailaddresses: [user.email || ''],
+                        phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
+                        linkedin: user.linkedin || '',
+                        instagram: user.instagram || '',
+                        telegram: user.telegram || '',
+                        twitter: user.twitter || '',
+                        facebook: user.facebook || '',
+                        createdBy: scanner._id,
+                    });
+                }
             }
 
 
@@ -186,24 +213,24 @@ exports.scanUser = async (req, res) => {
                     createdAt: new Date()
                 });
                 updated = true;
-                const contactExists = await Contact.findOne({
-                    createdBy: user._id,
-                    $or: [
-                        { emailaddresses: { $in: [email] } },
-                        { phonenumbers: { $in: [phonenumber] } }
-                    ]
-                });
+                // const contactExists = await Contact.findOne({
+                //     createdBy: user._id,
+                //     $or: [
+                //         { emailaddresses: { $in: [email] } },
+                //         { phonenumbers: { $in: [phonenumber] } }
+                //     ]
+                // });
 
-                if (!contactExists) {
-                    await Contact.create({
-                        contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
-                        firstname: firstname || '',
-                        lastname: lastname || '',
-                        emailaddresses: [email || ''],
-                        phonenumbers: phonenumber ? [phonenumber] : [],
-                        createdBy: user._id,
-                    });
-                }
+                // if (!contactExists) {
+                //     await Contact.create({
+                //         contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                //         firstname: firstname || '',
+                //         lastname: lastname || '',
+                //         emailaddresses: [email || ''],
+                //         phonenumbers: phonenumber ? [phonenumber] : [],
+                //         createdBy: user._id,
+                //     });
+                // }
             }
         }
 

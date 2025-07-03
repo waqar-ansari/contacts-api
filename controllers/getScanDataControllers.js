@@ -69,11 +69,12 @@ exports.getScanData = async (req, res) => {
 
         // STEP 1: Process iScanned
         const iScannedUsers = (user.iScanned || []).map(scannedUser => ({
+
             id: scannedUser._id || null,
             firstname: scannedUser.firstname || '',
             lastname: scannedUser.lastname || '',
             email: scannedUser.email || '',
-            phonenumbers: scannedUser.phonenumbers || [],
+            phonenumbers: scannedUser.phonenumber || [],
             profileImageURL: scannedUser.profileImageURL || '',
             linkedin: scannedUser.linkedin || '',
             instagram: scannedUser.instagram || '',
@@ -83,6 +84,9 @@ exports.getScanData = async (req, res) => {
             createdAt: scannedUser.createdAt,
             iScanned: true,
         }));
+
+        // console.log(scannedUser.phonenumbers);
+
 
         // STEP 2: Process scannedMe
         const scannedMeEntries = user.scannedMe || [];
