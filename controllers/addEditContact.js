@@ -86,9 +86,12 @@ const addEditContact = async (req, res) => {
     if (emailList.length || phoneList.length) {
       const duplicateQuery = {
         createdBy: req.user._id,
-        _id: { $ne: contact_id },  // Exclude current contact if editing
         $or: [],
       };
+
+      if (contact_id && mongoose.Types.ObjectId.isValid(contact_id)) {
+        duplicateQuery._id = { $ne: contact_id };
+      }
 
       if (emailList.length) {
         duplicateQuery.$or.push({ emailaddresses: { $in: emailList } });
@@ -250,7 +253,7 @@ const addEditContact = async (req, res) => {
       contactImage = await uploadImageToS3(req.file);
     }
 
-    const isCreating = !contact_id || contact_id === "0";
+    const isCreating = !contact_id || contact_id == "0";
 
     // ---------- Handle Task ----------
     const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || typeof taskIsCompleted !== "undefined";

@@ -28,7 +28,7 @@ const getContact = async (req, res) => {
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
         { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }
-        
+
       ];
     }
 
@@ -123,8 +123,15 @@ const getContact = async (req, res) => {
           emoji: tagObj.emoji
         }));
       }
+      // console.log(contactObj.meetings);
+      // console.log(contactObj.meetings.length);
+
       return contactObj;
     });
+
+    const totalMeetings = contacts.reduce((count, contact) => {
+      return count + (Array.isArray(contact.meetings) ? contact.meetings.length : 0);
+    }, 0);
 
     const totalCount = await Contact.countDocuments(baseQuery);
 
@@ -136,6 +143,7 @@ const getContact = async (req, res) => {
         currentPage: parseInt(page),
         totalPages: Math.ceil(totalCount / limit),
         totalContacts: totalCount,
+        totalMeetings: totalMeetings,
       },
     });
   } catch (error) {
