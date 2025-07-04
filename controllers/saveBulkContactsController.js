@@ -55,9 +55,9 @@ const saveBulkContacts = async (req, res) => {
           createdBy: req.user._id,
           $or: [],
         };
-        if (emailList.length) {
-          duplicateQuery.$or.push({ emailaddresses: { $in: emailList } });
-        }
+        // if (emailList.length) {
+        //   duplicateQuery.$or.push({ emailaddresses: { $in: emailList } });
+        // }
         if (phoneList.length) {
           duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
         }
