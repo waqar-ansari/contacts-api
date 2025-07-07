@@ -81,15 +81,28 @@ exports.scanUser = async (req, res) => {
                 });
 
                 if (!contactExistsForScanner) {
-                    const newContactIdForScanner = new mongoose.Types.ObjectId();
+                    // const newContactIdForScanner = new mongoose.Types.ObjectId();
 
-                    await Contact.create({
-                        _id: newContactIdForScanner,
-                        contact_id: newContactIdForScanner,
+                    // await Contact.create({
+                    //     _id: newContactIdForScanner,
+                    //     contact_id: newContactIdForScanner,
+                    //     firstname: user.firstname || '',
+                    //     lastname: user.lastname || '',
+                    //     emailaddresses: [user.email || ''],
+                    //     // phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
+                    //     phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
+                    //     linkedin: user.linkedin || '',
+                    //     instagram: user.instagram || '',
+                    //     telegram: user.telegram || '',
+                    //     twitter: user.twitter || '',
+                    //     facebook: user.facebook || '',
+                    //     createdBy: scanner._id,
+                    // });
+
+                    const newContact = new Contact({
                         firstname: user.firstname || '',
                         lastname: user.lastname || '',
                         emailaddresses: [user.email || ''],
-                        // phonenumbers: Array.isArray(user.phonenumbers) ? [user.phonenumbers[0]] : [],
                         phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
                         linkedin: user.linkedin || '',
                         instagram: user.instagram || '',
@@ -98,7 +111,8 @@ exports.scanUser = async (req, res) => {
                         facebook: user.facebook || '',
                         createdBy: scanner._id,
                     });
-
+                    newContact.contact_id = newContact._id; // ensure consistency
+                    await newContact.save();
                 }
 
                 // Second: Save contact in user's contacts (scanner info)
@@ -111,15 +125,28 @@ exports.scanUser = async (req, res) => {
                 });
 
                 if (!contactExistsForUser) {
-                    const newContactIdForUser = new mongoose.Types.ObjectId();
+                    // const newContactIdForUser = new mongoose.Types.ObjectId();
 
-                    await Contact.create({
-                        _id: newContactIdForUser,
-                        contact_id: newContactIdForUser,
+                    // await Contact.create({
+                    //     _id: newContactIdForUser,
+                    //     contact_id: newContactIdForUser,
+                    //     firstname: scanner.firstname || '',
+                    //     lastname: scanner.lastname || '',
+                    //     emailaddresses: [scanner.email || ''],
+                    //     // phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
+                    //     phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
+                    //     linkedin: scanner.linkedin || '',
+                    //     instagram: scanner.instagram || '',
+                    //     telegram: scanner.telegram || '',
+                    //     twitter: scanner.twitter || '',
+                    //     facebook: scanner.facebook || '',
+                    //     createdBy: user._id,
+                    // });
+
+                    const newContact = new Contact({
                         firstname: scanner.firstname || '',
                         lastname: scanner.lastname || '',
                         emailaddresses: [scanner.email || ''],
-                        // phonenumbers: Array.isArray(scanner.phonenumbers) ? [scanner.phonenumbers[0]] : [],
                         phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
                         linkedin: scanner.linkedin || '',
                         instagram: scanner.instagram || '',
@@ -128,6 +155,8 @@ exports.scanUser = async (req, res) => {
                         facebook: scanner.facebook || '',
                         createdBy: user._id,
                     });
+                    newContact.contact_id = newContact._id; // ensure consistency
+                    await newContact.save();
 
                 }
             }
@@ -164,11 +193,24 @@ exports.scanUser = async (req, res) => {
                 });
 
                 if (!contactExistsForScanner) {
-                    const newContactIdForScanner = new mongoose.Types.ObjectId();
+                    // const newContactIdForScanner = new mongoose.Types.ObjectId();
 
-                    await Contact.create({
-                        _id: newContactIdForScanner,
-                        contact_id: newContactIdForScanner,
+                    // await Contact.create({
+                    //     _id: newContactIdForScanner,
+                    //     contact_id: newContactIdForScanner,
+                    //     firstname: user.firstname || '',
+                    //     lastname: user.lastname || '',
+                    //     emailaddresses: [user.email || ''],
+                    //     phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
+                    //     linkedin: user.linkedin || '',
+                    //     instagram: user.instagram || '',
+                    //     telegram: user.telegram || '',
+                    //     twitter: user.twitter || '',
+                    //     facebook: user.facebook || '',
+                    //     createdBy: scanner._id,
+                    // });
+
+                    const newContact = new Contact({
                         firstname: user.firstname || '',
                         lastname: user.lastname || '',
                         emailaddresses: [user.email || ''],
@@ -180,6 +222,9 @@ exports.scanUser = async (req, res) => {
                         facebook: user.facebook || '',
                         createdBy: scanner._id,
                     });
+                    newContact.contact_id = newContact._id; // ensure consistency
+                    await newContact.save();
+
                 }
             }
         } else {
@@ -207,14 +252,25 @@ exports.scanUser = async (req, res) => {
                 });
 
                 if (!contactExists) {
-                    await Contact.create({
-                        contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                    // await Contact.create({
+                    //     contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+                    //     firstname: firstname || '',
+                    //     lastname: lastname || '',
+                    //     emailaddresses: [email || ''],
+                    //     phonenumbers: phonenumber ? [phonenumber] : [],
+                    //     createdBy: user._id,
+                    // });
+
+                    const newContact = new Contact({
                         firstname: firstname || '',
                         lastname: lastname || '',
                         emailaddresses: [email || ''],
                         phonenumbers: phonenumber ? [phonenumber] : [],
                         createdBy: user._id,
                     });
+                    newContact.contact_id = newContact._id; // ensure consistency
+                    await newContact.save();
+
                 }
             }
         }

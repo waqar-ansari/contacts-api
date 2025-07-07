@@ -268,9 +268,9 @@ exports.connectSMTP = async (req, res) => {
 
         res.json({
             status: 'success',
-            message: 'SMTP connected successfully',
+            message: 'SMTP Mail connected successfully',
             data: {
-                smtpId: user.smtpId,                     // ✅ Return smtpId here
+                smtpId: user.smtpId,
                 smtpHost: user.smtpHost,
                 smtpPort: user.smtpPort,
                 smtpUser: user.smtpUser,

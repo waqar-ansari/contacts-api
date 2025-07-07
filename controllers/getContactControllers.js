@@ -27,7 +27,7 @@ const getContact = async (req, res) => {
         { firstname: { $regex: search, $options: "i" } },
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
-        { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }
+        { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
 
       ];
     }
@@ -59,7 +59,7 @@ const getContact = async (req, res) => {
         .sort({ createdAt: -1 }) // Show newest first
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
-        .select("-_id -createdBy -updatedAt -__v");
+        .select("-_id -updatedAt -__v");
 
       const favouriteContacts = rawFavouriteContacts.map((contact) => {
         const contactObj = contact.toObject();
@@ -103,7 +103,7 @@ const getContact = async (req, res) => {
       .sort({ createdAt: -1 }) // Show newest first
       .skip(skip)
       .limit(parseInt(limit))
-      .select("-_id -createdBy -updatedAt -__v");
+      .select("-_id -updatedAt -__v");
 
     const contacts = rawContacts.map((contact) => {
       const contactObj = contact.toObject();
