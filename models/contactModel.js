@@ -31,6 +31,7 @@ const meetingSchema = new Schema(
     meetingType: {
       type: String,
       enum: ["online", "offline"],
+      default: "offline",
     },
     meetingLink: String,
     meetingLocation: String,
