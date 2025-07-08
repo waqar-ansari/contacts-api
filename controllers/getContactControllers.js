@@ -32,12 +32,23 @@ const getContact = async (req, res) => {
       ];
     }
 
-    // Optional tag filter
+    // // Optional tag filter
+    // if (Array.isArray(tag) && tag.length > 0) {
+    //   baseQuery["tags.tag"] = { $all: tag };
+    // } else if (typeof tag === "string" && tag.trim() !== "") {
+    //   baseQuery["tags.tag"] = tag.trim();
+    // }
+
     if (Array.isArray(tag) && tag.length > 0) {
-      baseQuery["tags.tag"] = { $all: tag };
+      baseQuery["tags"] = {
+        $all: tag.map((t) => ({
+          $elemMatch: { tag: { $regex: `^${t}$`, $options: "i" } }
+        }))
+      };
     } else if (typeof tag === "string" && tag.trim() !== "") {
-      baseQuery["tags.tag"] = tag.trim();
+      baseQuery["tags.tag"] = { $regex: `^${tag.trim()}$`, $options: "i" };
     }
+
 
     // If request is only for favourite contacts
     if (isFavourite === true || isFavourite === "true") {
@@ -56,7 +67,8 @@ const getContact = async (req, res) => {
       }
 
       const rawFavouriteContacts = await Contact.find(favQuery)
-        .sort({ createdAt: -1 }) // Show newest first
+        // .sort({ createdAt: -1 }) // Show newest first
+        .sort({ createdAt: -1, _id: -1 })
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
         .select("-_id -updatedAt -__v");
@@ -100,7 +112,8 @@ const getContact = async (req, res) => {
 
     // Normal all contact fetch
     const rawContacts = await Contact.find(baseQuery)
-      .sort({ createdAt: -1 }) // Show newest first
+      // .sort({ createdAt: -1 }) // Show newest first
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -updatedAt -__v");
