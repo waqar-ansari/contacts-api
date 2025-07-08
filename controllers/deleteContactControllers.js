@@ -25,7 +25,7 @@ const deleteContact = async (req, res) => {
     const { contact_id } = req.body; // Expecting an array of contact IDs
 
     if (!Array.isArray(contact_id) || contact_id.length === 0) {
-      return res.status(400).json({ status: "error", message: "No contact IDs provided" });
+      return res.status(400).json({ status: "error", message: "No contact id provided" });
     }
 
     const result = await Contact.deleteMany({ _id: { $in: contact_id } });
