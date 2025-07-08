@@ -5,6 +5,8 @@ const s3 = require("../utils/s3");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
 const { createGoogleMeetEvent } = require("../utils/googleCalendar");
+const { logActivityToContact } = require("../utils/activityLogger");
+
 
 
 const addEditContact = async (req, res) => {
@@ -445,6 +447,13 @@ const addEditContact = async (req, res) => {
       if (meetingObj) contactPayload.meetings = [meetingObj];
 
       contactData = await Contact.create(contactPayload);
+
+      //activity logging
+      await logActivityToContact(contactData._id, {
+        action: "contact_created",
+        description: `Contact "${firstname} ${lastname}" created`,
+      });
+
     }
     else {
       const updateFields = {
@@ -500,7 +509,15 @@ const addEditContact = async (req, res) => {
         }
 
         contactData.updatedAt = new Date();
+
+        //activity logging for task
+        await logActivityToContact(contactData._id, {
+          action: task_id ? "task_updated" : "task_created",
+          description: `Task "${taskTitle}" ${task_id ? "updated" : "added"}`,
+        });
       }
+
+
 
       // ----- Update or Add Meeting -----
       if (meetingObj) {
@@ -516,9 +533,21 @@ const addEditContact = async (req, res) => {
         }
 
         contactData.updatedAt = new Date();
+        //activity logging for meeting
+        await logActivityToContact(contactData._id, {
+          action: meeting_id ? "meeting_updated" : "meeting_created",
+          description: `Meeting "${meetingTitle}" ${meeting_id ? "updated" : "created"}`,
+        });
       }
 
       await contactData.save();
+
+      //activity logging
+      await logActivityToContact(contactData._id, {
+        action: "contact_updated",
+        description: `Contact "${firstname} ${lastname}" updated`,
+      });
+
     }
 
     // ---------- Format Response ----------

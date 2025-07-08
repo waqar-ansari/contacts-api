@@ -59,6 +59,7 @@ const checkEmailPhoneDuplicate = require("./routes/checkEmailPhoneRoutes");
 const saveBulkContactsRoutes = require("./routes/saveBulkContactsRoutes");
 const getContactByIdRoutes = require("./routes/getContactByIdRoutes");
 const getAllContactRoutes = require("./routes/getAllContactRoutes");
+const getContactActivitiesRoutes = require("./routes/getActivityRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -129,6 +130,7 @@ app.use("/check-duplicate-user", checkForAuthentication(), checkEmailPhoneDuplic
 app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes);
 app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
 app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
+app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });

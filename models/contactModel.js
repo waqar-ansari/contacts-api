@@ -134,7 +134,14 @@ const contactSchema = new Schema(
 
     meetings: [meetingSchema],
 
-
+    activities: [
+      {
+        _id: false,
+        action: { type: String, required: true }, // e.g. 'contact_created', 'task_updated'
+        description: { type: String },
+        timestamp: { type: Date, default: Date.now },
+      }
+    ],
 
     createdBy: {
       type: Schema.Types.ObjectId,
