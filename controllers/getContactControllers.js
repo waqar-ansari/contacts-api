@@ -27,7 +27,13 @@ const getContact = async (req, res) => {
         { firstname: { $regex: search, $options: "i" } },
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
-        { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
+        // { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
+        {
+          $or: [
+            { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } }, // if phonenumbers is array of strings
+            { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }, // if array of objects with .number
+          ]
+        }
 
       ];
     }
@@ -62,7 +68,13 @@ const getContact = async (req, res) => {
           { firstname: { $regex: favouriteContactsSearch, $options: "i" } },
           { lastname: { $regex: favouriteContactsSearch, $options: "i" } },
           { emailaddresses: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
-          { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } }
+          // { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } }
+          {
+            $or: [
+              { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } }, // if phonenumbers is array of strings
+              { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }, // if array of objects with .number
+            ]
+          }
         ];
       }
 

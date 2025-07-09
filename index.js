@@ -60,6 +60,7 @@ const saveBulkContactsRoutes = require("./routes/saveBulkContactsRoutes");
 const getContactByIdRoutes = require("./routes/getContactByIdRoutes");
 const getAllContactRoutes = require("./routes/getAllContactRoutes");
 const getContactActivitiesRoutes = require("./routes/getActivityRoutes");
+const fetchGoogleContacts = require("./routes/googleContactFatchRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -131,7 +132,7 @@ app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes)
 app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
 app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
 app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
-
+app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });

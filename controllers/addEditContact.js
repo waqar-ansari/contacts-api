@@ -451,7 +451,7 @@ const addEditContact = async (req, res) => {
       //activity logging
       await logActivityToContact(contactData._id, {
         action: "contact_created",
-        description: `Contact "${firstname} ${lastname}" created`,
+        description: `Contact Created Successfully`,
       });
 
     }
@@ -474,6 +474,33 @@ const addEditContact = async (req, res) => {
       };
       if (contactImage) updateFields.contactImageURL = contactImage;
       if (tagsProvided) updateFields.tags = matchedTags;
+
+      // ---------- ✅ Activity Logging for Tag Changes ----------
+      if (tagsProvided) {
+        const existing = await Contact.findOne({ _id: contact_id, createdBy: req.user._id });
+
+        const oldTags = existing.tags?.map(t => t.tag) || [];
+        const newTags = matchedTags.map(t => t.tag);
+
+        const addedTags = newTags.filter(tag => !oldTags.includes(tag));
+        const removedTags = oldTags.filter(tag => !newTags.includes(tag));
+
+        if (addedTags.length || removedTags.length) {
+          let descriptionParts = [];
+          if (addedTags.length) {
+            descriptionParts.push(`added tag(s): ${addedTags.join(", ")}`);
+          }
+          if (removedTags.length) {
+            descriptionParts.push(`removed tag(s): ${removedTags.join(", ")}`);
+          }
+
+          await logActivityToContact(contact_id, {
+            action: "tags_updated",
+            description: `Tags updated (${descriptionParts.join("; ")})`,
+          });
+        }
+      }
+
 
       contactData = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
@@ -513,7 +540,7 @@ const addEditContact = async (req, res) => {
         //activity logging for task
         await logActivityToContact(contactData._id, {
           action: task_id ? "task_updated" : "task_created",
-          description: `Task "${taskTitle}" ${task_id ? "updated" : "added"}`,
+          description: `Task ${taskTitle} ${task_id ? "Updated" : "Added"} Successfully`,
         });
       }
 
@@ -536,7 +563,7 @@ const addEditContact = async (req, res) => {
         //activity logging for meeting
         await logActivityToContact(contactData._id, {
           action: meeting_id ? "meeting_updated" : "meeting_created",
-          description: `Meeting "${meetingTitle}" ${meeting_id ? "updated" : "created"}`,
+          description: `Meeting ${meetingTitle} ${meeting_id ? "Updated" : "Created"} Successfully`,
         });
       }
 
@@ -545,7 +572,7 @@ const addEditContact = async (req, res) => {
       //activity logging
       await logActivityToContact(contactData._id, {
         action: "contact_updated",
-        description: `Contact "${firstname} ${lastname}" updated`,
+        description: `Contact Updated Successfully`,
       });
 
     }
