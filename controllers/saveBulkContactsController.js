@@ -19,7 +19,30 @@ const saveBulkContacts = async (req, res) => {
         message: "No contacts provided",
       });
     }
-
+    const allowedFields = [
+      "firstname",
+      "lastname",
+      "company",
+      "designation",
+      "linkedin",
+      "instagram",
+      "telegram",
+      "twitter",
+      "facebook",
+      "emailaddresses",
+      "phonenumbers",
+    ];
+    for (const contact of contacts) {
+      const invalidKeys = Object.keys(contact).filter(
+        (key) => !allowedFields.includes(key)
+      );
+      if (invalidKeys.length > 0) {
+        return res.status(400).json({
+          status: "error",
+          message: `Invalid columns: ${invalidKeys.join(", ")}`,
+        });
+      }
+    }
     const bulkPayload = [];
     const skippedContacts = [];
 
@@ -55,9 +78,7 @@ const saveBulkContacts = async (req, res) => {
           createdBy: req.user._id,
           $or: [],
         };
-        // if (emailList.length) {
-        //   duplicateQuery.$or.push({ emailaddresses: { $in: emailList } });
-        // }
+
         if (phoneList.length) {
           duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
         }
@@ -95,7 +116,7 @@ const saveBulkContacts = async (req, res) => {
 
     return res.status(201).json({
       status: "success",
-      message: "Contacts added successfully",
+      message: `Processed ${contacts.length} contact(s): ${savedContacts.length} added, ${skippedContacts.length} skipped (duplicates).`,
       data: savedContacts.map((c) => {
         const { _id, __v, ...contact } = c.toObject();
         return { ...contact };
