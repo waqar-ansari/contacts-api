@@ -258,7 +258,15 @@ const addEditContact = async (req, res) => {
     const isCreating = !contact_id || contact_id == "0";
 
     // ---------- Handle Task ----------
-    const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || typeof taskIsCompleted !== "";
+    // const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || typeof taskIsCompleted !== "";
+    const taskProvided =
+      !!taskTitle ||
+      !!taskDescription ||
+      !!taskDueDate ||
+      !!taskDueTime ||
+      typeof taskIsCompleted === "boolean" ||
+      taskIsCompleted === "true" ||
+      taskIsCompleted === "false";
     if (isCreating && taskProvided && (taskIsCompleted === true || taskIsCompleted === "true")) {
       return res.status(400).json({
         status: "error",

@@ -132,7 +132,14 @@ app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes)
 app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
 app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
 app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
-app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
+// app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
+app.use("/fetch-google-contacts", (req, res, next) => {
+  const skipAuthPaths = ["/google/callback"];
+  if (skipAuthPaths.includes(req.path)) {
+    return next(); // No token required for callback
+  }
+  return checkForAuthentication()(req, res, next);
+}, fetchGoogleContacts);
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });
