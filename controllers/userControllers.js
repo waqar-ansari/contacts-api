@@ -149,7 +149,7 @@ const signupWithEmail = async (req, res) => {
     });
 
     // Send verification email
-    const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}`;
+    const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}`;
     await sendVerificationEmail(newUser.email, verificationLink);
 
     console.log("Verification Link:", verificationLink);
@@ -452,7 +452,7 @@ const resendVerificationLink = async (req, res) => {
     await user.save();
 
     // Build link and send email
-    const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${user.emailVerificationToken}`;
+    const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${user.emailVerificationToken}`;
     await sendVerificationEmail(user.email, verificationLink);
 
     return res.status(200).json({

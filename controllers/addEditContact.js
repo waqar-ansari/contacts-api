@@ -474,12 +474,25 @@ const addEditContact = async (req, res) => {
         telegram,
         twitter,
         facebook,
-        emailaddresses,
-        phonenumbers: parsedPhones,
+        // emailaddresses,
+        // phonenumbers: parsedPhones,
         isFavourite,
         notes,
         website,
       };
+
+
+      if (Array.isArray(parsedPhones) && parsedPhones.length > 0) {
+        updateFields.phonenumbers = parsedPhones;
+      }
+      if (Array.isArray(emailaddresses)) {
+        const cleanedEmails = emailaddresses
+          .map(email => email.trim())
+          .filter(email => email !== "");
+
+        updateFields.emailaddresses = cleanedEmails;
+      }
+
       if (contactImage) updateFields.contactImageURL = contactImage;
       if (tagsProvided) updateFields.tags = matchedTags;
 
