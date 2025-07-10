@@ -50,6 +50,24 @@ const addEditContact = async (req, res) => {
       meetingLink
     } = req.body;
 
+    let cleanedEmails = [];
+
+    if (emailaddresses) {
+      try {
+        const parsed = typeof emailaddresses === "string" ? JSON.parse(emailaddresses) : emailaddresses;
+        const arrayEmails = Array.isArray(parsed) ? parsed : [parsed];
+
+        cleanedEmails = arrayEmails
+          .map((email) => String(email).trim())
+          .filter((email) => email !== "");
+      } catch (err) {
+        if (typeof emailaddresses === "string" && emailaddresses.trim() !== "") {
+          cleanedEmails = [emailaddresses.trim()];
+        }
+      }
+    }
+
+
     // ---------- Normalize Phone Numbers ----------
     let parsedPhones = [];
 
@@ -79,7 +97,7 @@ const addEditContact = async (req, res) => {
     console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
     // ---------- ✅ Check Duplicate Email or Phone ----------
-    const emailList = Array.isArray(emailaddresses) ? emailaddresses : (emailaddresses ? [emailaddresses] : []);
+    const emailList = cleanedEmails;
     const phoneList = parsedPhones;
 
     let duplicateEmail = false;
@@ -441,7 +459,7 @@ const addEditContact = async (req, res) => {
         telegram,
         twitter,
         facebook,
-        emailaddresses,
+        emailaddresses: cleanedEmails,
         phonenumbers: parsedPhones,
         contactImageURL: contactImage,
         isFavourite,
@@ -482,16 +500,13 @@ const addEditContact = async (req, res) => {
       };
 
 
-      if (Array.isArray(parsedPhones) && parsedPhones.length > 0) {
+      if (req.body.phonenumbers !== undefined && Array.isArray(parsedPhones)) {
         updateFields.phonenumbers = parsedPhones;
       }
-      if (Array.isArray(emailaddresses)) {
-        const cleanedEmails = emailaddresses
-          .map(email => email.trim())
-          .filter(email => email !== "");
-
+      if (req.body.emailaddresses !== undefined && Array.isArray(cleanedEmails)) {
         updateFields.emailaddresses = cleanedEmails;
       }
+
 
       if (contactImage) updateFields.contactImageURL = contactImage;
       if (tagsProvided) updateFields.tags = matchedTags;
