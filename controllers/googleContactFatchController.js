@@ -47,29 +47,18 @@
 // };
 
 // module.exports = { fetchGoogleContacts };
-
 const { google } = require('googleapis');
-const User = require('../models/userModel');
 
 const fetchGoogleContacts = async (req, res) => {
-    const userId = req.user._id;
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+        return res.status(400).json({ status: 'error', message: 'Google access token is required' });
+    }
 
     try {
-        const user = await User.findById(userId);
-        if (!user || !user.googleAccessToken) {
-            return res.status(404).json({ status: 'error', message: 'Google account not connected' });
-        }
-
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET,
-            process.env.GOOGLE_REDIRECT_URI
-        );
-
-        oauth2Client.setCredentials({
-            access_token: user.googleAccessToken,
-            refresh_token: user.googleRefreshToken,
-        });
+        const oauth2Client = new google.auth.OAuth2();
+        oauth2Client.setCredentials({ access_token: accessToken });
 
         const peopleService = google.people({ version: 'v1', auth: oauth2Client });
 
@@ -110,4 +99,6 @@ const fetchGoogleContacts = async (req, res) => {
 };
 
 module.exports = { fetchGoogleContacts };
+
+
 

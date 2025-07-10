@@ -133,7 +133,6 @@
 // };
 
 // module.exports = { saveBulkContacts };
-
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
@@ -237,66 +236,82 @@ const saveBulkContacts = async (req, res) => {
           phonenumbers: phoneList,
           createdBy: req.user._id,
         });
-      } else {
-        const existingObj = existingContact.toObject();
-
-        // Compare for exact match
-        const isSame =
-          JSON.stringify({
-            firstname,
-            lastname,
-            company,
-            designation,
-            linkedin,
-            instagram,
-            telegram,
-            twitter,
-            facebook,
-            emailaddresses: emailList,
-            phonenumbers: phoneList,
-          }) ===
-          JSON.stringify({
-            firstname: existingObj.firstname || "",
-            lastname: existingObj.lastname || "",
-            company: existingObj.company || "",
-            designation: existingObj.designation || "",
-            linkedin: existingObj.linkedin || "",
-            instagram: existingObj.instagram || "",
-            telegram: existingObj.telegram || "",
-            twitter: existingObj.twitter || "",
-            facebook: existingObj.facebook || "",
-            emailaddresses: existingObj.emailaddresses || [],
-            phonenumbers: existingObj.phonenumbers || [],
-          });
-
-        if (isSame) {
-          skippedContacts.push(contact); // Exact match, skip
-        } else {
-          // Update missing fields or merge arrays
-          const updated = await Contact.findByIdAndUpdate(
-            existingContact._id,
-            {
-              $set: {
-                firstname: firstname || existingContact.firstname,
-                lastname: lastname || existingContact.lastname,
-                company: company || existingContact.company,
-                designation: designation || existingContact.designation,
-                linkedin: linkedin || existingContact.linkedin,
-                instagram: instagram || existingContact.instagram,
-                telegram: telegram || existingContact.telegram,
-                twitter: twitter || existingContact.twitter,
-                facebook: facebook || existingContact.facebook,
-              },
-              $addToSet: {
-                emailaddresses: { $each: emailList },
-                phonenumbers: { $each: phoneList },
-              },
-            },
-            { new: true }
-          );
-          updatedContacts.push(updated);
-        }
+        continue;
       }
+
+      // Compare core fields for exact match
+      const existingObj = existingContact.toObject();
+
+      const coreFieldsSame =
+        JSON.stringify({
+          firstname,
+          lastname,
+          company,
+          designation,
+          linkedin,
+          instagram,
+          telegram,
+          twitter,
+          facebook,
+        }) ===
+        JSON.stringify({
+          firstname: existingObj.firstname || "",
+          lastname: existingObj.lastname || "",
+          company: existingObj.company || "",
+          designation: existingObj.designation || "",
+          linkedin: existingObj.linkedin || "",
+          instagram: existingObj.instagram || "",
+          telegram: existingObj.telegram || "",
+          twitter: existingObj.twitter || "",
+          facebook: existingObj.facebook || "",
+        });
+
+      const existingPhones = existingObj.phonenumbers || [];
+      const existingEmails = existingObj.emailaddresses || [];
+
+      const newPhones = phoneList.filter(
+        (p) => !existingPhones.includes(p)
+      );
+      const newEmails = emailList.filter(
+        (e) => !existingEmails.includes(e)
+      );
+
+      const hasNewContactData = newPhones.length > 0 || newEmails.length > 0;
+
+      if (coreFieldsSame && !hasNewContactData) {
+        skippedContacts.push(contact); // Everything same → skip
+        continue;
+      }
+
+      if (!hasNewContactData) {
+        skippedContacts.push(contact); // No new phone/email → skip
+        continue;
+      }
+
+      // Update with new phone/email only if present
+      const updated = await Contact.findByIdAndUpdate(
+        existingContact._id,
+        {
+          $addToSet: {
+            phonenumbers: { $each: newPhones },
+            emailaddresses: { $each: newEmails },
+          },
+          $set: {
+            firstname: firstname || existingContact.firstname,
+            lastname: lastname || existingContact.lastname,
+            company: company || existingContact.company,
+            designation: designation || existingContact.designation,
+            linkedin: linkedin || existingContact.linkedin,
+            instagram: instagram || existingContact.instagram,
+            telegram: telegram || existingContact.telegram,
+            twitter: twitter || existingContact.twitter,
+            facebook: facebook || existingContact.facebook,
+          },
+        },
+        { new: true }
+      );
+
+      updatedContacts.push(updated);
     }
 
     // Insert new contacts
@@ -317,7 +332,7 @@ const saveBulkContacts = async (req, res) => {
           return data;
         }),
         skipped: skippedContacts,
-      }
+      },
     });
   } catch (error) {
     console.error("Bulk contact save error:", error);

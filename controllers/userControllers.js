@@ -558,7 +558,7 @@ const unifiedLogin = async (req, res) => {
         const ticket = await googleClient.verifyIdToken({
           idToken: googleToken,
           // audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
-          audience: "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com",
+          audience: "308171825690-ukpu99fsh0jsojolv0j4vrhidait4s5b.apps.googleusercontent.com",
         });
 
         const { email } = ticket.getPayload();
