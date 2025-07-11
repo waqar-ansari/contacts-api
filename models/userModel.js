@@ -1,6 +1,8 @@
 const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
+const Contact = require("./contactModel"); // Adjust path if needed
+
 
 const whatsappTemplateSchema = new Schema(
   {
@@ -388,6 +390,56 @@ userSchema.pre("save", function (next) {
   this.salt = salt;
   this.password = hashPassword;
   next();
+});
+
+userSchema.post("save", async function (doc, next) {
+  try {
+    const existingDefault = await Contact.findOne({
+      createdBy: doc._id,
+      firstname: { $regex: /^california$/i },
+      lastname: { $regex: /^media$/i }
+    });
+
+    const _id = new mongoose.Types.ObjectId();
+
+    if (!existingDefault) {
+      await Contact.create({
+        _id,
+        contact_id: _id,
+        firstname: "California",
+        lastname: "Media",
+        emailaddresses: ["web@californiamediauae.com"],
+        phonenumbers: ["971 50 875 8109"],
+        linkedin: "https://linkedin.com/company/californiamedia",
+        instagram: "https://instagram.com/californiamedia",
+        telegram: "https://t.me/californiamedia",
+        twitter: "https://twitter.com/californiamedia",
+        facebook: "https://facebook.com/californiamedia",
+        // contactImageURL: "https://example.com/default-contact.jpg",
+        isFavourite: true,
+        // tags: [
+        //   {
+        //     tag_id: new mongoose.Types.ObjectId(),
+        //     tag: "Default",
+        //     emoji: "⭐"
+        //   }
+        // ],
+        activities: [
+          {
+            action: "contact_created",
+            description: "Default contact created automatically",
+            timestamp: new Date()
+          }
+        ],
+        createdBy: doc._id,
+      });
+    }
+
+    next();
+  } catch (err) {
+    console.error("Failed to insert default contact:", err);
+    next(err);
+  }
 });
 
 userSchema.static("matchPasswordAndGenerateToken", async function ({ email, phonenumber, password }) {

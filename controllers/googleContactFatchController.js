@@ -31,101 +31,6 @@ const redirectToGoogle = (req, res) => {
 };
 
 // Step 2: Google redirects here with ?code=... and ?state=...
-// const handleGoogleCallback = async (req, res) => {
-//   const { code } = req.query;
-
-//   if (!code) {
-//     return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
-//   }
-
-//   try {
-//     const { tokens } = await oauth2Client.getToken(code);
-//     oauth2Client.setCredentials(tokens);
-
-//     const peopleService = google.people({ version: 'v1', auth: oauth2Client });
-
-//     const response = await peopleService.people.connections.list({
-//       resourceName: 'people/me',
-//       pageSize: 1000,
-//       personFields: 'names,emailAddresses,phoneNumbers',
-//     });
-
-//     const userId = req.query.state || null;
-//     if (!userId) {
-//       return res.status(400).json({ status: 'error', message: 'Missing user ID in state parameter' });
-//     }
-
-//     // const connections = response.data.connections || [];
-
-//     // const contacts = connections.map((person) => {
-//     //   const name = person.names?.[0]?.displayName || '';
-//     //   const [firstname = '', ...lastnameParts] = name.split(' ');
-//     //   const lastname = lastnameParts.join(' ');
-
-//     //   return {
-//     //     firstname,
-//     //     lastname,
-//     //     emailaddresses: person.emailAddresses?.map((e) => e.value) || [],
-//     //     phonenumbers: person.phoneNumbers?.map((p) => p.value) || [],
-//     //     company: '',
-//     //     designation: '',
-//     //     linkedin: '',
-//     //     instagram: '',
-//     //     telegram: '',
-//     //     twitter: '',
-//     //     facebook: '',
-//     //   };
-//     // });
-
-//     // return res.json({ status: 'success', contacts });
-
-//     const connections = response.data.connections || [];
-
-//     const contactsToInsert = connections.map((person) => {
-//       const _id = new mongoose.Types.ObjectId(); // ✅ use same for _id and contact_id
-//       const name = person.names?.[0]?.displayName || '';
-//       const [firstname = '', ...lastnameParts] = name.split(' ');
-//       const lastname = lastnameParts.join(' ');
-
-
-//       return {
-//         _id, // ✅ _id is the primary ID
-//         contact_id: _id, // ✅ match _id so your update API works
-//         firstname,
-//         lastname,
-//         emailaddresses: person.emailAddresses?.map((e) => e.value) || [],
-//         phonenumbers: person.phoneNumbers?.map((p) => p.value) || [],
-//         company: '',
-//         designation: '',
-//         linkedin: '',
-//         instagram: '',
-//         telegram: '',
-//         twitter: '',
-//         facebook: '',
-//         createdBy: userId, // ✅ Save with user context
-//         activities: [
-//           {
-//             action: 'contact_created',
-//             description: `Contact ${firstname} ${lastname} imported from Google`,
-//           }
-//         ],
-//       };
-//     });
-
-//     const savedContacts = await Contact.insertMany(contactsToInsert);
-
-//     return res.json({ status: 'success', contacts: savedContacts });
-
-
-//   } catch (error) {
-//     console.error('Google Contact Fetch Error:', error);
-//     return res.status(500).json({
-//       status: 'error',
-//       message: 'Failed to fetch Google contacts',
-//       error: error.message,
-//     });
-//   }
-// };
 
 const handleGoogleCallback = async (req, res) => {
   const { code } = req.query;
@@ -174,8 +79,15 @@ const handleGoogleCallback = async (req, res) => {
       const [firstname = '', ...lastnameParts] = name.split(' ');
       const lastname = lastnameParts.join(' ');
 
-      const emailList = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
-      const phoneList = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || []; // ⬅️ Cleaned
+      // const emailList = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
+      // const phoneList = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || []; // ⬅️ Cleaned
+
+      const emailListRaw = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
+      const phoneListRaw = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || [];
+
+      const emailList = emailListRaw.length > 0 ? [emailListRaw[0]] : [];
+      const phoneList = phoneListRaw.length > 0 ? [phoneListRaw[0]] : [];
+
 
       // Skip if any email or phone matches existing
       const isDuplicate =
@@ -193,6 +105,8 @@ const handleGoogleCallback = async (req, res) => {
         lastname,
         emailaddresses: emailList,
         phonenumbers: phoneList,
+        // emailaddresses: Array.isArray(emailList) ? emailList : (emailList ? [emailList] : []),
+        // phonenumbers: Array.isArray(phoneList) ? phoneList : (phoneList ? [phoneList] : []),
         company: '',
         designation: '',
         linkedin: '',
@@ -215,18 +129,61 @@ const handleGoogleCallback = async (req, res) => {
       savedContacts = await Contact.insertMany(contactsToInsert);
     }
 
-    return res.json({
+    // return res.json({
+    //   status: 'success',
+    //   contacts: savedContacts, // ✅ only imported contacts
+    // });
+
+    const resultData = {
       status: 'success',
+      message: 'Google Contacts imported successfully',
       contacts: savedContacts, // ✅ only imported contacts
-    });
+    };
+
+    // return res.send(`
+    //     <script>
+    //         window.opener.postMessage(${resultData}, '*');
+    //         window.close();
+    //     </script>
+    // `);
+
+    return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Google Contact fetch Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
 
   } catch (error) {
-    console.error('Google Contact Fetch Error:', error);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to fetch Google contacts',
-      error: error.message,
-    });
+    // console.error('Google Contact Fetch Error:', error);
+    // return res.status(500).json({
+    //   status: 'error',
+    //   message: 'Failed to fetch Google contacts',
+    //   error: error.message,
+    // });
+    return res.send(`
+            <script>
+                window.opener.postMessage({ status: 'error', message: 'Google contact fetch callback failed', error: '${error.message}' }, '*');
+                window.close();
+            </script>
+        `);
   }
 };
 

@@ -61,6 +61,7 @@ const getContactByIdRoutes = require("./routes/getContactByIdRoutes");
 const getAllContactRoutes = require("./routes/getAllContactRoutes");
 const getContactActivitiesRoutes = require("./routes/getActivityRoutes");
 const fetchGoogleContacts = require("./routes/googleContactFatchRoutes");
+const deleteAllContactRoutes = require("./routes/deleteAllContactRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -132,6 +133,7 @@ app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes)
 app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
 app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
 app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
+app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
 app.use("/fetch-google-contacts", (req, res, next) => {
   const skipAuthPaths = ["/google/callback"];
