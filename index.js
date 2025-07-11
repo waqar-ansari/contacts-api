@@ -62,6 +62,7 @@ const getAllContactRoutes = require("./routes/getAllContactRoutes");
 const getContactActivitiesRoutes = require("./routes/getActivityRoutes");
 const fetchGoogleContacts = require("./routes/googleContactFatchRoutes");
 const deleteAllContactRoutes = require("./routes/deleteAllContactRoutes");
+const whatsappEmailActivityRoutes = require("./routes/whatsappEmailActivityRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -135,6 +136,7 @@ app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
 app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
 app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
+app.use("/whatsapp-email-activity", checkForAuthentication(), whatsappEmailActivityRoutes);
 app.use("/fetch-google-contacts", (req, res, next) => {
   const skipAuthPaths = ["/google/callback"];
   if (skipAuthPaths.includes(req.path)) {

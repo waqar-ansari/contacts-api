@@ -137,7 +137,12 @@ const contactSchema = new Schema(
     activities: [
       {
         _id: false,
-        action: { type: String, required: true }, // e.g. 'contact_created', 'task_updated'
+        action: { type: String, required: true },
+        type: {
+          type: String,
+          required: true,
+          enum: ["contact", "task", "meeting", "tag", "email", "whatsapp"], // Optional but safer
+        },
         description: { type: String },
         timestamp: { type: Date, default: Date.now },
       }

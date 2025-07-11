@@ -1,11 +1,19 @@
 const logActivityToContact = async (contactId, activityObj) => {
     const Contact = require("../models/contactModel");
+
+    // ✅ Basic validation
+    if (!activityObj || !activityObj.type || !activityObj.action) {
+        console.error("Invalid activity object:", activityObj);
+        return;
+    }
+
     try {
         await Contact.findByIdAndUpdate(contactId, {
             $push: {
                 activities: {
                     action: activityObj.action,
-                    description: activityObj.description,
+                    type: activityObj.type,
+                    description: activityObj.description || "",
                     timestamp: new Date(),
                 },
             },

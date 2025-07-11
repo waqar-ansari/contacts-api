@@ -409,7 +409,7 @@ userSchema.post("save", async function (doc, next) {
         firstname: "California",
         lastname: "Media",
         emailaddresses: ["web@californiamediauae.com"],
-        phonenumbers: ["971 50 875 8109"],
+        // phonenumbers: ["971 50 875 8109"],
         linkedin: "https://linkedin.com/company/californiamedia",
         instagram: "https://instagram.com/californiamedia",
         telegram: "https://t.me/californiamedia",

@@ -302,8 +302,14 @@ const addEditContact = async (req, res) => {
         taskObj.createdAt = new Date();
       }
 
-      if (taskTitle) taskObj.taskTitle = taskTitle;
-      if (taskDescription) taskObj.taskDescription = taskDescription;
+      // if (taskTitle) taskObj.taskTitle = taskTitle;
+      if (typeof taskTitle !== "undefined") {
+        taskObj.taskTitle = taskTitle || "";
+      }
+      // if (taskDescription) taskObj.taskDescription = taskDescription;
+      if (typeof taskDescription !== "undefined") {
+        taskObj.taskDescription = taskDescription || "";
+      }
       if (taskDueDate) taskObj.taskDueDate = taskDueDate;
       if (taskDueTime) taskObj.taskDueTime = taskDueTime;
 
@@ -477,8 +483,11 @@ const addEditContact = async (req, res) => {
       //activity logging
       await logActivityToContact(contactData._id, {
         action: "contact_created",
+        type: "contact", // ✅ this is important
         description: `Contact Created Successfully`,
       });
+
+
 
     }
     else {
@@ -530,11 +539,17 @@ const addEditContact = async (req, res) => {
             descriptionParts.push(`removed tag(s): ${removedTags.join(", ")}`);
           }
 
+
+
           await logActivityToContact(contact_id, {
             action: "tags_updated",
-            description: `Tags updated (${descriptionParts.join("; ")})`,
+            type: "tag", // ✅ this is important
+            description: `Tag Updated Successfully`,
           });
+
         }
+
+
       }
 
 
@@ -576,11 +591,10 @@ const addEditContact = async (req, res) => {
         //activity logging for task
         await logActivityToContact(contactData._id, {
           action: task_id ? "task_updated" : "task_created",
-          description: `Task ${taskTitle} ${task_id ? "Updated" : "Added"} Successfully`,
+          type: "task",
+          description: `Note ${task_id ? "Updated" : "Added"} Successfully`,
         });
       }
-
-
 
       // ----- Update or Add Meeting -----
       if (meetingObj) {
@@ -596,20 +610,30 @@ const addEditContact = async (req, res) => {
         }
 
         contactData.updatedAt = new Date();
-        //activity logging for meeting
         await logActivityToContact(contactData._id, {
           action: meeting_id ? "meeting_updated" : "meeting_created",
-          description: `Meeting ${meetingTitle} ${meeting_id ? "Updated" : "Created"} Successfully`,
+          type: "meeting",
+          description: `Meeting ${meeting_id ? "Updated" : "Added"} Successfully`,
         });
+
+
       }
 
       await contactData.save();
 
-      //activity logging
-      await logActivityToContact(contactData._id, {
-        action: "contact_updated",
-        description: `Contact Updated Successfully`,
-      });
+      // Log contact_updated ONLY if no task, meeting, or tag was updated
+      const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;
+
+      if (nothingElseChanged) {
+        await logActivityToContact(contactData._id, {
+          action: "contact_updated",
+          type: "contact", // ✅ REQUIRED
+          description: `Contact Updated Successfully`,
+        });
+      }
+
+
+
 
     }
 
