@@ -118,7 +118,8 @@ const handleGoogleCallback = async (req, res) => {
         activities: [
           {
             action: 'contact_created',
-            description: `Contact ${firstname} ${lastname} imported from Google`,
+            type: "contact", // ✅ this is important
+            description: `Contact imported from Google`,
           }
         ],
       });
