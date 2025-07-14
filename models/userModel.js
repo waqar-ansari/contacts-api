@@ -427,6 +427,7 @@ userSchema.post("save", async function (doc, next) {
         activities: [
           {
             action: "contact_created",
+            type: "contact",
             description: "Default contact created automatically",
             timestamp: new Date()
           }

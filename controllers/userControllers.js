@@ -9,7 +9,13 @@ const { sendVerificationEmail } = require("../utils/emailUtils");
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
 const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp');
 require('dotenv').config();
+const { google } = require('googleapis');
 
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_LOGIN_URI // e.g. https://yourapi.com/auth/google/callback
+);
 
 const signupWithEmail = async (req, res) => {
   try {
@@ -551,7 +557,6 @@ const unifiedLogin = async (req, res) => {
       }
     }
 
-
     // === GOOGLE LOGIN ===
     if (googleToken && !email && !password && !appleToken && !phonenumber) {
       try {
@@ -684,9 +689,201 @@ const unifiedLogin = async (req, res) => {
   }
 };
 
+
+const startGoogleLogin = (req, res) => {
+  const scopes = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile'
+  ];
+
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: scopes
+  });
+
+  return res.json({
+    status: "success",
+    message: "Google OAuth URL generated",
+    url: url
+  });
+};
+
+
+// const googleCallback = async (req, res) => {
+//   const { code } = req.query;
+
+//   if (!code) {
+//     return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+//   }
+
+//   try {
+//     const { tokens } = await oauth2Client.getToken(code);
+//     oauth2Client.setCredentials(tokens);
+
+//     const oauth2 = google.oauth2({
+//       auth: oauth2Client,
+//       version: 'v2'
+//     });
+
+//     const { data } = await oauth2.userinfo.get();
+//     const { email, given_name, family_name } = data;
+
+//     let user = await User.findOne({ email });
+//     let isFirstTime = false;
+
+//     if (!user) {
+//       isFirstTime = true;
+//       const serialNumber = await getNextSerialNumber();
+//       const firstname = given_name || "Google";
+//       const lastname = family_name || "User";
+
+//       const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+//         firstname,
+//         lastname,
+//         email,
+//         provider: "google"
+//       });
+
+//       user = await User.create({
+//         email,
+//         firstname,
+//         lastname,
+//         provider: "google",
+//         serialNumber,
+//         qrCode,
+//         signupMethod: "google",
+//         isVerified: true,
+//       });
+//     }
+
+//     const token = createTokenforUser(user);
+
+//     // ⚠️ Option 1: Redirect to frontend with token
+//     return res.redirect(`https://app.contacts.management/registration-form?token=${token}&isFirstTime=${isFirstTime}`);
+
+//     // ⚠️ Option 2: Send as response if you are using internal redirect flow
+//     // return res.json({ status: 'success', token, isFirstTime });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ status: 'error', message: 'Google login failed' });
+//   }
+// };
+
+const googleCallback = async (req, res) => {
+  const { code } = req.query;
+
+  if (!code) {
+    return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+  }
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    const oauth2 = google.oauth2({
+      auth: oauth2Client,
+      version: 'v2'
+    });
+
+    const { data } = await oauth2.userinfo.get();
+    const { email, given_name, family_name } = data;
+
+    let user = await User.findOne({ email });
+    let isFirstTime = false;
+
+    if (!user) {
+      isFirstTime = true;
+      const serialNumber = await getNextSerialNumber();
+      const firstname = given_name || "Google";
+      const lastname = family_name || "User";
+
+      const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+        firstname,
+        lastname,
+        email,
+        provider: "google"
+      });
+
+      user = await User.create({
+        email,
+        firstname,
+        lastname,
+        provider: "google",
+        serialNumber,
+        qrCode,
+        signupMethod: "google",
+        isVerified: true,
+      });
+    }
+
+    const token = createTokenforUser(user);
+
+    // ✅ Redirect based on whether it's first time
+    // return res.json({
+    //   status: 'success',
+    //   message: 'Google login successful',
+
+    // });
+
+    const resultData = {
+      status: 'success',
+      message: 'Google connected successfully',
+      data: {
+        token: token,
+        isFirstTime: isFirstTime
+      }
+    };
+
+    console.log(resultData);
+    
+
+    return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Google Login Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
+
+    // const redirectUrl = isFirstTime
+    //   ? `https://app.contacts.management/registration-form?token=${token}&isFirstTime=true`
+    //   : `https://app.contacts.management/dashboard?token=${token}&isFirstTime=false`;
+
+    // return res.redirect(redirectUrl);
+
+  } catch (error) {
+    return res.send(`
+            <script>
+                window.opener.postMessage({ status: 'error', message: 'Google login callback failed', error: '${error.message}' }, '*');
+                window.close();
+            </script>
+        `);
+  }
+};
+
+
 module.exports = {
   signupWithEmail,
   unifiedLogin,
   resendVerificationLink,
-  signupWithPhoneNumber
+  signupWithPhoneNumber,
+  startGoogleLogin,
+  googleCallback
 };

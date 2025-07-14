@@ -4,6 +4,8 @@ const {
   unifiedLogin,
   resendVerificationLink,
   signupWithPhoneNumber,
+  startGoogleLogin,
+  googleCallback
 } = require("../controllers/userControllers");
 
 const router = Router();
@@ -94,5 +96,8 @@ router.post("/resendVerificationLink", resendVerificationLink);
  */
 router.post("/login", unifiedLogin);
 
-module.exports = router;
+router.get("/google/login", startGoogleLogin);
 
+router.get("/google/callback", googleCallback);
+
+module.exports = router;

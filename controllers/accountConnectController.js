@@ -93,12 +93,6 @@ exports.googleCallback = async (req, res) => {
             googleConnected: user.googleConnected
         };
 
-        // return res.send(`
-        //     <script>
-        //         window.opener.postMessage(${resultData}, '*');
-        //         window.close();
-        //     </script>
-        // `);
 
         return res.send(`
     <!DOCTYPE html>
