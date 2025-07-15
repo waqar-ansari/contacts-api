@@ -13,8 +13,21 @@ const getContact = async (req, res) => {
       favouriteContactsSearch = ""
     } = req.body;
 
-    const skip = (page - 1) * limit;
-    const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
+    // const skip = (page - 1) * limit;
+    let pageToUse = page;
+    if (search?.trim() && page > 1) {
+      pageToUse = 1;
+    }
+
+    let favPageToUse = favouriteContactsPage;
+    if (favouriteContactsSearch?.trim() && favouriteContactsPage > 1) {
+      favPageToUse = 1;
+    }
+
+    const skip = (pageToUse - 1) * limit;
+    // const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
+    const favouriteContactsSkip = (favPageToUse - 1) * favouriteContactsLimit;
+
 
     // Base query
     const baseQuery = {
@@ -23,6 +36,8 @@ const getContact = async (req, res) => {
 
     // Optional search filter
     if (search?.trim()) {
+      const fullNameRegex = new RegExp(`^${search.trim()}`, "i");
+
       baseQuery.$or = [
         { firstname: { $regex: search, $options: "i" } },
         { lastname: { $regex: search, $options: "i" } },
@@ -33,6 +48,14 @@ const getContact = async (req, res) => {
             { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } }, // if phonenumbers is array of strings
             { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }, // if array of objects with .number
           ]
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ["$firstname", " ", "$lastname"] },
+              regex: fullNameRegex,
+            }
+          }
         }
 
       ];
@@ -64,6 +87,8 @@ const getContact = async (req, res) => {
       };
 
       if (favouriteContactsSearch?.trim()) {
+        const fullNameRegex = new RegExp(`^${favouriteContactsSearch.trim()}`, "i");
+
         favQuery.$or = [
           { firstname: { $regex: favouriteContactsSearch, $options: "i" } },
           { lastname: { $regex: favouriteContactsSearch, $options: "i" } },
@@ -71,9 +96,17 @@ const getContact = async (req, res) => {
           // { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } }
           {
             $or: [
-              { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } }, // if phonenumbers is array of strings
-              { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }, // if array of objects with .number
+              { phonenumbers: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
+              { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } },
             ]
+          },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ["$firstname", " ", "$lastname"] },
+                regex: fullNameRegex,
+              }
+            }
           }
         ];
       }
@@ -114,7 +147,8 @@ const getContact = async (req, res) => {
         // favouriteContacts: {
         data: favouriteContacts,
         pagination: {
-          currentPage: parseInt(favouriteContactsPage),
+          // currentPage: parseInt(favouriteContactsPage),
+          currentPage: parseInt(favPageToUse),
           totalPages: Math.ceil(totalFavCount / favouriteContactsLimit),
           totalContacts: totalFavCount,
         },
@@ -165,12 +199,14 @@ const getContact = async (req, res) => {
       message: "Contacts fetched successfully",
       data: contacts,
       pagination: {
-        currentPage: parseInt(page),
+        // currentPage: parseInt(page),
+        currentPage: parseInt(pageToUse),
         totalPages: Math.ceil(totalCount / limit),
         totalContacts: totalCount,
         totalMeetings: totalMeetings,
       },
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: "error", message: "Server error" });

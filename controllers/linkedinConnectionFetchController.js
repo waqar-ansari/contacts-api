@@ -14,7 +14,7 @@ const redirectToLinkedIn = (req, res) => {
     res.redirect(authUrl);
 };
 
-// Step 2: Handle callback and get user info
+
 const handleLinkedinCallback = async (req, res) => {
     const code = req.query.code;
     try {
