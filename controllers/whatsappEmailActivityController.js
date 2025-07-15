@@ -2,6 +2,13 @@ const mongoose = require("mongoose");
 const Contact = require("../models/contactModel"); // adjust path if needed
 const { logActivityToContact } = require("../utils/activityLogger");
 
+const getMessageSummary = (msg) => {
+    if (!msg) return '';
+    const words = msg.trim().split(/\s+/);
+    const summary = words.slice(0, 4).join(' ');
+    return summary + (words.length > 4 ? '...' : '');
+};
+
 const logMessageActivity = async (req, res) => {
     try {
         const { contact_id, whatsappMessage, emailMessage } = req.body;
@@ -20,22 +27,43 @@ const logMessageActivity = async (req, res) => {
         }
 
         // Log WhatsApp message activity
+        // if (whatsappMessage) {
+        //     await logActivityToContact(contact_id, {
+        //         action: "whatsapp_message_sent",
+        //         type: "whatsapp",
+        //         description: `WhatsApp sent : ${whatsappMessage}`
+        //     });
+        // }
+
+        // // Log Email message activity
+        // if (emailMessage) {
+        //     await logActivityToContact(contact_id, {
+        //         action: "email_message_sent",
+        //         type: "email",
+        //         description: `Email sent: ${emailMessage}`
+        //     });
+        // }
+
+        // Log WhatsApp message activity
         if (whatsappMessage) {
+            const summary = getMessageSummary(whatsappMessage);
             await logActivityToContact(contact_id, {
                 action: "whatsapp_message_sent",
                 type: "whatsapp",
-                description: `WhatsApp message sent Successfully : ${whatsappMessage}`
+                description: `WhatsApp sent: ${summary}`
             });
         }
 
         // Log Email message activity
         if (emailMessage) {
+            const summary = getMessageSummary(emailMessage);
             await logActivityToContact(contact_id, {
                 action: "email_message_sent",
                 type: "email",
-                description: `Email message sent Successfully: ${emailMessage}`
+                description: `Email sent: ${summary}`
             });
         }
+
 
         return res.status(200).json({
             status: "success",

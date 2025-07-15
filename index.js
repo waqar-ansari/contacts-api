@@ -61,8 +61,11 @@ const getContactByIdRoutes = require("./routes/getContactByIdRoutes");
 const getAllContactRoutes = require("./routes/getAllContactRoutes");
 const getContactActivitiesRoutes = require("./routes/getActivityRoutes");
 const fetchGoogleContacts = require("./routes/googleContactFatchRoutes");
+const fetchLinkedInContacts = require("./routes/linkedinConnectionFetchRoutes");
 const deleteAllContactRoutes = require("./routes/deleteAllContactRoutes");
 const whatsappEmailActivityRoutes = require("./routes/whatsappEmailActivityRoutes");
+const hubSpotContactFetchRoutes = require("./routes/hubSpotContactFetchRoutes");
+const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -144,6 +147,31 @@ app.use("/fetch-google-contacts", (req, res, next) => {
   }
   return checkForAuthentication()(req, res, next);
 }, fetchGoogleContacts);
+
+app.use("/fetch-linkedin-contacts", (req, res, next) => {
+  const skipAuthPaths = ["/linkedin/callback"]; 
+  if (skipAuthPaths.includes(req.path)) {
+    return next(); // No token required for callback
+  }
+  return checkForAuthentication()(req, res, next);
+}, fetchLinkedInContacts);
+
+app.use("/fetch-hubspot-contacts", (req, res, next) => {
+  const skipAuthPaths = ["/hubspot/callback"];  
+  if (skipAuthPaths.includes(req.path)) {
+    return next(); // No token required for callback
+  }
+  return checkForAuthentication()(req, res, next);
+}, hubSpotContactFetchRoutes);
+
+app.use("/fetch-zoho-contacts", (req, res, next) => {
+  const skipAuthPaths = ['/zoho/callback']; 
+  if (skipAuthPaths.includes(req.path)) {
+    return next(); // No token required for callback
+  }
+  return checkForAuthentication()(req, res, next);
+}, zohoContactFetchRoutes);
+
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
 });

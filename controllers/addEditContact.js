@@ -484,7 +484,7 @@ const addEditContact = async (req, res) => {
       await logActivityToContact(contactData._id, {
         action: "contact_created",
         type: "contact", // ✅ this is important
-        description: `Contact Created Successfully`,
+        description: `Contact Created`,
       });
 
 
@@ -533,10 +533,10 @@ const addEditContact = async (req, res) => {
         if (addedTags.length || removedTags.length) {
           let descriptionParts = [];
           if (addedTags.length) {
-            descriptionParts.push(`added tag(s): ${addedTags.join(", ")}`);
+            descriptionParts.push(`Added tags : ${addedTags.join(", ")}`);
           }
           if (removedTags.length) {
-            descriptionParts.push(`removed tag(s): ${removedTags.join(", ")}`);
+            descriptionParts.push(`Removed tags : ${removedTags.join(", ")}`);
           }
 
 
@@ -544,7 +544,7 @@ const addEditContact = async (req, res) => {
           await logActivityToContact(contact_id, {
             action: "tags_updated",
             type: "tag", // ✅ this is important
-            description: `Tag Updated Successfully`,
+            description: `${descriptionParts.join(" and ")}`,
           });
 
         }
@@ -592,7 +592,7 @@ const addEditContact = async (req, res) => {
         await logActivityToContact(contactData._id, {
           action: task_id ? "task_updated" : "task_created",
           type: "task",
-          description: `Note ${task_id ? "Updated" : "Added"} Successfully`,
+          description: `Note ${task_id ? "Updated" : "Added"} "${taskTitle}"`,
         });
       }
 
@@ -613,10 +613,8 @@ const addEditContact = async (req, res) => {
         await logActivityToContact(contactData._id, {
           action: meeting_id ? "meeting_updated" : "meeting_created",
           type: "meeting",
-          description: `Meeting ${meeting_id ? "Updated" : "Added"} Successfully`,
+          description: `Meeting ${meeting_id ? "Updated" : "Added"} "${meetingTitle}"`,
         });
-
-
       }
 
       await contactData.save();
@@ -628,7 +626,7 @@ const addEditContact = async (req, res) => {
         await logActivityToContact(contactData._id, {
           action: "contact_updated",
           type: "contact", // ✅ REQUIRED
-          description: `Contact Updated Successfully`,
+          description: `Contact Updated`,
         });
       }
 
