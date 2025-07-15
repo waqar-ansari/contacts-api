@@ -14,15 +14,17 @@ const getContact = async (req, res) => {
     } = req.body;
 
     // const skip = (page - 1) * limit;
-    let pageToUse = page;
-    if (search?.trim() && page > 1) {
-      pageToUse = 1;
-    }
+    // let pageToUse = page;
+    // if (search?.trim() && page > 1) {
+    //   pageToUse = 1;
+    // }
+    let pageToUse = parseInt(page);
 
-    let favPageToUse = favouriteContactsPage;
-    if (favouriteContactsSearch?.trim() && favouriteContactsPage > 1) {
-      favPageToUse = 1;
-    }
+    // let favPageToUse = favouriteContactsPage;
+    // if (favouriteContactsSearch?.trim() && favouriteContactsPage > 1) {
+    //   favPageToUse = 1;
+    // }
+    let favPageToUse = parseInt(favouriteContactsPage);
 
     const skip = (pageToUse - 1) * limit;
     // const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
