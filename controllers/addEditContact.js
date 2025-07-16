@@ -33,7 +33,7 @@ const addEditContact = async (req, res) => {
       notes,
       website,
       task_id,
-      taskTitle,
+      // taskTitle,
       taskDescription,
       taskDueDate,
       taskDueTime,
@@ -316,7 +316,7 @@ const addEditContact = async (req, res) => {
     // ---------- Handle Task ----------
     // const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || typeof taskIsCompleted !== "";
     const taskProvided =
-      !!taskTitle ||
+      // !!taskTitle ||
       !!taskDescription ||
       !!taskDueDate ||
       !!taskDueTime ||
@@ -341,9 +341,9 @@ const addEditContact = async (req, res) => {
       }
 
       // if (taskTitle) taskObj.taskTitle = taskTitle;
-      if (typeof taskTitle !== "undefined") {
-        taskObj.taskTitle = taskTitle || "";
-      }
+      // if (typeof taskTitle !== "undefined") {
+      //   taskObj.taskTitle = taskTitle || "";
+      // }
       // if (taskDescription) taskObj.taskDescription = taskDescription;
       if (typeof taskDescription !== "undefined") {
         taskObj.taskDescription = taskDescription || "";
@@ -630,7 +630,7 @@ const addEditContact = async (req, res) => {
         await logActivityToContact(contactData._id, {
           action: task_id ? "task_updated" : "task_created",
           type: "task",
-          description: `Note ${task_id ? "Updated" : "Added"} "${taskTitle}"`,
+          description: `Note ${task_id ? "Updated" : "Added"} : ${taskDescription}`,
         });
       }
 
@@ -651,7 +651,7 @@ const addEditContact = async (req, res) => {
         await logActivityToContact(contactData._id, {
           action: meeting_id ? "meeting_updated" : "meeting_created",
           type: "meeting",
-          description: `Meeting ${meeting_id ? "Updated" : "Added"} "${meetingTitle}"`,
+          description: `Meeting ${meeting_id ? "Updated" : "Schedule"} : ${meetingTitle}`,
         });
       }
 
@@ -681,7 +681,7 @@ const addEditContact = async (req, res) => {
     if (responseData.tasks?.length) {
       responseData.tasks = responseData.tasks.map((t) => ({
         task_id: t.task_id,
-        taskTitle: t.taskTitle,
+        // taskTitle: t.taskTitle,
         taskDescription: t.taskDescription,
         taskDueDate: t.taskDueDate,
         taskDueTime: t.taskDueTime,

@@ -218,7 +218,7 @@ const userSchema = new Schema(
 
     signupMethod: {
       type: String,
-      enum: ["email", "phoneNumber", "google", "apple"],
+      enum: ["email", "phoneNumber", "google", "apple", "linkedin"],
       default: "email"  // or leave unset until signup
     },
 
@@ -326,7 +326,7 @@ const userSchema = new Schema(
     },
     provider: {
       type: String,
-      enum: ["local", "google", "apple"],
+      enum: ["local", "google", "apple", "linkedin"],
       default: "local",
     },
 

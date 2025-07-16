@@ -10,6 +10,10 @@ const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men
 const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp');
 require('dotenv').config();
 const { google } = require('googleapis');
+const querystring = require('querystring');
+const axios = require('axios');
+
+
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -683,6 +687,73 @@ const unifiedLogin = async (req, res) => {
       }
     }
 
+    // === LINKEDIN LOGIN ===
+    if (linkedinToken && !email && !password && !googleToken && !phonenumber && !appleToken) {
+      try {
+        // 1. Fetch LinkedIn profile
+        const profileRes = await axios.get("https://api.linkedin.com/v2/me", {
+          headers: { Authorization: `Bearer ${linkedinToken}` }
+        });
+
+        // 2. Fetch LinkedIn email
+        const emailRes = await axios.get(
+          "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
+          {
+            headers: { Authorization: `Bearer ${linkedinToken}` }
+          }
+        );
+
+        const firstname = profileRes.data.localizedFirstName || "LinkedIn";
+        const lastname = profileRes.data.localizedLastName || "User";
+        const email = emailRes.data.elements[0]["handle~"].emailAddress;
+
+        let user = await User.findOne({ email });
+        let isFirstTime = false;
+
+        if (!user) {
+          isFirstTime = true;
+          const serialNumber = await getNextSerialNumber();
+
+          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+            firstname,
+            lastname,
+            email,
+            provider: "linkedin"
+          });
+
+          user = await User.create({
+            email,
+            firstname,
+            lastname,
+            provider: "linkedin",
+            serialNumber,
+            qrCode,
+            signupMethod: "linkedin",
+            isVerified: true
+          });
+        }
+
+        const token = createTokenforUser(user);
+
+        return res.json({
+          status: "success",
+          message: "LinkedIn login successful",
+          data: {
+            token,
+            registeredWith: user.signupMethod,
+            isFirstTime
+          }
+        });
+      } catch (err) {
+        console.error("LinkedIn Login Error:", err?.response?.data || err);
+        return res.status(500).json({
+          status: "error",
+          message: "LinkedIn login failed",
+          error: err.message
+        });
+      }
+    }
+
     return res.status(400).json({ status: "error", message: "Invalid login request" });
   } catch (err) {
     return res.status(500).json({ status: "error", message: "Login failed" });
@@ -708,67 +779,6 @@ const startGoogleLogin = (req, res) => {
     url: url
   });
 };
-
-
-// const googleCallback = async (req, res) => {
-//   const { code } = req.query;
-
-//   if (!code) {
-//     return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
-//   }
-
-//   try {
-//     const { tokens } = await oauth2Client.getToken(code);
-//     oauth2Client.setCredentials(tokens);
-
-//     const oauth2 = google.oauth2({
-//       auth: oauth2Client,
-//       version: 'v2'
-//     });
-
-//     const { data } = await oauth2.userinfo.get();
-//     const { email, given_name, family_name } = data;
-
-//     let user = await User.findOne({ email });
-//     let isFirstTime = false;
-
-//     if (!user) {
-//       isFirstTime = true;
-//       const serialNumber = await getNextSerialNumber();
-//       const firstname = given_name || "Google";
-//       const lastname = family_name || "User";
-
-//       const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-//         firstname,
-//         lastname,
-//         email,
-//         provider: "google"
-//       });
-
-//       user = await User.create({
-//         email,
-//         firstname,
-//         lastname,
-//         provider: "google",
-//         serialNumber,
-//         qrCode,
-//         signupMethod: "google",
-//         isVerified: true,
-//       });
-//     }
-
-//     const token = createTokenforUser(user);
-
-//     // ⚠️ Option 1: Redirect to frontend with token
-//     return res.redirect(`https://app.contacts.management/registration-form?token=${token}&isFirstTime=${isFirstTime}`);
-
-//     // ⚠️ Option 2: Send as response if you are using internal redirect flow
-//     // return res.json({ status: 'success', token, isFirstTime });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({ status: 'error', message: 'Google login failed' });
-//   }
-// };
 
 const googleCallback = async (req, res) => {
   const { code } = req.query;
@@ -836,7 +846,7 @@ const googleCallback = async (req, res) => {
     };
 
     console.log(resultData);
-    
+
 
     return res.send(`
     <!DOCTYPE html>
@@ -878,6 +888,128 @@ const googleCallback = async (req, res) => {
   }
 };
 
+const startLinkedInLogin = (req, res) => {
+  const scope = ['r_liteprofile', 'r_emailaddress'].join(' ');
+  const authUrl = 'https://www.linkedin.com/oauth/v2/authorization?' + querystring.stringify({
+    response_type: 'code',
+    client_id: process.env.LINKEDIN_CLIENT_ID,
+    redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+    scope: scope,
+    state: 'linkedin_login_' + Date.now()
+  });
+
+  console.log(process.env.LINKEDIN_CLIENT_ID);
+
+
+  return res.json({
+    status: "success",
+    message: "LinkedIn OAuth URL generated",
+    url: authUrl
+  });
+};
+
+const linkedinCallback = async (req, res) => {
+  const { code } = req.query;
+
+  if (!code) {
+    return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+  }
+
+  try {
+    // 1. Exchange code for access token
+    const tokenRes = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', querystring.stringify({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+      client_id: process.env.LINKEDIN_CLIENT_ID,
+      client_secret: process.env.LINKEDIN_CLIENT_SECRET
+    }), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    const accessToken = tokenRes.data.access_token;
+
+    // 2. Get user profile (name)
+    const profileRes = await axios.get('https://api.linkedin.com/v2/me', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    const emailRes = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    const firstname = profileRes.data.localizedFirstName || "LinkedIn";
+    const lastname = profileRes.data.localizedLastName || "User";
+    const email = emailRes.data.elements[0]['handle~'].emailAddress;
+
+    let user = await User.findOne({ email });
+    let isFirstTime = false;
+
+    if (!user) {
+      isFirstTime = true;
+      const serialNumber = await getNextSerialNumber();
+
+      const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+        firstname,
+        lastname,
+        email,
+        provider: "linkedin"
+      });
+
+      user = await User.create({
+        email,
+        firstname,
+        lastname,
+        provider: "linkedin",
+        serialNumber,
+        qrCode,
+        signupMethod: "linkedin",
+        isVerified: true
+      });
+    }
+
+    const token = createTokenforUser(user);
+
+    const resultData = {
+      status: 'success',
+      message: 'LinkedIn connected successfully',
+      data: {
+        token: token,
+        isFirstTime: isFirstTime
+      }
+    };
+
+    return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>LinkedIn Connected</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">LinkedIn Login Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+    `);
+
+  } catch (error) {
+    console.error('LinkedIn Callback Error:', error.response?.data || error.message);
+    return res.send(`
+      <script>
+        window.opener.postMessage({ status: 'error', message: 'LinkedIn login failed', error: '${error.message}' }, '*');
+        window.close();
+      </script>
+    `);
+  }
+};
+
 
 module.exports = {
   signupWithEmail,
@@ -885,5 +1017,7 @@ module.exports = {
   resendVerificationLink,
   signupWithPhoneNumber,
   startGoogleLogin,
-  googleCallback
+  googleCallback,
+  startLinkedInLogin,
+  linkedinCallback
 };
