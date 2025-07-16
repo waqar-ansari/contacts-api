@@ -6,7 +6,7 @@ const taskSchema = new Schema(
       type: mongoose.Types.ObjectId, // FIXED
       default: () => new mongoose.Types.ObjectId(), // FIXED
     },
-    taskTitle: String,
+    // taskTitle: String,
     taskDescription: String,
     taskDueDate: Date,
     taskDueTime: String,
