@@ -159,85 +159,120 @@ const addEditContact = async (req, res) => {
       }
     }
 
-    // // ---------- ✅ Handle Tags ----------
-    // let matchedTags = [];
-    // let tagsProvided = false;
-    // if (req.body.tags) {
-    //   try {
-    //     tagsProvided = true;
-    //     const tagsArray = JSON.parse(req.body.tags);
-
-    //     matchedTags = user.tags
-    //       .filter((tagObj) => tagsArray.includes(tagObj.tag))
-    //       .map((tagObj) => ({
-    //         tag_id: tagObj.tag_id,
-    //         tag: tagObj.tag,
-    //         icon: tagObj.icon || null, // include icon if present
-    //       }));
-    //   } catch (err) {
-    //     return res.status(400).json({
-    //       status: "error",
-    //       message: "Tags must be a valid JSON array of strings.",
-    //     });
-    //   }
-    // }
-
     // ---------- ✅ Handle Tags ----------
     let matchedTags = [];
     let tagsProvided = false;
 
+    // if (req.body.tags) {
+    //   try {
+    //     tagsProvided = true;
+
+    //     const tagsArray = JSON.parse(req.body.tags); // should be array of objects like [{ tag: "Marketing", emoji: "https://..." }]
+
+    //     if (!Array.isArray(tagsArray)) {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "Tags must be a valid JSON array of objects with 'tag' and optional 'emoji'",
+    //       });
+    //     }
+
+    //     matchedTags = [];
+
+    //     for (const tagItem of tagsArray) {
+    //       const tagText = tagItem.tag?.trim();
+    //       const emoji = tagItem.emoji || "";
+
+    //       if (!tagText) continue;
+
+    //       const existingUserTag = user.tags.find(
+    //         (t) => t.tag.toLowerCase() === tagText.toLowerCase()
+    //       );
+
+    //       let tagObj;
+
+    //       if (existingUserTag) {
+    //         // Use existing tag
+    //         tagObj = {
+    //           tag_id: existingUserTag.tag_id,
+    //           tag: existingUserTag.tag,
+    //           emoji: existingUserTag.emoji || null,
+    //         };
+    //       } else {
+    //         // Create new tag in user model
+    //         const newTag = {
+    //           tag_id: new mongoose.Types.ObjectId(),
+    //           tag: tagText,
+    //           emoji,
+    //         };
+    //         user.tags.push(newTag);
+    //         await user.save();
+
+    //         tagObj = {
+    //           tag_id: newTag.tag_id,
+    //           tag: newTag.tag,
+    //           emoji: newTag.emoji || null,
+    //         };
+    //       }
+
+    //       matchedTags.push(tagObj);
+    //     }
+    //   } catch (err) {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Tags must be a valid JSON array of objects with tag/emoji",
+    //     });
+    //   }
+    // }
+
+
+
+
     if (req.body.tags) {
       try {
-        tagsProvided = true;
+        const tagsArray = JSON.parse(req.body.tags);
 
-        const tagsArray = JSON.parse(req.body.tags); // should be array of objects like [{ tag: "Marketing", emoji: "https://..." }]
+        if (!Array.isArray(tagsArray) || tagsArray.length === 0 || tagsArray.every(tag => !tag.tag?.trim())) {
+          tagsProvided = false;
+        } else {
+          tagsProvided = true;
+          matchedTags = [];
 
-        if (!Array.isArray(tagsArray)) {
-          return res.status(400).json({
-            status: "error",
-            message: "Tags must be a valid JSON array of objects with 'tag' and optional 'emoji'",
-          });
-        }
+          for (const tagItem of tagsArray) {
+            const tagText = tagItem.tag?.trim();
+            const emoji = tagItem.emoji || "";
 
-        matchedTags = [];
+            if (!tagText) continue;
 
-        for (const tagItem of tagsArray) {
-          const tagText = tagItem.tag?.trim();
-          const emoji = tagItem.emoji || "";
+            const existingUserTag = user.tags.find(
+              (t) => t.tag.toLowerCase() === tagText.toLowerCase()
+            );
 
-          if (!tagText) continue;
+            let tagObj;
 
-          const existingUserTag = user.tags.find(
-            (t) => t.tag.toLowerCase() === tagText.toLowerCase()
-          );
+            if (existingUserTag) {
+              tagObj = {
+                tag_id: existingUserTag.tag_id,
+                tag: existingUserTag.tag,
+                emoji: existingUserTag.emoji || null,
+              };
+            } else {
+              const newTag = {
+                tag_id: new mongoose.Types.ObjectId(),
+                tag: tagText,
+                emoji,
+              };
+              user.tags.push(newTag);
+              await user.save();
 
-          let tagObj;
+              tagObj = {
+                tag_id: newTag.tag_id,
+                tag: newTag.tag,
+                emoji: newTag.emoji || null,
+              };
+            }
 
-          if (existingUserTag) {
-            // Use existing tag
-            tagObj = {
-              tag_id: existingUserTag.tag_id,
-              tag: existingUserTag.tag,
-              emoji: existingUserTag.emoji || null,
-            };
-          } else {
-            // Create new tag in user model
-            const newTag = {
-              tag_id: new mongoose.Types.ObjectId(),
-              tag: tagText,
-              emoji,
-            };
-            user.tags.push(newTag);
-            await user.save();
-
-            tagObj = {
-              tag_id: newTag.tag_id,
-              tag: newTag.tag,
-              emoji: newTag.emoji || null,
-            };
+            matchedTags.push(tagObj);
           }
-
-          matchedTags.push(tagObj);
         }
       } catch (err) {
         return res.status(400).json({
@@ -248,7 +283,10 @@ const addEditContact = async (req, res) => {
     }
 
 
+
     // ---------- Upload Image ----------
+
+
     const uploadImageToS3 = async (file) => {
       const ext = path.extname(file.originalname);
       const name = path.basename(file.originalname, ext);
