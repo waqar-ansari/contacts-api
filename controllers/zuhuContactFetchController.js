@@ -206,19 +206,37 @@ const handleZohoCallback = async (req, res) => {
             contacts: savedContacts
         };
 
+        const resultString = JSON.stringify(resultData).replace(/</g, '\\u003c');
+
         return res.send(`
-            <!DOCTYPE html>
-      <html>
-      <head><title>Zoho Connected</title></head>
-      <body style="font-family: Arial; text-align:center; padding: 50px;">
-        <div style="color:green;">Zoho Contact fetch successful! You can close this window.</div>
-        <script>
-          window.opener.postMessage(${JSON.stringify(resultData)}, '*');
-          window.close();
-        </script>
-      </body>
-      </html>
-        `);
+  <!DOCTYPE html>
+  <html>
+  <head><title>Zoho Connected</title></head>
+  <body style="font-family: Arial; text-align:center; padding: 50px;">
+    <div style="color:green;">Zoho Contact fetch successful! You can close this window.</div>
+    <script>
+      const resultData = ${resultString};
+      window.opener.postMessage(resultData, '*');
+      window.close();
+    </script>
+  </body>
+  </html>
+`);
+
+
+        //     return res.send(`
+        //         <!DOCTYPE html>
+        //   <html>
+        //   <head><title>Zoho Connected</title></head>
+        //   <body style="font-family: Arial; text-align:center; padding: 50px;">
+        //     <div style="color:green;">Zoho Contact fetch successful! You can close this window.</div>
+        //     <script>
+        //       window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+        //       window.close();
+        //     </script>
+        //   </body>
+        //   </html>
+        //     `);
 
     } catch (error) {
         console.error('Zoho Import Error:', error.message);
