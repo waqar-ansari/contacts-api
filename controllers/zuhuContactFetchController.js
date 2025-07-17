@@ -5,55 +5,81 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 
 const redirectToZoho = (req, res) => {
+
+    const domain = req.body.domain || 'com'; // or get from user profile/settings
     const scopes = [
         'ZohoCRM.modules.contacts.READ'
     ];
-
+    const userId = req.user._id;
+    // Step 1: Redirect to Zoho OAuth   
     const params = querystring.stringify({
         scope: scopes.join(','),
         client_id: process.env.ZOHO_CLIENT_ID,
         response_type: 'code',
         access_type: 'offline',
         redirect_uri: process.env.ZOHO_REDIRECT_URI,
-        state: req.user._id
+        state: `${userId}::${domain}` // Include region in state
     });
 
-    const authUrl = `https://accounts.zoho.com/oauth/v2/auth?${params}`;
+    const authUrl = `https://accounts.zoho.${domain}/oauth/v2/auth?${params}`;
     return res.json({ status: 'success', url: authUrl });
 };
 
 
 const handleZohoCallback = async (req, res) => {
-    const { code, state: userId } = req.query;
+    const { code, state } = req.query;
 
     if (!code) {
         return res.status(400).json({ status: 'error', message: 'Missing Zoho auth code' });
     }
 
+    const [userId, domain] = state.split('::'); // 👈 extract region
+    const zohoAccountsURL = `https://accounts.zoho.${domain}`;
+    const zohoAPIURL = `https://www.zohoapis.${domain}`;
+
     try {
         // Step 1: Get Access Token
-        const tokenRes = await axios.post('https://accounts.zoho.com/oauth/v2/token', {}, {
-            params: {
+        // const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`, {}, {
+        //     params: {
+        //         grant_type: 'authorization_code',
+        //         client_id: process.env.ZOHO_CLIENT_ID,
+        //         client_secret: process.env.ZOHO_CLIENT_SECRET,
+        //         redirect_uri: process.env.ZOHO_REDIRECT_URI,
+        //         code,
+        //     },
+        //     headers: {
+        //         'Content-Type': 'application/x-www-form-urlencoded',
+        //     }
+        // });
+        const querystring = require("querystring");
+
+        const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`,
+            querystring.stringify({
                 grant_type: 'authorization_code',
                 client_id: process.env.ZOHO_CLIENT_ID,
                 client_secret: process.env.ZOHO_CLIENT_SECRET,
                 redirect_uri: process.env.ZOHO_REDIRECT_URI,
-                code,
+                code
+            }),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            }
+        );
+
+        console.log('CODE:', code);
+        console.log('Zoho token response:', tokenRes.data);
+
+        const tokenData = tokenRes.data;
+        if (!tokenData.access_token) {
+            console.error('Zoho token response:', tokenData);
+            return res.status(400).json({ status: 'error', message: 'Access token not received from Zoho' });
+        }
+
+        // Step 2: Use token to fetch Zoho contacts
+        const contactRes = await axios.get(`${zohoAPIURL}/crm/v2/Contacts`, {
+            headers: {
+                Authorization: `Zoho-oauthtoken ${tokenData.access_token}`,
             },
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        });
-
-        const accessToken = tokenRes.data.access_token;
-        if (!accessToken) throw new Error('Access token not received from Zoho');
-        const apiDomain = tokenRes.data.api_domain || 'https://www.zohoapis.com'; // fallback just in case
-
-        // Step 2: Fetch Contacts from Zoho
-        const contactRes = await axios.get(`${apiDomain}/crm/v2/Contacts`, {
-            headers: {
-                Authorization: `Zoho-oauthtoken ${accessToken}`
-            }
         });
 
         const contacts = contactRes.data.data || [];
@@ -127,6 +153,7 @@ const handleZohoCallback = async (req, res) => {
             message: 'Zoho Contacts imported successfully',
             contacts: savedContacts
         };
+        console.log('Result Data:', resultData);
 
         return res.send(`
       <!DOCTYPE html>
