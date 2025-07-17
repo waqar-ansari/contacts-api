@@ -47,9 +47,10 @@ const handleZohoCallback = async (req, res) => {
 
         const accessToken = tokenRes.data.access_token;
         if (!accessToken) throw new Error('Access token not received from Zoho');
+        const apiDomain = tokenRes.data.api_domain || 'https://www.zohoapis.com'; // fallback just in case
 
         // Step 2: Fetch Contacts from Zoho
-        const contactRes = await axios.get('https://www.zohoapis.in/crm/v2/Contacts', {
+        const contactRes = await axios.get(`${apiDomain}/crm/v2/Contacts`, {
             headers: {
                 Authorization: `Zoho-oauthtoken ${accessToken}`
             }
