@@ -23,85 +23,6 @@ const redirectToZoho = (req, res) => {
 };
 
 
-// const handleZohoCallback = async (req, res) => {
-//     const { code, state: userId } = req.query;
-
-//     try {
-//         const tokenRes = await axios.post('https://accounts.zoho.in/oauth/v2/token', {}, {
-//             params: {
-//                 grant_type: 'authorization_code',
-//                 client_id: process.env.ZOHO_CLIENT_ID,
-//                 client_secret: process.env.ZOHO_CLIENT_SECRET,
-//                 redirect_uri: process.env.ZOHO_REDIRECT_URI,
-//                 code,
-//             },
-//             headers: {
-//                 'Content-Type': 'application/x-www-form-urlencoded',
-//             }
-//         });
-
-//         console.log('Zoho OAuth token response:', tokenRes.data);
-
-//         console.log('client_id:', process.env.ZOHO_CLIENT_ID);
-//         console.log('client_secret:', process.env.ZOHO_CLIENT_SECRET);
-//         console.log('redirect_uri:', process.env.ZOHO_REDIRECT_URI);
-//         console.log('code:', req.query.code);
-
-//         const accessToken = tokenRes.data.access_token;
-
-//         console.log(tokenRes.data);
-
-
-//         console.log(`Zoho access token: ${accessToken}`);
-
-
-//         // Step 4: Fetch contacts from Zoho CRM
-//         const contactRes = await axios.get('https://www.zohoapis.in/crm/v2/Contacts', {
-//             headers: {
-//                 Authorization: `Zoho-oauthtoken ${accessToken}`
-//             }
-//         });
-
-//         const contacts = contactRes.data.data || [];
-//         console.log(contacts);
-//         const _id = new mongoose.Types.ObjectId();
-
-//         // Filter, format and save contacts to your DB
-//         const formatted = contacts.map(contact => ({
-//             _id,
-//             contact_id: _id,
-//             firstname: contact.First_Name || '',
-//             lastname: contact.Last_Name || '',
-//             emailaddresses: contact.Email ? [contact.Email.toLowerCase()] : [],
-//             phonenumbers: contact.Phone ? [contact.Phone] : [],
-//             createdBy: userId,
-//             contact_id: new mongoose.Types.ObjectId(),
-//             activities: [{
-//                 action: 'contact_created',
-//                 type: 'contact',
-//                 description: `Contact imported from Zoho`,
-//             }]
-//         }));
-
-//         await Contact.insertMany(formatted);
-
-//         return res.send(`
-//       <html><body>
-//         <p style="color:green;">Zoho Contacts imported successfully. You can close this window.</p>
-//         <script>
-//           window.opener.postMessage(${JSON.stringify({ status: 'success', contacts: formatted })}, '*');
-//           window.close();
-//         </script>
-//       </body></html>
-//     `);
-//     } catch (error) {
-//         return res.send(`<script>
-//         window.opener.postMessage({ status: 'error', message: 'Zoho import failed', error: '${error.message}' }, '*');
-//         window.close();
-//       </script>`);
-//     }
-// };
-
 const handleZohoCallback = async (req, res) => {
     const { code, state: userId } = req.query;
 
@@ -111,7 +32,7 @@ const handleZohoCallback = async (req, res) => {
 
     try {
         // Step 1: Get Access Token
-        const tokenRes = await axios.post('https://accounts.zoho.in/oauth/v2/token', {}, {
+        const tokenRes = await axios.post('https://accounts.zoho.com/oauth/v2/token', {}, {
             params: {
                 grant_type: 'authorization_code',
                 client_id: process.env.ZOHO_CLIENT_ID,
@@ -206,21 +127,28 @@ const handleZohoCallback = async (req, res) => {
             contacts: savedContacts
         };
 
-        const resultString = JSON.stringify(resultData).replace(/</g, '\\u003c');
-
         return res.send(`
-  <!DOCTYPE html>
-  <html>
-  <head><title>Zoho Connected</title></head>
-  <body style="font-family: Arial; text-align:center; padding: 50px;">
-    <div style="color:green;">Zoho Contact fetch successful! You can close this window.</div>
-    <script>
-      const resultData = ${resultString};
-      window.opener.postMessage(resultData, '*');
-      window.close();
-    </script>
-  </body>
-  </html>
+      <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Zoho Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Zoho Contact fetch Successfully! You can close this window.</div>
+        <script>
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
 `);
 
 
