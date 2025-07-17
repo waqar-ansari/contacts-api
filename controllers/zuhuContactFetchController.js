@@ -208,22 +208,16 @@ const handleZohoCallback = async (req, res) => {
 
         return res.send(`
             <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Zoho Connected</title>
-                <style>
-                    body { font-family: Arial; text-align: center; padding-top: 50px; }
-                    .success { color: green; font-size: 18px; margin-bottom: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="success">Zoho Contacts imported successfully! You can close this window.</div>
-                <script>
-                    window.opener.postMessage(${JSON.stringify(resultData)}, '*');
-                    window.close();
-                </script>
-            </body>
-            </html>
+      <html>
+      <head><title>Zoho Connected</title></head>
+      <body style="font-family: Arial; text-align:center; padding: 50px;">
+        <div style="color:green;">Zoho Contact fetch successful! You can close this window.</div>
+        <script>
+          window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+          window.close();
+        </script>
+      </body>
+      </html>
         `);
 
     } catch (error) {
