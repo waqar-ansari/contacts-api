@@ -225,24 +225,36 @@ const handleZohoCallback = async (req, res) => {
     </head>
     <body>
         <div class="success">Zoho Contact fetch Successfully! You can close this window.</div>
-       <script>
-  try {
-    window.opener.postMessage(${JSON.stringify(resultData)}, '*');
-  } catch (err) {
-    console.error('postMessage failed:', err);
-  }
+         <script>
+    (function () {
+      const resultData = ${JSON.stringify(resultData)};
+      const tryPostMessage = () => {
+        try {
+          // Use wildcard origin to support cross-origin popup response
+          window.opener.postMessage(resultData, '*');
 
-  try {
-    window.close();
-  } catch (err) {
-    console.error('window.close failed:', err);
-  }
+          // Notify success for debug (optional)
+          console.log("Message posted to opener.");
+        } catch (e) {
+          console.error("Failed to postMessage:", e);
+        }
 
-  // Fallback for non-closable windows
-  setTimeout(() => {
-    document.body.innerHTML += '<p>You can close this window manually.</p>';
-  }, 3000);
-</script>
+        try {
+          window.close();
+        } catch (e) {
+          console.warn("window.close failed. Showing close button.");
+        }
+
+        // Fallback UI for browsers blocking close()
+        setTimeout(() => {
+          document.body.innerHTML = "<h3>Authorization complete.</h3><p>You can close this window.</p>";
+        }, 2000);
+      };
+
+      // Wait a bit in case opener not ready
+      setTimeout(tryPostMessage, 500);
+    })();
+  </script>
 
     </body>
     </html>

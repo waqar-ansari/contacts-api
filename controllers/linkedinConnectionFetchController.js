@@ -3,9 +3,10 @@ const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
 
-const client_id = '772a55jw0f6vfl';
-const client_secret = 'WPL_AP1.2Lxty6NVgTTjS8az.rMZeQw==';
-const redirect_uri = 'http://localhost:3003/fetch-linkedin-contacts/linkedin/callback';
+const client_id = process.env.LINKEDIN_CLIENT_ID;
+const client_secret = process.env.LINKEDIN_CLIENT_SECRET;
+const redirect_uri = process.env.LINKEDIN_FETCH_CONTACTS_REDIRECT_URI;
+
 
 // Step 1: Redirect to LinkedIn
 const redirectToLinkedIn = (req, res) => {

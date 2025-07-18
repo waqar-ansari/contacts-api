@@ -889,7 +889,7 @@ const googleCallback = async (req, res) => {
 };
 
 const startLinkedInLogin = (req, res) => {
-  const scope = ['r_liteprofile', 'r_emailaddress'].join(' ');
+  const scope = ['openid', 'profile', 'email'].join(' ');
   const authUrl = 'https://www.linkedin.com/oauth/v2/authorization?' + querystring.stringify({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID,
@@ -911,6 +911,8 @@ const startLinkedInLogin = (req, res) => {
 const linkedinCallback = async (req, res) => {
   const { code } = req.query;
 
+  console.log("LinkedIn Callback Code:", code);
+
   if (!code) {
     return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
   }
@@ -930,17 +932,18 @@ const linkedinCallback = async (req, res) => {
     const accessToken = tokenRes.data.access_token;
 
     // 2. Get user profile (name)
-    const profileRes = await axios.get('https://api.linkedin.com/v2/me', {
+    const userInfoRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
 
-    const emailRes = await axios.get('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const firstname = userInfoRes.data.given_name || 'LinkedIn';
+    const lastname = userInfoRes.data.family_name || 'User';
+    const email = userInfoRes.data.email || 'unknown@example.com';
 
-    const firstname = profileRes.data.localizedFirstName || "LinkedIn";
-    const lastname = profileRes.data.localizedLastName || "User";
-    const email = emailRes.data.elements[0]['handle~'].emailAddress;
+
+    // const firstname = profileRes.data.localizedFirstName || "LinkedIn";
+    // const lastname = profileRes.data.localizedLastName || "User";
+    // const email = emailRes.data.elements[0]['handle~'].emailAddress;
 
     let user = await User.findOne({ email });
     let isFirstTime = false;
@@ -978,6 +981,9 @@ const linkedinCallback = async (req, res) => {
         isFirstTime: isFirstTime
       }
     };
+
+    console.log(resultData);
+    
 
     return res.send(`
     <!DOCTYPE html>
