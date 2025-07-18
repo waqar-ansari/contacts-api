@@ -28,6 +28,7 @@ const redirectToZoho = (req, res) => {
 
 const handleZohoCallback = async (req, res) => {
     const { code, state } = req.query;
+    const frontendOrigin = 'https://app.contacts.management'; // ✅ Set your frontend domain here
 
     if (!code) {
         return res.status(400).json({ status: 'error', message: 'Missing Zoho auth code' });
@@ -226,7 +227,7 @@ const handleZohoCallback = async (req, res) => {
     <body>
         <div class="success">Zoho Contact fetch Successfully! You can close this window.</div>
         <script>
-            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.opener.postMessage(${JSON.stringify(resultData)}, '${frontendOrigin}');
             window.close();
         </script>
     </body>
