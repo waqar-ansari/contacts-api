@@ -28,7 +28,6 @@ const redirectToZoho = (req, res) => {
 
 const handleZohoCallback = async (req, res) => {
     const { code, state } = req.query;
-    const frontendOrigin = 'https://app.contacts.management'; // ✅ Set your frontend domain here
 
     if (!code) {
         return res.status(400).json({ status: 'error', message: 'Missing Zoho auth code' });
@@ -226,10 +225,25 @@ const handleZohoCallback = async (req, res) => {
     </head>
     <body>
         <div class="success">Zoho Contact fetch Successfully! You can close this window.</div>
-        <script>
-            window.opener.postMessage(${JSON.stringify(resultData)}, '${frontendOrigin}');
-            window.close();
-        </script>
+       <script>
+  try {
+    window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+  } catch (err) {
+    console.error('postMessage failed:', err);
+  }
+
+  try {
+    window.close();
+  } catch (err) {
+    console.error('window.close failed:', err);
+  }
+
+  // Fallback for non-closable windows
+  setTimeout(() => {
+    document.body.innerHTML += '<p>You can close this window manually.</p>';
+  }, 3000);
+</script>
+
     </body>
     </html>
 `);
