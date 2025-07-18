@@ -838,7 +838,7 @@ const googleCallback = async (req, res) => {
 
     const resultData = {
       status: 'success',
-      message: 'Google connected successfully',
+      message: 'Google Login successfully',
       data: {
         token: token,
         isFirstTime: isFirstTime
@@ -975,7 +975,7 @@ const linkedinCallback = async (req, res) => {
 
     const resultData = {
       status: 'success',
-      message: 'LinkedIn connected successfully',
+      message: 'LinkedIn Login successfully',
       data: {
         token: token,
         isFirstTime: isFirstTime
