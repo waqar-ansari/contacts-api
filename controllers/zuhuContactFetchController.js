@@ -34,8 +34,9 @@ const handleZohoCallback = async (req, res) => {
     }
 
     const [userId, domain] = state.split('::'); // 👈 extract region
-    const zohoAccountsURL = `https://accounts.zoho.${domain}`;
-    const zohoAPIURL = `https://www.zohoapis.${domain}`;
+    let zohoAPIURL = '';
+    let zohoAccountsURL = '';
+
 
     try {
         // Step 1: Get Access Token
@@ -51,29 +52,82 @@ const handleZohoCallback = async (req, res) => {
         //         'Content-Type': 'application/x-www-form-urlencoded',
         //     }
         // });
-        const querystring = require("querystring");
+        // const querystring = require("querystring");
 
-        const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`,
-            querystring.stringify({
-                grant_type: 'authorization_code',
-                client_id: process.env.ZOHO_CLIENT_ID,
-                client_secret: process.env.ZOHO_CLIENT_SECRET,
-                redirect_uri: process.env.ZOHO_REDIRECT_URI,
-                code
-            }),
-            {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        // const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`,
+        //     querystring.stringify({
+        //         grant_type: 'authorization_code',
+        //         client_id: process.env.ZOHO_CLIENT_ID,
+        //         client_secret: process.env.ZOHO_CLIENT_SECRET,
+        //         redirect_uri: process.env.ZOHO_REDIRECT_URI,
+        //         code
+        //     }),
+        //     {
+        //         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        //     }
+        // );
+
+        // console.log('CODE:', code);
+        // console.log('Zoho token response:', tokenRes.data);
+
+        // const tokenData = tokenRes.data;
+        // const userInfoRes = await axios.get(`${zohoAccountsURL}/oauth/user/info`, {
+        //     headers: {
+        //         Authorization: `Zoho-oauthtoken ${tokenData.access_token}`
+        //     }
+        // });
+
+        // const realDomain = userInfoRes.data?.Accounts_domain || `zoho.${domain}`;
+        // // Optionally, update user model with this real domain
+        // console.log("Detected Zoho Domain:", realDomain);
+
+        // if (!tokenData.access_token) {
+        //     console.error('Zoho token response:', tokenData);
+        //     return res.status(400).json({ status: 'error', message: 'Access token not received from Zoho' });
+        // }
+
+        // Step 1: Try getting Access Token from all known domains
+        const domainsToTry = ['in', 'com', 'eu', 'com.au']; // Extend this list as needed
+        let tokenData = null;
+        let successfulDomain = null;
+
+        for (const d of domainsToTry) {
+            try {
+                const tokenRes = await axios.post(
+                    `https://accounts.zoho.${d}/oauth/v2/token`,
+                    querystring.stringify({
+                        grant_type: 'authorization_code',
+                        client_id: process.env.ZOHO_CLIENT_ID,
+                        client_secret: process.env.ZOHO_CLIENT_SECRET,
+                        redirect_uri: process.env.ZOHO_REDIRECT_URI,
+                        code
+                    }),
+                    {
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    }
+                );
+
+                if (tokenRes.data.access_token) {
+                    tokenData = tokenRes.data;
+                    successfulDomain = d;
+                    console.log(`✅ Successful domain: .${successfulDomain}`);
+                    zohoAccountsURL = `https://accounts.zoho.${successfulDomain}`;
+                    zohoAPIURL = `https://www.zohoapis.${successfulDomain}`;
+                    break;
+                }
+            } catch (err) {
+                console.log(`Failed token fetch for .${d} domain:`, err.response?.data || err.message);
             }
-        );
-
-        console.log('CODE:', code);
-        console.log('Zoho token response:', tokenRes.data);
-
-        const tokenData = tokenRes.data;
-        if (!tokenData.access_token) {
-            console.error('Zoho token response:', tokenData);
-            return res.status(400).json({ status: 'error', message: 'Access token not received from Zoho' });
         }
+
+        if (!tokenData || !tokenData.access_token) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Access token not received from Zoho',
+                details: tokenData
+            });
+        }
+
 
         // Step 2: Use token to fetch Zoho contacts
         const contactRes = await axios.get(`${zohoAPIURL}/crm/v2/Contacts`, {
