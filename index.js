@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./crons/referralCron"); // 👈 Load cron scheduler
 
 console.log("Environment Variables Loaded:");
 
@@ -66,6 +67,7 @@ const deleteAllContactRoutes = require("./routes/deleteAllContactRoutes");
 const whatsappEmailActivityRoutes = require("./routes/whatsappEmailActivityRoutes");
 const hubSpotContactFetchRoutes = require("./routes/hubSpotContactFetchRoutes");
 const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
+const referralRoutes = require("./routes/referRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -103,7 +105,7 @@ app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
 app.use("/getContact", checkForAuthentication(), getContactRoutes);
 app.use("/getContactEmail", checkForAuthentication(), getContactEmailRoutes);
 app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
-
+app.use("/refer", checkForAuthentication(), referralRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
 
 app.use("/connect", (req, res, next) => {

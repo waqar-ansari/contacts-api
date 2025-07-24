@@ -12,7 +12,23 @@ require('dotenv').config();
 const { google } = require('googleapis');
 const querystring = require('querystring');
 const axios = require('axios');
+const Referral = require("../models/referralModel");
 
+
+const hasUsedReferralBefore = async ({ email, phonenumbers }) => {
+  const query = {
+    usedOnce: true,
+    $or: []
+  };
+
+  if (email) query.$or.push({ email });
+  if (phonenumbers) query.$or.push({ phonenumbers });
+
+  if (query.$or.length === 0) return false;
+
+  const existingReferral = await Referral.findOne(query);
+  return !!existingReferral;
+};
 
 
 const oauth2Client = new google.auth.OAuth2(
@@ -29,6 +45,7 @@ const signupWithEmail = async (req, res) => {
       firstname = "",
       lastname = "",
       verifyToken = "",
+      referralCode = req.body.referralCode || req.query.ref || "", // ✅ Handles both cases
     } = req.body;
 
     // === PART 1: Email Verification Flow ===
@@ -44,6 +61,22 @@ const signupWithEmail = async (req, res) => {
 
       user.isVerified = true;
       user.emailVerificationToken = undefined;
+
+      // === Handle Referral Verification ===
+      if (referralCode) {
+        const referral = await Referral.findOne({ referralCode, usedOnce: false });
+
+        if (referral && referral.status === "pending") {
+          referral.status = "complete";
+          referral.referredUserId = user._id;
+          referral.usedOnce = true;
+          // ✅ Store actual user contact info (only if available)
+          if (user.email) referral.email = user.email;
+          if (user.phonenumbers?.length > 0) referral.phonenumbers = user.phonenumbers[0];
+          await referral.save();
+        }
+      }
+
 
       if (!user.signupMethod) {
         user.signupMethod = "email";
@@ -129,6 +162,34 @@ const signupWithEmail = async (req, res) => {
       });
     }
 
+    let referral = null;
+
+    if (referralCode) {
+      referral = await Referral.findOne({ referralCode });
+
+      if (!referral) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid referral code"
+        });
+      }
+
+      if (referral.usedOnce) {
+        return res.status(400).json({
+          status: "error",
+          message: "Referral code has already been used"
+        });
+      }
+      const alreadyUsed = await hasUsedReferralBefore({ email });
+      if (alreadyUsed) {
+        return res.status(400).json({
+          status: "error",
+          message: "Referral already used with this email or phone. Please sign up manually."
+        });
+      }
+    }
+
+
     const trimmedEmail = email.trim();
 
     // Check if email already exists
@@ -146,6 +207,11 @@ const signupWithEmail = async (req, res) => {
     // Generate Email Verification Token
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
 
+    const now = new Date();
+    const trialEnds = new Date(now);
+    trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
+
     // Create new user
     const newUser = await User.create({
       email: trimmedEmail,
@@ -156,6 +222,9 @@ const signupWithEmail = async (req, res) => {
       isVerified: false,
       signupMethod: "email",
       emailVerificationToken,
+      isPremium: false,
+      trialStart: now,
+      trialEnd: trialEnds,
     });
 
     // Send verification email
@@ -187,6 +256,34 @@ const signupWithEmail = async (req, res) => {
 const signupWithPhoneNumber = async (req, res) => {
   try {
     const { phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
+    const referralCode = req.body.referralCode || req.query.ref || "";
+
+    let referral = null;
+
+    if (referralCode) {
+      referral = await Referral.findOne({ referralCode });
+
+      if (!referral) {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid referral code"
+        });
+      }
+
+      if (referral.usedOnce) {
+        return res.status(400).json({
+          status: "error",
+          message: "Referral code has already been used"
+        });
+      }
+      const alreadyUsed = await hasUsedReferralBefore({ phonenumber });
+      if (alreadyUsed) {
+        return res.status(400).json({
+          status: "error",
+          message: "Referral already used with this email or phone. Please sign up manually."
+        });
+      }
+    }
 
     if (!phonenumber || !password) {
       return res.status(400).json({
@@ -351,6 +448,23 @@ const signupWithPhoneNumber = async (req, res) => {
     user.firstname = firstname;
     user.lastname = lastname;
 
+    // ✅ Handle referral code if provided
+    if (referralCode) {
+      const referral = await Referral.findOne({ referralCode, usedOnce: false });
+
+      if (referral && referral.status === "pending") {
+        referral.status = "complete";
+        referral.referredUserId = user._id;
+        referral.usedOnce = true;
+
+        if (user.email) referral.email = user.email;
+        if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
+
+        await referral.save();
+      }
+    }
+
+
     // ✅ Clear OTP fields
     user.otp = undefined;
     user.otpExpiresAt = undefined;
@@ -405,7 +519,10 @@ const signupWithPhoneNumber = async (req, res) => {
     }
     // ✅ iScanned / scannedMe logic ends here.
 
-
+    const now = new Date();
+    user.trialStart = now;
+    user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days later
+    user.isPremium = false;
 
     await user.save();
 
@@ -554,7 +671,19 @@ const unifiedLogin = async (req, res) => {
           password
         });
 
-        return res.json({ status: "success", message: "Login successful", data: { token } });
+        const now = new Date();
+        const isTrialActive = user.trialEnd && now < user.trialEnd;
+        const hasAccess = user.isPremium || isTrialActive;
+
+        return res.json({
+          status: "success", message: "Login successful", data: {
+            token, hasAccess,
+            isTrialActive,
+            isPremium: user.isPremium,
+            trialEndsAt: user.trialEnd,
+            registeredWith: user.signupMethod
+          }
+        });
 
       } catch (err) {
         return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
@@ -577,6 +706,27 @@ const unifiedLogin = async (req, res) => {
 
         if (!user) {
           isFirstTime = true;  // ✅ This means first time Google login (new user)
+          let referral = null;
+          const { referralCode } = req.body;
+          if (referralCode) {
+            referral = await Referral.findOne({ referralCode });
+
+            if (!referral) {
+              return res.status(400).json({
+                status: "error",
+                message: "Invalid referral code"
+              });
+            }
+
+            if (referral.usedOnce) {
+              return res.status(400).json({
+                status: "error",
+                message: "Referral code has already been used"
+              });
+            }
+          }
+          // ⬆️ Referral Check END
+
           const serialNumber = await getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
@@ -587,6 +737,10 @@ const unifiedLogin = async (req, res) => {
             provider: "google"
           });
 
+          const now = new Date();
+          const trialEnds = new Date(now);
+          trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
           user = await User.create({
             email,
             firstname,
@@ -595,18 +749,33 @@ const unifiedLogin = async (req, res) => {
             serialNumber,
             qrCode,
             signupMethod: "google",
-            isVerified: true,      // ✅ Set isVerified at creation time
+            isVerified: true,
+            isPremium: false,
+            trialStart: now,
+            trialEnd: trialEnds     // ✅ Set isVerified at creation time
           });
+          if (referral) {
+            referral.referredUserId = user._id;
+            referral.usedOnce = true;
+            await referral.save();
+          }
         }
 
 
         const token = createTokenforUser(user);
+        const now = new Date();
+        const isTrialActive = user.trialEnd && now < user.trialEnd;
+        const hasAccess = user.isPremium || isTrialActive;
         return res.json({
           status: "success", message: "Google login successful",
           data: {
             "token": token,
             "registeredWith": user.signupMethod,
-            "isFirstTime": isFirstTime
+            "isFirstTime": isFirstTime,
+            hasAccess,
+            isTrialActive,
+            isPremium: user.isPremium,
+            trialEndsAt: user.trialEnd
           }
         });
       } catch (err) {
@@ -669,6 +838,10 @@ const unifiedLogin = async (req, res) => {
             provider: "apple"
           });
 
+          const now = new Date();
+          const trialEnds = new Date(now);
+          trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
           user = await User.create({
             email: appleEmail,
             provider: "apple",
@@ -677,80 +850,26 @@ const unifiedLogin = async (req, res) => {
             serialNumber,
             qrCode,
             signupMethod: "apple",
+            isPremium: false,
+            trialStart: now,
+            trialEnd: trialEnds,
           });
         }
 
         const token = createTokenforUser(user);
-        return res.json({ status: "success", message: "Apple login successful", data: { token } });
+        const now = new Date();
+        const isTrialActive = user.trialEnd && now < user.trialEnd;
+        const hasAccess = user.isPremium || isTrialActive;
+        return res.json({
+          status: "success", message: "Apple login successful", data: {
+            token, hasAccess,
+            isTrialActive,
+            isPremium: user.isPremium,
+            trialEndsAt: user.trialEnd
+          }
+        });
       } catch (err) {
         return res.status(500).json({ status: "error", message: "Apple login failed" });
-      }
-    }
-
-    // === LINKEDIN LOGIN ===
-    if (linkedinToken && !email && !password && !googleToken && !phonenumber && !appleToken) {
-      try {
-        // 1. Fetch LinkedIn profile
-        const profileRes = await axios.get("https://api.linkedin.com/v2/me", {
-          headers: { Authorization: `Bearer ${linkedinToken}` }
-        });
-
-        // 2. Fetch LinkedIn email
-        const emailRes = await axios.get(
-          "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
-          {
-            headers: { Authorization: `Bearer ${linkedinToken}` }
-          }
-        );
-
-        const firstname = profileRes.data.localizedFirstName || "LinkedIn";
-        const lastname = profileRes.data.localizedLastName || "User";
-        const email = emailRes.data.elements[0]["handle~"].emailAddress;
-
-        let user = await User.findOne({ email });
-        let isFirstTime = false;
-
-        if (!user) {
-          isFirstTime = true;
-          const serialNumber = await getNextSerialNumber();
-
-          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-            firstname,
-            lastname,
-            email,
-            provider: "linkedin"
-          });
-
-          user = await User.create({
-            email,
-            firstname,
-            lastname,
-            provider: "linkedin",
-            serialNumber,
-            qrCode,
-            signupMethod: "linkedin",
-            isVerified: true
-          });
-        }
-
-        const token = createTokenforUser(user);
-
-        return res.json({
-          status: "success",
-          message: "LinkedIn login successful",
-          data: {
-            token,
-            registeredWith: user.signupMethod,
-            isFirstTime
-          }
-        });
-      } catch (err) {
-        console.error("LinkedIn Login Error:", err?.response?.data || err);
-        return res.status(500).json({
-          status: "error",
-          message: "LinkedIn login failed",
-          error: err.message
-        });
       }
     }
 
@@ -760,8 +879,10 @@ const unifiedLogin = async (req, res) => {
   }
 };
 
-
 const startGoogleLogin = (req, res) => {
+
+  const { ref = "" } = req.query;
+
   const scopes = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile'
@@ -770,7 +891,8 @@ const startGoogleLogin = (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: scopes
+    scope: scopes,
+    state: JSON.stringify({ ref })  // Pass referral code in state
   });
 
   return res.json({
@@ -781,7 +903,17 @@ const startGoogleLogin = (req, res) => {
 };
 
 const googleCallback = async (req, res) => {
-  const { code } = req.query;
+  // const { code } = req.query;
+
+  const { code, state } = req.query;
+  let referralCode = "";
+  try {
+    const parsedState = JSON.parse(state || "{}");
+    referralCode = parsedState.ref || "";
+  } catch (err) {
+    referralCode = "";
+  }
+
 
   if (!code) {
     return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
@@ -803,6 +935,39 @@ const googleCallback = async (req, res) => {
     let isFirstTime = false;
 
     if (!user) {
+      let referral = null;
+
+      if (referralCode) {
+        referral = await Referral.findOne({ referralCode });
+
+        if (!referral) {
+          return res.send(`
+            <script>
+              window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
+              window.close();
+            </script>
+          `);
+        }
+
+        if (referral.usedOnce) {
+          return res.send(`
+            <script>
+              window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
+              window.close();
+            </script>
+          `);
+        }
+        const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
+        if (alreadyUsed) {
+          return res.send(`
+        <script>
+          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email or phone. Please sign up manually.' }, '*');
+          window.close();
+        </script>
+      `);
+        }
+      }
+
       isFirstTime = true;
       const serialNumber = await getNextSerialNumber();
       const firstname = given_name || "Google";
@@ -815,6 +980,10 @@ const googleCallback = async (req, res) => {
         provider: "google"
       });
 
+      const now = new Date();
+      const trialEnds = new Date(now);
+      trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
       user = await User.create({
         email,
         firstname,
@@ -824,7 +993,21 @@ const googleCallback = async (req, res) => {
         qrCode,
         signupMethod: "google",
         isVerified: true,
+        isPremium: false,
+        trialStart: now,
+        trialEnd: trialEnds,
       });
+    }
+
+    if (referral) {
+      referral.status = "complete";
+      referral.referredUserId = user._id;
+      referral.usedOnce = true;
+
+      if (user.email) referral.email = user.email;
+      if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
+
+      await referral.save();
     }
 
     const token = createTokenforUser(user);
@@ -889,13 +1072,16 @@ const googleCallback = async (req, res) => {
 };
 
 const startLinkedInLogin = (req, res) => {
+  const { ref = "" } = req.query;
+
   const scope = ['openid', 'profile', 'email'].join(' ');
   const authUrl = 'https://www.linkedin.com/oauth/v2/authorization?' + querystring.stringify({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
     scope: scope,
-    state: 'linkedin_login_' + Date.now()
+    // state: 'linkedin_login_' + Date.now()
+    state: JSON.stringify({ ref, ts: Date.now() }) // store ref in state
   });
 
   console.log(process.env.LINKEDIN_CLIENT_ID);
@@ -909,7 +1095,17 @@ const startLinkedInLogin = (req, res) => {
 };
 
 const linkedinCallback = async (req, res) => {
-  const { code } = req.query;
+  // const { code } = req.query;
+  const { code, state } = req.query;
+
+  let referralCode = "";
+  try {
+    const parsedState = JSON.parse(state || "{}");
+    referralCode = parsedState.ref || "";
+  } catch (err) {
+    referralCode = "";
+  }
+
 
   console.log("LinkedIn Callback Code:", code);
 
@@ -936,21 +1132,128 @@ const linkedinCallback = async (req, res) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
 
+    // const firstname = userInfoRes.data.given_name || 'LinkedIn';
+    // const lastname = userInfoRes.data.family_name || 'User';
+    // const email = userInfoRes.data.email || 'unknown@example.com';
+
     const firstname = userInfoRes.data.given_name || 'LinkedIn';
     const lastname = userInfoRes.data.family_name || 'User';
     const email = userInfoRes.data.email || 'unknown@example.com';
-
-
+    const phonenumbers = userInfoRes.data.phone_number || null; // if phone number is available
     // const firstname = profileRes.data.localizedFirstName || "LinkedIn";
     // const lastname = profileRes.data.localizedLastName || "User";
     // const email = emailRes.data.elements[0]['handle~'].emailAddress;
 
-    let user = await User.findOne({ email });
+    // let user = await User.findOne({ email });
+    // let isFirstTime = false;
+
+    // if (!user) {
+    //   isFirstTime = true;
+    //   const serialNumber = await getNextSerialNumber();
+
+    //   const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+    //     firstname,
+    //     lastname,
+    //     email,
+    //     provider: "linkedin"
+    //   });
+
+    //   user = await User.create({
+    //     email,
+    //     firstname,
+    //     lastname,
+    //     provider: "linkedin",
+    //     serialNumber,
+    //     qrCode,
+    //     signupMethod: "linkedin",
+    //     isVerified: true
+    //   });
+    // }
+
+    // 🔁 Replace the following section
+    let user = await User.findOne({
+      $or: [
+        { email: email },
+        phonenumbers ? { phone: phonenumbers } : null
+      ].filter(Boolean) // removes null if phoneNumber is not available
+    });
+
     let isFirstTime = false;
 
+    // ✅ Prevent login if already registered with another method
+    if (user && user.signupMethod !== "linkedin") {
+      const method =
+        user.signupMethod === "google" ? "Google" :
+          user.signupMethod === "email" ? "Email" :
+            user.signupMethod === "phoneNumber" ? "Phone Number" :
+              "Other";
+
+      const conflictField = user.email === email ? "email" : "phone number";
+
+      return res.send(`
+        <!DOCTYPE html>
+    <html>
+    <head>
+        <title>LinkedIn Connected</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">This User is already registered using ${method}. Please login using ${method}.</div>
+    <script>
+      window.opener.postMessage({
+        status: 'error',
+        message: 'This is already registered using ${method}. Please login using ${method}.'
+      }, '*');
+      window.close();
+    </script>
+    </body>
+    </html>
+  `);
+    }
+
+    // ✅ If user does not exist, proceed with LinkedIn signup
     if (!user) {
       isFirstTime = true;
       const serialNumber = await getNextSerialNumber();
+
+      let referral = null;
+
+      if (referralCode) {
+        referral = await Referral.findOne({ referralCode });
+
+        if (!referral) {
+          return res.send(`
+      <script>
+        window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
+        window.close();
+      </script>
+    `);
+        }
+
+        if (referral.usedOnce) {
+          return res.send(`
+      <script>
+        window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
+        window.close();
+      </script>
+    `);
+        }
+
+        const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
+        if (alreadyUsed) {
+          return res.send(`
+        <script>
+          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email or phone. Please sign up manually.' }, '*');
+          window.close();
+        </script>
+      `);
+        }
+
+      }
+
 
       const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
         firstname,
@@ -958,6 +1261,14 @@ const linkedinCallback = async (req, res) => {
         email,
         provider: "linkedin"
       });
+
+      const now = new Date();
+      const trialEnds = new Date(now);
+      trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
+      // const now = new Date();
+      // const trialEnds = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes
+
 
       user = await User.create({
         email,
@@ -967,23 +1278,45 @@ const linkedinCallback = async (req, res) => {
         serialNumber,
         qrCode,
         signupMethod: "linkedin",
-        isVerified: true
+        isVerified: true,
+        isPremium: false,
+        trialStart: now,
+        trialEnd: trialEnds,
       });
+
+      if (referral) {
+        referral.status = "complete";
+        referral.referredUserId = user._id;
+        referral.usedOnce = true;
+
+        if (user.email) referral.email = user.email;
+        if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
+
+        await referral.save();
+      }
+
     }
 
     const token = createTokenforUser(user);
-
+    const now = new Date();
+    const isTrialActive = user.trialEnd && now < user.trialEnd;
+    const hasAccess = user.isPremium || isTrialActive;
     const resultData = {
       status: 'success',
       message: 'LinkedIn Login successfully',
       data: {
         token: token,
-        isFirstTime: isFirstTime
+        isFirstTime: isFirstTime,
+        registeredWith: user.signupMethod,
+        hasAccess,
+        isTrialActive,
+        isPremium: user.isPremium,
+        trialEndsAt: user.trialEnd
       }
     };
 
     console.log(resultData);
-    
+
 
     return res.send(`
     <!DOCTYPE html>
@@ -1015,7 +1348,6 @@ const linkedinCallback = async (req, res) => {
     `);
   }
 };
-
 
 module.exports = {
   signupWithEmail,

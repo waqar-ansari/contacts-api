@@ -222,6 +222,12 @@ const userSchema = new Schema(
       default: "email"  // or leave unset until signup
     },
 
+    trialStart: { type: Date },
+    trialEnd: { type: Date },
+    isPremium: { type: Boolean, default: false },
+    // isActive: { type: Boolean, default: true },
+
+
     tags: {
       type: [
         {
