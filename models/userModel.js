@@ -373,6 +373,33 @@ const userSchema = new Schema(
       default: 0
     },
 
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    myReferrals: {
+      type: [
+        {
+          _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          firstname: String,
+          lastname: String,
+          email: String,
+          phonenumbers: [String],
+          signupDate: Date,
+        }
+      ],
+      default: [],
+    },
+
+
+
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     // iScanned: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

@@ -12,24 +12,6 @@ require('dotenv').config();
 const { google } = require('googleapis');
 const querystring = require('querystring');
 const axios = require('axios');
-const Referral = require("../models/referralModel");
-
-
-const hasUsedReferralBefore = async ({ email, phonenumbers }) => {
-  const query = {
-    usedOnce: true,
-    $or: []
-  };
-
-  if (email) query.$or.push({ email });
-  if (phonenumbers) query.$or.push({ phonenumbers });
-
-  if (query.$or.length === 0) return false;
-
-  const existingReferral = await Referral.findOne(query);
-  return !!existingReferral;
-};
-
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -45,8 +27,9 @@ const signupWithEmail = async (req, res) => {
       firstname = "",
       lastname = "",
       verifyToken = "",
-      referralCode = req.body.referralCode || req.query.ref || "", // ✅ Handles both cases
     } = req.body;
+
+    const referralCodeParam = req.body.referralCode || req.query.ref || "";
 
     // === PART 1: Email Verification Flow ===
     if (verifyToken) {
@@ -62,20 +45,6 @@ const signupWithEmail = async (req, res) => {
       user.isVerified = true;
       user.emailVerificationToken = undefined;
 
-      // === Handle Referral Verification ===
-      if (referralCode) {
-        const referral = await Referral.findOne({ referralCode, usedOnce: false });
-
-        if (referral && referral.status === "pending") {
-          referral.status = "complete";
-          referral.referredUserId = user._id;
-          referral.usedOnce = true;
-          // ✅ Store actual user contact info (only if available)
-          if (user.email) referral.email = user.email;
-          if (user.phonenumbers?.length > 0) referral.phonenumbers = user.phonenumbers[0];
-          await referral.save();
-        }
-      }
 
 
       if (!user.signupMethod) {
@@ -149,7 +118,7 @@ const signupWithEmail = async (req, res) => {
         message: "Email verified successfully. You can now log in.",
         data: {
           token,
-          registeredWith: user.signupMethod
+          registeredWith: user.signupMethod,
         }
       });
     }
@@ -161,34 +130,6 @@ const signupWithEmail = async (req, res) => {
         message: "Password and email are required",
       });
     }
-
-    let referral = null;
-
-    if (referralCode) {
-      referral = await Referral.findOne({ referralCode });
-
-      if (!referral) {
-        return res.status(400).json({
-          status: "error",
-          message: "Invalid referral code"
-        });
-      }
-
-      if (referral.usedOnce) {
-        return res.status(400).json({
-          status: "error",
-          message: "Referral code has already been used"
-        });
-      }
-      const alreadyUsed = await hasUsedReferralBefore({ email });
-      if (alreadyUsed) {
-        return res.status(400).json({
-          status: "error",
-          message: "Referral already used with this email or phone. Please sign up manually."
-        });
-      }
-    }
-
 
     const trimmedEmail = email.trim();
 
@@ -206,6 +147,36 @@ const signupWithEmail = async (req, res) => {
 
     // Generate Email Verification Token
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+
+    const referralCodeRaw = email + Date.now();
+    const referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+
+    let referredBy = null;
+
+    if (referralCodeParam) {
+      const referringUser = await User.findOne({ referralCode: referralCodeParam });
+
+      if (referringUser) {
+        const previouslyReferred = await User.findOne({
+          email: trimmedEmail,
+          $or: [
+            { referredBy: referringUser._id },
+            { referralCode: referralCodeParam }
+          ]
+        });
+
+        if (previouslyReferred) {
+          return res.status(400).json({
+            status: "error",
+            message: "This referral link has already been used with this email. Please sign up manually.",
+          });
+        }
+
+        referredBy = referringUser._id;
+      }
+    }
+
+
 
     const now = new Date();
     const trialEnds = new Date(now);
@@ -225,7 +196,27 @@ const signupWithEmail = async (req, res) => {
       isPremium: false,
       trialStart: now,
       trialEnd: trialEnds,
+      referralCode,  // 🔥 store user’s unique referral code
+      referredBy
     });
+
+    if (referredBy) {
+      const referrer = await User.findById(referredBy);
+      if (referrer) {
+        referrer.myReferrals.push({
+          _id: newUser._id,
+          firstname: newUser.firstname,
+          lastname: newUser.lastname,
+          email: newUser.email,
+          phonenumbers: newUser.phonenumbers,
+          signupDate: new Date(),
+        });
+        await referrer.save();
+      }
+    }
+
+
+    const referUrl = `https://app.contacts.management/register?ref=${newUser.referralCode}`;
 
     // Send verification email
     const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}`;
@@ -240,6 +231,7 @@ const signupWithEmail = async (req, res) => {
         _id: newUser._id,
         email: newUser.email,
         registeredWith: newUser.signupMethod,
+        referUrl
       },
     });
 
@@ -256,34 +248,7 @@ const signupWithEmail = async (req, res) => {
 const signupWithPhoneNumber = async (req, res) => {
   try {
     const { phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
-    const referralCode = req.body.referralCode || req.query.ref || "";
-
-    let referral = null;
-
-    if (referralCode) {
-      referral = await Referral.findOne({ referralCode });
-
-      if (!referral) {
-        return res.status(400).json({
-          status: "error",
-          message: "Invalid referral code"
-        });
-      }
-
-      if (referral.usedOnce) {
-        return res.status(400).json({
-          status: "error",
-          message: "Referral code has already been used"
-        });
-      }
-      const alreadyUsed = await hasUsedReferralBefore({ phonenumber });
-      if (alreadyUsed) {
-        return res.status(400).json({
-          status: "error",
-          message: "Referral already used with this email or phone. Please sign up manually."
-        });
-      }
-    }
+    const referralCodeParam = req.body.referralCode || req.query.ref || "";
 
     if (!phonenumber || !password) {
       return res.status(400).json({
@@ -448,21 +413,6 @@ const signupWithPhoneNumber = async (req, res) => {
     user.firstname = firstname;
     user.lastname = lastname;
 
-    // ✅ Handle referral code if provided
-    if (referralCode) {
-      const referral = await Referral.findOne({ referralCode, usedOnce: false });
-
-      if (referral && referral.status === "pending") {
-        referral.status = "complete";
-        referral.referredUserId = user._id;
-        referral.usedOnce = true;
-
-        if (user.email) referral.email = user.email;
-        if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
-
-        await referral.save();
-      }
-    }
 
 
     // ✅ Clear OTP fields
@@ -524,9 +474,51 @@ const signupWithPhoneNumber = async (req, res) => {
     user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days later
     user.isPremium = false;
 
+    // 🔥 Generate and assign user’s unique referral code
+    const referralCodeRaw = sanitizedPhone + Date.now();
+    user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+
+    // 🔥 Handle referredBy logic if referralCode was used
+    if (referralCodeParam) {
+      const referringUser = await User.findOne({ referralCode: referralCodeParam });
+
+      if (referringUser) {
+        const previouslyReferred = await User.findOne({
+          phonenumbers: { $in: [sanitizedPhone] },
+          $or: [
+            { referredBy: referringUser._id },
+            { referralCode: referralCodeParam }
+          ]
+        });
+
+        if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
+          return res.status(400).json({
+            status: "error",
+            message: "This referral link has already been used with this phone number. Please sign up manually.",
+          });
+        }
+
+        user.referredBy = referringUser._id;
+
+        // 🔥 Push referral entry in referring user's `myReferrals`
+        referringUser.myReferrals.push({
+          _id: user._id,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          phonenumbers: user.phonenumbers,
+          signupDate: new Date(),
+        });
+
+        await referringUser.save();
+      }
+    }
+
+
     await user.save();
 
     const token = createTokenforUser(user);
+    const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
     return res.status(201).json({
       status: "success",
@@ -535,8 +527,10 @@ const signupWithPhoneNumber = async (req, res) => {
         _id: user._id,
         token,
         registeredWith: user.signupMethod,
+        referUrl
       },
     });
+
   } catch (error) {
     console.error("Signup Error ❌", error);
     return res.status(500).json({
@@ -705,27 +699,38 @@ const unifiedLogin = async (req, res) => {
 
 
         if (!user) {
-          isFirstTime = true;  // ✅ This means first time Google login (new user)
-          let referral = null;
-          const { referralCode } = req.body;
-          if (referralCode) {
-            referral = await Referral.findOne({ referralCode });
+          isFirstTime = true;
 
-            if (!referral) {
+          const referralCodeParam = req.body.referralCode || req.query.ref || "";
+          let referredBy = null;
+
+          if (referralCodeParam) {
+            const referringUser = await User.findOne({ referralCode: referralCodeParam });
+
+            if (!referringUser) {
               return res.status(400).json({
                 status: "error",
-                message: "Invalid referral code"
+                message: "Invalid referral code",
               });
             }
 
-            if (referral.usedOnce) {
+            const previouslyReferred = await User.findOne({
+              email,
+              $or: [
+                { referredBy: referringUser._id },
+                { referralCode: referralCodeParam }
+              ]
+            });
+
+            if (previouslyReferred) {
               return res.status(400).json({
                 status: "error",
-                message: "Referral code has already been used"
+                message: "This referral link has already been used with this email. Please sign up manually.",
               });
             }
+
+            referredBy = referringUser._id;
           }
-          // ⬆️ Referral Check END
 
           const serialNumber = await getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
@@ -741,6 +746,9 @@ const unifiedLogin = async (req, res) => {
           const trialEnds = new Date(now);
           trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
 
+          const referralCodeRaw = email + Date.now();
+          const referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+
           user = await User.create({
             email,
             firstname,
@@ -752,15 +760,27 @@ const unifiedLogin = async (req, res) => {
             isVerified: true,
             isPremium: false,
             trialStart: now,
-            trialEnd: trialEnds     // ✅ Set isVerified at creation time
+            trialEnd: trialEnds,
+            referralCode,  // ✅ Store generated referral code
+            referredBy     // ✅ Store who referred this user
           });
-          if (referral) {
-            referral.referredUserId = user._id;
-            referral.usedOnce = true;
-            await referral.save();
+
+          // ✅ Add new user to referring user’s myReferrals
+          if (referredBy) {
+            const referrer = await User.findById(referredBy);
+            if (referrer) {
+              referrer.myReferrals.push({
+                _id: user._id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                phonenumbers: user.phonenumbers || [],
+                signupDate: new Date(),
+              });
+              await referrer.save();
+            }
           }
         }
-
 
         const token = createTokenforUser(user);
         const now = new Date();
@@ -934,41 +954,117 @@ const googleCallback = async (req, res) => {
     let user = await User.findOne({ email });
     let isFirstTime = false;
 
+    // if (!user) {
+    //   let referral = null;
+
+    //   if (referralCode) {
+    //     referral = await Referral.findOne({ referralCode });
+
+    //     if (!referral) {
+    //       return res.send(`
+    //         <script>
+    //           window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
+    //           window.close();
+    //         </script>
+    //       `);
+    //     }
+
+    //     // if (referral.usedOnce) {
+    //     //   return res.send(`
+    //     //     <script>
+    //     //       window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
+    //     //       window.close();
+    //     //     </script>
+    //     //   `);
+    //     // }
+    //     const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
+    //     if (alreadyUsed) {
+    //       return res.send(`
+    //     <script>
+    //       window.opener.postMessage({ status: 'error', message: 'Referral already used with this email or phone. Please sign up manually.' }, '*');
+    //       window.close();
+    //     </script>
+    //   `);
+    //     }
+    //   }
+
+    //   isFirstTime = true;
+    //   const serialNumber = await getNextSerialNumber();
+    //   const firstname = given_name || "Google";
+    //   const lastname = family_name || "User";
+
+    //   const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+    //     firstname,
+    //     lastname,
+    //     email,
+    //     provider: "google"
+    //   });
+
+    //   const now = new Date();
+    //   const trialEnds = new Date(now);
+    //   trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+
+    //   user = await User.create({
+    //     email,
+    //     firstname,
+    //     lastname,
+    //     provider: "google",
+    //     serialNumber,
+    //     qrCode,
+    //     signupMethod: "google",
+    //     isVerified: true,
+    //     isPremium: false,
+    //     trialStart: now,
+    //     trialEnd: trialEnds,
+    //   });
+    //   if (referral) {
+    //     referral.status = "complete";
+    //     referral.referredUserId = user._id;
+    //     // referral.usedOnce = true;
+
+    //     if (user.email) referral.email = user.email;
+    //     if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
+
+    //     await referral.save();
+    //   }
+    // }
+    const referralUrl = '';
     if (!user) {
-      let referral = null;
+      isFirstTime = true;
+      let referredBy = null;
 
       if (referralCode) {
-        referral = await Referral.findOne({ referralCode });
+        const referringUser = await User.findOne({ referralCode: referralCode });
 
-        if (!referral) {
-          return res.send(`
-            <script>
-              window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
-              window.close();
-            </script>
-          `);
-        }
-
-        if (referral.usedOnce) {
-          return res.send(`
-            <script>
-              window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
-              window.close();
-            </script>
-          `);
-        }
-        const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
-        if (alreadyUsed) {
+        if (!referringUser) {
           return res.send(`
         <script>
-          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email or phone. Please sign up manually.' }, '*');
+          window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
           window.close();
         </script>
       `);
         }
+
+        const previouslyReferred = await User.findOne({
+          email,
+          $or: [
+            { referredBy: referringUser._id },
+            { referralCode: referralCode }
+          ]
+        });
+
+        if (previouslyReferred) {
+          return res.send(`
+        <script>
+          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
+          window.close();
+        </script>
+      `);
+        }
+
+        referredBy = referringUser._id;
       }
 
-      isFirstTime = true;
       const serialNumber = await getNextSerialNumber();
       const firstname = given_name || "Google";
       const lastname = family_name || "User";
@@ -982,8 +1078,11 @@ const googleCallback = async (req, res) => {
 
       const now = new Date();
       const trialEnds = new Date(now);
-      trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+      trialEnds.setDate(trialEnds.getDate() + 14); // 14-day trial
 
+      const referralCodeRaw = email + Date.now();
+      const userReferralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+      referralUrl = `https://app.contacts.management/register?ref=${userReferralCode}`;
       user = await User.create({
         email,
         firstname,
@@ -996,19 +1095,27 @@ const googleCallback = async (req, res) => {
         isPremium: false,
         trialStart: now,
         trialEnd: trialEnds,
+        referralCode: userReferralCode,
+        referredBy: referredBy
       });
+
+      if (referredBy) {
+        const referrer = await User.findById(referredBy);
+        if (referrer) {
+          referrer.myReferrals.push({
+            _id: user._id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            phonenumbers: user.phonenumbers || [],
+            signupDate: new Date(),
+          });
+          await referrer.save();
+        }
+      }
     }
 
-    if (referral) {
-      referral.status = "complete";
-      referral.referredUserId = user._id;
-      referral.usedOnce = true;
 
-      if (user.email) referral.email = user.email;
-      if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
-
-      await referral.save();
-    }
 
     const token = createTokenforUser(user);
 
@@ -1024,7 +1131,9 @@ const googleCallback = async (req, res) => {
       message: 'Google Login successfully',
       data: {
         token: token,
-        isFirstTime: isFirstTime
+        isFirstTime: isFirstTime,
+        referralUrl: referralUrl || "",
+        registeredWith: user.signupMethod,
       }
     };
 
@@ -1217,29 +1326,19 @@ const linkedinCallback = async (req, res) => {
     // ✅ If user does not exist, proceed with LinkedIn signup
     if (!user) {
       isFirstTime = true;
-      const serialNumber = await getNextSerialNumber();
 
-      let referral = null;
+      let referredBy = null;
 
       if (referralCode) {
-        referral = await Referral.findOne({ referralCode });
+        const referringUser = await User.findOne({ referralCode: referralCode });
 
-        if (!referral) {
+        if (!referringUser) {
           return res.send(`
-      <script>
-        window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
-        window.close();
-      </script>
-    `);
-        }
-
-        if (referral.usedOnce) {
-          return res.send(`
-      <script>
-        window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
-        window.close();
-      </script>
-    `);
+        <script>
+          window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
+          window.close();
+        </script>
+      `);
         }
 
         const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
@@ -1252,8 +1351,10 @@ const linkedinCallback = async (req, res) => {
       `);
         }
 
+        referredBy = referringUser._id;
       }
 
+      const serialNumber = await getNextSerialNumber();
 
       const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
         firstname,
@@ -1266,9 +1367,8 @@ const linkedinCallback = async (req, res) => {
       const trialEnds = new Date(now);
       trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
 
-      // const now = new Date();
-      // const trialEnds = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes
-
+      const referralCodeRaw = email + Date.now();
+      const userReferralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
 
       user = await User.create({
         email,
@@ -1282,20 +1382,26 @@ const linkedinCallback = async (req, res) => {
         isPremium: false,
         trialStart: now,
         trialEnd: trialEnds,
+        referralCode: userReferralCode,
+        referredBy: referredBy
       });
 
-      if (referral) {
-        referral.status = "complete";
-        referral.referredUserId = user._id;
-        referral.usedOnce = true;
-
-        if (user.email) referral.email = user.email;
-        if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
-
-        await referral.save();
+      if (referredBy) {
+        const referrer = await User.findById(referredBy);
+        if (referrer) {
+          referrer.myReferrals.push({
+            _id: user._id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            email: user.email,
+            phonenumbers: user.phonenumbers || [],
+            signupDate: new Date(),
+          });
+          await referrer.save();
+        }
       }
-
     }
+
 
     const token = createTokenforUser(user);
     const now = new Date();

@@ -84,6 +84,10 @@ const getUserData = async (req, res) => {
           designation: user.designation,
           serialNumber: user.serialNumber,
           signupMethod: user.signupMethod,
+          referredBy: user.referredBy || null,
+          myReferrals: user.myReferrals || [],
+          referralCode: user.referralCode || null,
+          referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
           accounts: [
             {
               type: "google",
@@ -173,6 +177,10 @@ const getUserData = async (req, res) => {
           facebook: user.facebook,
           designation: user.designation,
           signupMethod: user.signupMethod,
+          referredBy: user.referredBy || null,
+          myReferrals: user.myReferrals || [],
+          referralCode: user.referralCode || null,
+          referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
           accounts: [
             {
               type: "google",
@@ -242,6 +250,10 @@ const getUserData = async (req, res) => {
       facebook: user.facebook,
       designation: user.designation,
       signupMethod: user.signupMethod,
+      referredBy: user.referredBy || null,
+      myReferrals: user.myReferrals || [],
+      referralCode: user.referralCode || null,
+      referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       accounts: [
         {
           type: "google",
