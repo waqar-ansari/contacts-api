@@ -220,10 +220,18 @@ const signupWithEmail = async (req, res) => {
     }
 
 
-    const referUrl = `https://app.contacts.management/register?ref=${newUser.referralCode}`;
+    let referUrl = `https://app.contacts.management/register?ref=${newUser.referralCode}`;
+
+    let verificationLink = "";
+
+    if (referralCodeParam) {
+      verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}&ref=${referralCodeParam}`;
+    } else {
+      verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}`;
+    }
 
     // Send verification email
-    const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}ref=${referralCodeParam}`;
+
     await sendVerificationEmail(newUser.email, verificationLink);
 
     console.log("Verification Link:", verificationLink);
@@ -1043,7 +1051,7 @@ const googleCallback = async (req, res) => {
     //     await referral.save();
     //   }
     // }
-    const referralUrl = '';
+    let referralUrl = '';
     if (!user) {
       isFirstTime = true;
       let referredBy = null;
@@ -1189,6 +1197,8 @@ const googleCallback = async (req, res) => {
     // return res.redirect(redirectUrl);
 
   } catch (error) {
+    console.log("Google Callback Error:", error);
+
     return res.send(`
             <script>
                 window.opener.postMessage({ status: 'error', message: 'Google login callback failed', error: '${error.message}' }, '*');
