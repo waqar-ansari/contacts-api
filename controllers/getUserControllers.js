@@ -88,6 +88,7 @@ const getUserData = async (req, res) => {
           myReferrals: user.myReferrals || [],
           referralCode: user.referralCode || null,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+          creditBalance: user.creditBalance || 0,
           accounts: [
             {
               type: "google",
@@ -181,6 +182,7 @@ const getUserData = async (req, res) => {
           myReferrals: user.myReferrals || [],
           referralCode: user.referralCode || null,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+          creditBalance: user.creditBalance || 0,
           accounts: [
             {
               type: "google",
@@ -254,6 +256,7 @@ const getUserData = async (req, res) => {
       myReferrals: user.myReferrals || [],
       referralCode: user.referralCode || null,
       referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+      creditBalance: user.creditBalance || 0,
       accounts: [
         {
           type: "google",
