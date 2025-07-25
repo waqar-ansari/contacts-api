@@ -211,15 +211,19 @@ const signupWithEmail = async (req, res) => {
           phonenumbers: newUser.phonenumbers,
           signupDate: new Date(),
         });
+
+        referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+
         await referrer.save();
       }
+      newUser.creditBalance = (newUser.creditBalance || 0) + 10;
     }
 
 
     const referUrl = `https://app.contacts.management/register?ref=${newUser.referralCode}`;
 
     // Send verification email
-    const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}`;
+    const verificationLink = `https://app.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}ref=${referralCodeParam}`;
     await sendVerificationEmail(newUser.email, verificationLink);
 
     console.log("Verification Link:", verificationLink);
@@ -510,6 +514,8 @@ const signupWithPhoneNumber = async (req, res) => {
           signupDate: new Date(),
         });
 
+        referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
+        user.creditBalance = (user.creditBalance || 0) + 10;
         await referringUser.save();
       }
     }
@@ -634,6 +640,13 @@ const unifiedLogin = async (req, res) => {
           return res.status(400).json({
             status: "error",
             message: "This user signed up with Google. Please use Google login."
+          });
+        }
+
+        if (user.signupMethod === "linkedin") {
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with linkedin. Please use linkedin login."
           });
         }
 
@@ -777,8 +790,11 @@ const unifiedLogin = async (req, res) => {
                 phonenumbers: user.phonenumbers || [],
                 signupDate: new Date(),
               });
+              referrer.creditBalance = (referrer.creditBalance || 0) + 10;
               await referrer.save();
             }
+            user.creditBalance = (user.creditBalance || 0) + 10;
+            await user.save();
           }
         }
 
@@ -800,7 +816,6 @@ const unifiedLogin = async (req, res) => {
         });
       } catch (err) {
         console.log(err);
-
         return res.status(500).json({ status: "error", message: "Google login failed" });
       }
     }
@@ -1110,8 +1125,11 @@ const googleCallback = async (req, res) => {
             phonenumbers: user.phonenumbers || [],
             signupDate: new Date(),
           });
+          referrer.creditBalance = (referrer.creditBalance || 0) + 10;
           await referrer.save();
         }
+        user.creditBalance = (user.creditBalance || 0) + 10;
+        await user.save();
       }
     }
 
@@ -1397,8 +1415,11 @@ const linkedinCallback = async (req, res) => {
             phonenumbers: user.phonenumbers || [],
             signupDate: new Date(),
           });
+          referrer.creditBalance = (referrer.creditBalance || 0) + 10;
           await referrer.save();
         }
+        user.creditBalance = (user.creditBalance || 0) + 10;
+        await user.save();
       }
     }
 

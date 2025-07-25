@@ -384,6 +384,11 @@ const userSchema = new Schema(
       ref: "User",
     },
 
+    creditBalance: {
+      type: Number,
+      default: 0, // every user starts with $0 credit
+    },
+
     myReferrals: {
       type: [
         {

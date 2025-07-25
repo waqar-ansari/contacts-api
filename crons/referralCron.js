@@ -1,51 +1,60 @@
 const cron = require("node-cron");
-// const Referral = require("../models/referralModel");
-const User = require("../models/userModel");
+const User = require("../models/userModel"); // Adjust path as needed
 
-// cron.schedule("0 2 * * *", async () => {
-// // cron.schedule("*/2 * * * *", async () => {
-//     console.log("🔁 Running referral sync cron...");
+cron.schedule("*/2 * * * *", async () => {
+    // cron.schedule("0 2 * * *", async () => {
+    console.log("🔁 Running referral sync cron...");
 
-//     const users = await User.find({});
+    try {
+        const users = await User.find({ referredBy: { $exists: true, $ne: null } });
 
-//     for (const user of users) {
-//         if (!user._id) continue;
+        for (const user of users) {
+            const referredById = user.referredBy;
+            const referrer = await User.findById(referredById);
 
-//         const referral = await Referral.findOne({ referredUserId: user._id });
+            if (!referrer) continue;
 
-//         if (referral) {
-//             let updated = false;
+            const existingReferralIndex = referrer.myReferrals.findIndex(
+                (ref) => ref._id.toString() === user._id.toString()
+            );
 
-//             if (!referral.friendName && user.firstname && user.lastname) {
-//                 referral.friendName = `${user.firstname} ${user.lastname}`;
-//                 updated = true;
-//             }
+            const updatedReferralData = {
+                _id: user._id,
+                firstname: user.firstname || "",
+                lastname: user.lastname || "",
+                email: user.email || "",
+                phonenumbers: user.phonenumbers || [],
+                signupDate: user.createdAt,
+            };
 
-//             if (!referral.email && user.email) {
-//                 referral.email = user.email;
-//                 updated = true;
-//             }
+            if (existingReferralIndex === -1) {
+                // Add new referral
+                referrer.myReferrals.push(updatedReferralData);
+                console.log(`➕ Added new referral for user ${referrer._id}`);
+            } else {
+                // Update existing referral if changed
+                const current = referrer.myReferrals[existingReferralIndex];
+                const hasChanged =
+                    current.firstname !== updatedReferralData.firstname ||
+                    current.lastname !== updatedReferralData.lastname ||
+                    current.email !== updatedReferralData.email ||
+                    JSON.stringify(current.phonenumbers) !== JSON.stringify(updatedReferralData.phonenumbers) ||
+                    new Date(current.signupDate).toISOString() !== new Date(updatedReferralData.signupDate).toISOString();
 
-//             if (!referral.phonenumbers && user.phonenumbers?.length > 0) {
-//                 referral.phonenumbers = user.phonenumbers[0];
-//                 updated = true;
-//             }
+                if (hasChanged) {
+                    referrer.myReferrals[existingReferralIndex] = updatedReferralData;
+                    console.log(`🔁 Updated referral for user ${referrer._id}`);
+                }
+            }
 
-//             if (!referral.signupDate && user.createdAt) {
-//                 referral.signupDate = user.createdAt;
-//                 updated = true;
-//             }
+            await referrer.save();
+        }
 
-//             if (updated) {
-//                 await referral.save();
-//                 console.log(`✅ Referral updated for user ${user._id}`);
-//             }
-//         }
-//     }
-
-//     console.log("✅ Referral sync cron completed.");
-// }, {
-//     scheduled: true,
-//     recoverMissedExecutions: true // optional in newer versions
-// }
-// );
+        console.log("✅ Referral sync cron completed.");
+    } catch (error) {
+        console.error("❌ Referral sync cron failed:", error);
+    }
+}, {
+    scheduled: true,
+    recoverMissedExecutions: true,
+});
