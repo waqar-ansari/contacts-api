@@ -217,8 +217,10 @@ const signupWithEmail = async (req, res) => {
         await referrer.save();
       }
       newUser.creditBalance = (newUser.creditBalance || 0) + 10;
+      await newUser.save(); // ✅ THIS LINE IS REQUIRED
     }
 
+    console.log(newUser.creditBalance);
 
     let referUrl = `https://app.contacts.management/register?ref=${newUser.referralCode}`;
 
@@ -690,6 +692,52 @@ const unifiedLogin = async (req, res) => {
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         const hasAccess = user.isPremium || isTrialActive;
 
+        try {
+          if (user.myReferrals?.length > 0) {
+            let isUpdated = false;
+
+            for (let i = 0; i < user.myReferrals.length; i++) {
+              const referralEntry = user.myReferrals[i];
+              const referredUser = await User.findById(referralEntry._id);
+
+              if (referredUser) {
+                let needsUpdate = false;
+
+                if (!referralEntry.firstname && referredUser.firstname) {
+                  user.myReferrals[i].firstname = referredUser.firstname;
+                  needsUpdate = true;
+                }
+
+                if (!referralEntry.lastname && referredUser.lastname) {
+                  user.myReferrals[i].lastname = referredUser.lastname;
+                  needsUpdate = true;
+                }
+
+                if (!referralEntry.email && referredUser.email) {
+                  user.myReferrals[i].email = referredUser.email;
+                  needsUpdate = true;
+                }
+
+                if ((!referralEntry.phonenumbers || referralEntry.phonenumbers.length === 0) && referredUser.phonenumbers?.length > 0) {
+                  user.myReferrals[i].phonenumbers = referredUser.phonenumbers;
+                  needsUpdate = true;
+                }
+
+                if (needsUpdate) {
+                  user.myReferrals[i].signupDate = referredUser.createdAt || new Date();
+                  isUpdated = true;
+                }
+              }
+            }
+
+            if (isUpdated) {
+              await user.save();
+            }
+          }
+        } catch (syncErr) {
+          console.error("Referral sync failed:", syncErr.message);
+        }
+
         return res.json({
           status: "success", message: "Login successful", data: {
             token, hasAccess,
@@ -1141,6 +1189,50 @@ const googleCallback = async (req, res) => {
       }
     }
 
+    // ✅ Sync referral data (in case user was referred but referrer has missing details)
+    try {
+      if (user.referredBy) {
+        const referrer = await User.findById(user.referredBy);
+
+        if (referrer && referrer.myReferrals?.length > 0) {
+          const index = referrer.myReferrals.findIndex(r => r._id.toString() === user._id.toString());
+
+          if (index !== -1) {
+            let needsUpdate = false;
+
+            if (!referrer.myReferrals[index].firstname && user.firstname) {
+              referrer.myReferrals[index].firstname = user.firstname;
+              needsUpdate = true;
+            }
+
+            if (!referrer.myReferrals[index].lastname && user.lastname) {
+              referrer.myReferrals[index].lastname = user.lastname;
+              needsUpdate = true;
+            }
+
+            if (!referrer.myReferrals[index].email && user.email) {
+              referrer.myReferrals[index].email = user.email;
+              needsUpdate = true;
+            }
+
+            if (
+              (!referrer.myReferrals[index].phonenumbers || referrer.myReferrals[index].phonenumbers.length === 0) &&
+              user.phonenumbers?.length > 0
+            ) {
+              referrer.myReferrals[index].phonenumbers = user.phonenumbers;
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              referrer.myReferrals[index].signupDate = user.createdAt || new Date();
+              await referrer.save();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync referral data in Google login:", err.message);
+    }
 
 
     const token = createTokenforUser(user);
@@ -1433,6 +1525,50 @@ const linkedinCallback = async (req, res) => {
       }
     }
 
+    // ✅ Sync referral data if this user was referred
+    try {
+      if (user.referredBy) {
+        const referrer = await User.findById(user.referredBy);
+
+        if (referrer && Array.isArray(referrer.myReferrals)) {
+          const index = referrer.myReferrals.findIndex(r => r._id.toString() === user._id.toString());
+
+          if (index !== -1) {
+            let needsUpdate = false;
+
+            if (!referrer.myReferrals[index].firstname && user.firstname) {
+              referrer.myReferrals[index].firstname = user.firstname;
+              needsUpdate = true;
+            }
+
+            if (!referrer.myReferrals[index].lastname && user.lastname) {
+              referrer.myReferrals[index].lastname = user.lastname;
+              needsUpdate = true;
+            }
+
+            if (!referrer.myReferrals[index].email && user.email) {
+              referrer.myReferrals[index].email = user.email;
+              needsUpdate = true;
+            }
+
+            if (
+              (!referrer.myReferrals[index].phonenumbers || referrer.myReferrals[index].phonenumbers.length === 0) &&
+              user.phonenumbers?.length > 0
+            ) {
+              referrer.myReferrals[index].phonenumbers = user.phonenumbers;
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              referrer.myReferrals[index].signupDate = user.createdAt || new Date();
+              await referrer.save();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Referral sync failed (LinkedIn):", err.message);
+    }
 
     const token = createTokenforUser(user);
     const now = new Date();

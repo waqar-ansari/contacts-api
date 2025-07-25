@@ -1,6 +1,4 @@
 require("dotenv").config();
-require("./crons/referralCron"); // 👈 Load cron scheduler
-
 console.log("Environment Variables Loaded:");
 
 const express = require("express");
