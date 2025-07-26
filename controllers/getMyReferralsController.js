@@ -9,13 +9,21 @@ const getMyReferrals = async (req, res) => {
             return res.status(404).json({ status: "error", message: "User not found" });
         }
 
-        if (!user.myReferrals || user.myReferrals.length === 0) {
-            return res.status(200).json({ status: "success", message: "No referrals yet", data: [] });
-        }
-
         const creditBalance = user.creditBalance || 0;
         const referralCount = user.myReferrals.length;
         const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`
+
+        if (!user.myReferrals || user.myReferrals.length === 0) {
+            return res.status(200).json({
+                status: "success", message: "No referrals yet", data: {
+                    creditBalance,
+                    referralCount,
+                    referralUrl
+                }
+            });
+        }
+
+
 
         const referralIds = user.myReferrals.map(entry => entry._id.toString());
 
