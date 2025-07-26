@@ -65,6 +65,7 @@ const deleteAllContactRoutes = require("./routes/deleteAllContactRoutes");
 const whatsappEmailActivityRoutes = require("./routes/whatsappEmailActivityRoutes");
 const hubSpotContactFetchRoutes = require("./routes/hubSpotContactFetchRoutes");
 const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
+const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -103,7 +104,7 @@ app.use("/getContact", checkForAuthentication(), getContactRoutes);
 app.use("/getContactEmail", checkForAuthentication(), getContactEmailRoutes);
 app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
-
+app.use("/my-referrals", checkForAuthentication(), myReferralsRoutes);
 app.use("/connect", (req, res, next) => {
   const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
   if (skipAuthPaths.includes(req.path)) {
