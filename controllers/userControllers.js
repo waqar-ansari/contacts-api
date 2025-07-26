@@ -12,6 +12,8 @@ require('dotenv').config();
 const { google } = require('googleapis');
 const querystring = require('querystring');
 const axios = require('axios');
+const ReferralLog = require("../models/referralLogModel");
+
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -158,14 +160,23 @@ const signupWithEmail = async (req, res) => {
       console.log(referringUser);
 
       // if (referringUser) {
-      const previouslyReferred = await User.findOne({
-        myReferrals: { $elemMatch: { email: trimmedEmail } },
-        // email: trimmedEmail,
-        // $or: [
-        //   { referredBy: referringUser._id },
-        //   { referralCode: referralCodeParam }
-        // ]
-      });
+      // const previouslyReferred = await User.findOne({
+      //   myReferrals: { $elemMatch: { email: trimmedEmail } },
+      //   // email: trimmedEmail,
+      //   // $or: [
+      //   //   { referredBy: referringUser._id },
+      //   //   { referralCode: referralCodeParam }
+      //   // ]
+      // });
+
+      // if (previouslyReferred) {
+      //   return res.status(400).json({
+      //     status: "error",
+      //     message: "This referral link has already been used with this email. Please sign up manually.",
+      //   });
+      // }
+
+      const previouslyReferred = await ReferralLog.findOne({ email: trimmedEmail });
 
       if (previouslyReferred) {
         return res.status(400).json({
@@ -204,6 +215,11 @@ const signupWithEmail = async (req, res) => {
 
     if (referredBy) {
       const referrer = await User.findById(referredBy);
+      await ReferralLog.create({
+        email: newUser.email,
+        referredBy: referredBy,
+        referredUserId: newUser._id,
+      });
       if (referrer) {
         referrer.myReferrals.push({
           _id: newUser._id,
@@ -499,16 +515,27 @@ const signupWithPhoneNumber = async (req, res) => {
       const referringUser = await User.findOne({ referralCode: referralCodeParam });
 
       // if (referringUser) {
-      const previouslyReferred = await User.findOne({
-        myReferrals: { $elemMatch: { phonenumbers: { $in: [sanitizedPhone] } } },
-        // phonenumbers: { $in: [sanitizedPhone] },
-        $or: [
-          { referredBy: referringUser._id },
-          { referralCode: referralCodeParam }
-        ]
+      // const previouslyReferred = await User.findOne({
+      //   myReferrals: { $elemMatch: { phonenumbers: { $in: [sanitizedPhone] } } },
+      //   // phonenumbers: { $in: [sanitizedPhone] },
+      //   $or: [
+      //     { referredBy: referringUser._id },
+      //     { referralCode: referralCodeParam }
+      //   ]
+      // });
+
+      // if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
+      //   return res.status(400).json({
+      //     status: "error",
+      //     message: "This referral link has already been used with this phone number. Please sign up manually.",
+      //   });
+      // }
+
+      const previouslyReferred = await ReferralLog.findOne({
+        phonenumber: sanitizedPhone,
       });
 
-      if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
+      if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
         return res.status(400).json({
           status: "error",
           message: "This referral link has already been used with this phone number. Please sign up manually.",
@@ -530,6 +557,12 @@ const signupWithPhoneNumber = async (req, res) => {
       referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
       user.creditBalance = (user.creditBalance || 0) + 10;
       await referringUser.save();
+      await ReferralLog.create({
+        phonenumber: sanitizedPhone,
+        referredBy: referringUser._id,
+        referredUserId: user._id,
+      });
+
       // }
     }
 
@@ -1119,23 +1152,37 @@ const googleCallback = async (req, res) => {
       `);
         }
 
-        const previouslyReferred = await User.findOne({
-          myReferrals: { $elemMatch: { email } },
-          // email,
-          $or: [
-            { referredBy: referringUser._id },
-            { referralCode: referralCode }
-          ]
+        //   const previouslyReferred = await User.findOne({
+        //     myReferrals: { $elemMatch: { email } },
+        //     // email,
+        //     $or: [
+        //       { referredBy: referringUser._id },
+        //       { referralCode: referralCode }
+        //     ]
+        //   });
+
+        //   if (previouslyReferred) {
+        //     return res.send(`
+        //   <script>
+        //     window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
+        //     window.close();
+        //   </script>
+        // `);
+        //   }
+
+        const previouslyReferred = await ReferralLog.findOne({
+          email: email
         });
 
         if (previouslyReferred) {
           return res.send(`
-        <script>
-          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
-          window.close();
-        </script>
-      `);
+    <script>
+      window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
+      window.close();
+    </script>
+  `);
         }
+
 
         referredBy = referringUser._id;
       }
@@ -1190,6 +1237,11 @@ const googleCallback = async (req, res) => {
         }
         user.creditBalance = (user.creditBalance || 0) + 10;
         await user.save();
+        await ReferralLog.create({
+          email: user.email,
+          referredBy: referrer._id,
+          referredUserId: user._id,
+        });
       }
     }
 
@@ -1465,22 +1517,33 @@ const linkedinCallback = async (req, res) => {
       `);
         }
 
-        const previouslyReferred = await User.findOne({
-          myReferrals: { $elemMatch: { email } },
-          // email,
-          $or: [
-            { referredBy: referringUser._id },
-            { referralCode: referralCode }
-          ]
-        });
+        //   const previouslyReferred = await User.findOne({
+        //     myReferrals: { $elemMatch: { email } },
+        //     // email,
+        //     $or: [
+        //       { referredBy: referringUser._id },
+        //       { referralCode: referralCode }
+        //     ]
+        //   });
+
+        //   if (previouslyReferred) {
+        //     return res.send(`
+        //   <script>
+        //     window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
+        //     window.close();
+        //   </script>
+        // `);
+        //   }
+
+        const previouslyReferred = await ReferralLog.findOne({ email: email });
 
         if (previouslyReferred) {
           return res.send(`
-        <script>
-          window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
-          window.close();
-        </script>
-      `);
+    <script>
+      window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
+      window.close();
+    </script>
+  `);
         }
 
         referredBy = referringUser._id;
@@ -1534,6 +1597,11 @@ const linkedinCallback = async (req, res) => {
         }
         user.creditBalance = (user.creditBalance || 0) + 10;
         await user.save();
+        await ReferralLog.create({
+          email: user.email,
+          referredBy: referredBy,
+          referredUserId: user._id,
+        });
       }
     }
 

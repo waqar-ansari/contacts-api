@@ -13,6 +13,10 @@ const getMyReferrals = async (req, res) => {
             return res.status(200).json({ status: "success", message: "No referrals yet", data: [] });
         }
 
+        const creditBalance = user.creditBalance || 0;
+        const referralCount = user.myReferrals.length;
+        const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`
+
         const referralIds = user.myReferrals.map(entry => entry._id.toString());
 
         const referredUsers = await User.find({ _id: { $in: referralIds } }).lean();
@@ -71,10 +75,16 @@ const getMyReferrals = async (req, res) => {
             );
         }
 
+        const referrals = updatedReferrals;
         return res.status(200).json({
             status: "success",
             message: "Referrals retrieved successfully",
-            data: updatedReferrals,
+            data: {
+                referrals,
+                creditBalance,
+                referralCount,
+                referralUrl,
+            },
         });
 
     } catch (err) {
