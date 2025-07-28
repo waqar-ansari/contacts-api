@@ -145,7 +145,7 @@ const signupWithEmail = async (req, res) => {
     }
 
     // Generate Serial Number
-    const serialNumber = await getNextSerialNumber();
+    const serialNumber = await User.getNextSerialNumber();
 
     // Generate Email Verification Token
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
@@ -428,7 +428,7 @@ const signupWithPhoneNumber = async (req, res) => {
 
     // ✅ OTP Verified → Finalize Signup
 
-    const serialNumber = await getNextSerialNumber();
+    const serialNumber = await User.getNextSerialNumber();
 
     const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
       firstname,
@@ -840,7 +840,7 @@ const unifiedLogin = async (req, res) => {
             referredBy = referringUser._id;
           }
 
-          const serialNumber = await getNextSerialNumber();
+          const serialNumber = await User.getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
           const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
@@ -957,7 +957,7 @@ const unifiedLogin = async (req, res) => {
         // }
 
         if (!user) {
-          const serialNumber = await getNextSerialNumber();
+          const serialNumber = await User.getNextSerialNumber();
           const firstname = appleUser.firstName || "Apple";
           const lastname = appleUser.lastName || "User";
 
@@ -1190,7 +1190,7 @@ const googleCallback = async (req, res) => {
         referredBy = referringUser._id;
       }
 
-      const serialNumber = await getNextSerialNumber();
+      const serialNumber = await User.getNextSerialNumber();
       const firstname = given_name || "Google";
       const lastname = family_name || "User";
 
@@ -1304,14 +1304,14 @@ const googleCallback = async (req, res) => {
     // });
 
     const resultData = {
-      status: 'success',
-      message: 'Google Login successfully',
-      data: {
-        token: token,
-        isFirstTime: isFirstTime,
-        referralUrl: referralUrl || "",
-        registeredWith: user.signupMethod,
-      }
+      // status: 'success',
+      // message: 'Google Login successfully',
+      // data: {
+      token: token,
+      isFirstTime: isFirstTime,
+      referralUrl: referralUrl || "",
+      registeredWith: user.signupMethod,
+      // }
     };
 
     // console.log(resultData);
@@ -1566,7 +1566,7 @@ const linkedinCallback = async (req, res) => {
         referredBy = referringUser._id;
       }
 
-      const serialNumber = await getNextSerialNumber();
+      const serialNumber = await User.getNextSerialNumber();
 
       const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
         firstname,
@@ -1672,17 +1672,17 @@ const linkedinCallback = async (req, res) => {
     const isTrialActive = user.trialEnd && now < user.trialEnd;
     const hasAccess = user.isPremium || isTrialActive;
     const resultData = {
-      status: 'success',
-      message: 'LinkedIn Login successfully',
-      data: {
-        token: token,
-        isFirstTime: isFirstTime,
-        registeredWith: user.signupMethod,
-        hasAccess,
-        isTrialActive,
-        isPremium: user.isPremium,
-        trialEndsAt: user.trialEnd
-      }
+      // status: 'success',
+      // message: 'LinkedIn Login successfully',
+      // data: {
+      token: token,
+      isFirstTime: isFirstTime,
+      registeredWith: user.signupMethod,
+      hasAccess,
+      isTrialActive,
+      isPremium: user.isPremium,
+      trialEndsAt: user.trialEnd
+      // }
     };
 
     // console.log(resultData);

@@ -2,6 +2,8 @@ const { createHmac, randomBytes } = require("crypto");
 const { Schema, model, mongoose } = require("mongoose");
 const { createTokenforUser } = require("../services/authentication");
 const Contact = require("./contactModel"); // Adjust path if needed
+// const { getNextSerialNumber } = require("../utils/serialUtils");
+const Counter = require("./counterModel");
 
 
 const whatsappTemplateSchema = new Schema(
@@ -148,12 +150,13 @@ const userSchema = new Schema(
         }
       ]
     },
-
     serialNumber: {
       type: String,
       unique: true,
-      index: true,
+      required: true,
+      default: "", // Avoids null
     },
+
 
     firstname: {
       type: String,
@@ -418,6 +421,10 @@ const userSchema = new Schema(
 
 userSchema.pre("save", function (next) {
   const user = this;
+  // 🛑 Assign serial number if not already set
+  // if (!user.serialNumber) {
+  //   user.serialNumber = await this.constructor.getNextSerialNumber();
+  // }
   if (!user.isModified("password")) return next();
 
   const salt = randomBytes(16).toString();
@@ -498,6 +505,56 @@ userSchema.static("matchPasswordAndGenerateToken", async function ({ email, phon
 
   return createTokenforUser(user);
 });
+
+// userSchema.statics.getNextSerialNumber = async function () {
+//   let nextSerial = 0;
+//   let formattedSerial = "";
+
+//   while (true) {
+//     const result = await this.collection.findOneAndUpdate(
+//       { _id: "serial_counter_user" },
+//       { $inc: { serialCounter: 1 } },
+//       {
+//         upsert: true,
+//         returnDocument: "after" // Only works in native MongoDB driver v4+
+//       }
+//     );
+
+//     // Handle result.value possibly being undefined
+//     if (!result.value || typeof result.value.serialCounter !== "number") {
+//       throw new Error("Failed to generate a new serial number");
+//     }
+
+
+//     nextSerial = result.value.serialCounter;
+//     formattedSerial = nextSerial.toString().padStart(3, "0");
+
+//     const existing = await this.findOne({ serialNumber: formattedSerial });
+//     if (!existing) break;
+//   }
+
+//   return formattedSerial;
+// };
+
+userSchema.statics.getNextSerialNumber = async function () {
+  const result = await Counter.findByIdAndUpdate(
+    { _id: "serial_counter_user" },
+    { $inc: { serialCounter: 1 } },
+    {
+      new: true,
+      upsert: true,
+    }
+  );
+
+  console.log("🔍 Counter update result:", result);
+
+  if (!result || typeof result.serialCounter !== "number") {
+    throw new Error("Failed to generate a new serial number");
+  }
+
+  return result.serialCounter.toString().padStart(1, "0");
+};
+
 
 const User = model("User", userSchema);
 module.exports = User;
