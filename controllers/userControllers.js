@@ -1304,14 +1304,14 @@ const googleCallback = async (req, res) => {
     // });
 
     const resultData = {
-      // status: 'success',
-      // message: 'Google Login successfully',
-      // data: {
-      token: token,
-      isFirstTime: isFirstTime,
-      referralUrl: referralUrl || "",
-      registeredWith: user.signupMethod,
-      // }
+      status: 'success',
+      message: 'Google Login successfully',
+      data: {
+        token: token,
+        isFirstTime: isFirstTime,
+        referralUrl: referralUrl || "",
+        registeredWith: user.signupMethod,
+      }
     };
 
     // console.log(resultData);
@@ -1672,17 +1672,17 @@ const linkedinCallback = async (req, res) => {
     const isTrialActive = user.trialEnd && now < user.trialEnd;
     const hasAccess = user.isPremium || isTrialActive;
     const resultData = {
-      // status: 'success',
-      // message: 'LinkedIn Login successfully',
-      // data: {
-      token: token,
-      isFirstTime: isFirstTime,
-      registeredWith: user.signupMethod,
-      hasAccess,
-      isTrialActive,
-      isPremium: user.isPremium,
-      trialEndsAt: user.trialEnd
-      // }
+      status: 'success',
+      message: 'LinkedIn Login successfully',
+      data: {
+        token: token,
+        isFirstTime: isFirstTime,
+        registeredWith: user.signupMethod,
+        hasAccess,
+        isTrialActive,
+        isPremium: user.isPremium,
+        trialEndsAt: user.trialEnd
+      }
     };
 
     // console.log(resultData);

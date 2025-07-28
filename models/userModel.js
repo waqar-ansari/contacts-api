@@ -225,6 +225,12 @@ const userSchema = new Schema(
       default: "email"  // or leave unset until signup
     },
 
+    role: {
+      type: String,
+      enum: ["admin", "user"],
+      default: "user"
+    },
+
     trialStart: { type: Date },
     trialEnd: { type: Date },
     isPremium: { type: Boolean, default: false },
