@@ -72,11 +72,11 @@ const PORT = process.env.PORT;
 
 
 //for admin routes
-const adminUserRoutes = require("./routes/admin/userRoutes");
-const adminAccountConnectRoutes = require("./routes/admin/accountConnectRoutes");
-const addAdminRoutes = require("./routes/admin/addAdminRoutes");
-const getAdminRoutes = require("./routes/admin/getUserRoutes");
-const getAllUserAndAdminRoutes = require("./routes/admin/getAllUserAndAdminRoutes");
+// const adminUserRoutes = require("./routes/admin/adminRoutes");
+// const adminAccountConnectRoutes = require("./routes/admin/accountConnectRoutes");
+// const addAdminRoutes = require("./routes/admin/addAdminRoutes");
+// const getAdminRoutes = require("./routes/admin/getUserRoutes");
+// const getAllUserAndAdminRoutes = require("./routes/admin/getAllUserAndAdminRoutes");
 
 console.log("Setting up Express app...");
 
@@ -182,11 +182,11 @@ app.use("/fetch-zoho-contacts", (req, res, next) => {
 }, checkRole(['user']), zohoContactFetchRoutes);
 
 //for admin routes
-app.use("/admin/user", adminUserRoutes);
-app.use("/admin/account-connect", checkForAuthentication(), checkRole(['admin', 'superadmin']), adminAccountConnectRoutes);
-app.use("/admin/add-admin", checkForAuthentication(), checkRole(['superadmin']), addAdminRoutes);
-app.use("/admin/get-user", checkForAuthentication(), checkRole(['superadmin', 'admin']), getAdminRoutes);
-app.use("/admin/get-all-users-admins", checkForAuthentication(), checkRole(['superadmin']), getAllUserAndAdminRoutes);
+// app.use("/admin/user", adminUserRoutes);
+// app.use("/admin/account-connect", checkForAuthentication(), checkRole(['admin', 'superadmin']), adminAccountConnectRoutes);
+// app.use("/admin/add-admin", checkForAuthentication(), checkRole(['superadmin']), addAdminRoutes);
+// app.use("/admin/get-user", checkForAuthentication(), checkRole(['superadmin', 'admin']), getAdminRoutes);
+// app.use("/admin/get-all-users-admins", checkForAuthentication(), checkRole(['superadmin']), getAllUserAndAdminRoutes);
 
 
 app.use("/check", (req, res) => {

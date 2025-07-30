@@ -8,7 +8,7 @@ const {
   googleCallback,
   startLinkedInLogin,
   linkedinCallback
-} = require("../../controllers/admin/userControllers");
+} = require("../../controllers/admin/adminControllers");
 
 const router = Router();
 
