@@ -1,6 +1,6 @@
-const Contact = require("../models/contactModel");
-const User = require("../models/userModel");
-const { route } = require("../routes/userRoutes");
+const Contact = require("../../models/contactModel");
+const User = require("../../models/userModel");
+// const { route } = require("../../routes/admin/userRoutes");
 
 const getUserData = async (req, res) => {
   try {

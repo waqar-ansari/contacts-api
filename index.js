@@ -46,6 +46,7 @@ const emailPasswordResetRoutes = require("./routes/emailPasswordResetRoutes");
 const phoneNumberPasswordResetRoutes = require("./routes/phoneNumberPasswordResetRoutes");
 const changePasswordRoutes = require("./routes/changePasswordRoutes");
 const { checkForAuthentication } = require("./middlewares/authentication");
+const checkRole = require("./middlewares/roleCheck");
 const scanRoutes = require("./routes/scanRoutes");
 const getScanDataRoutes = require("./routes/getScanDataRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
@@ -69,6 +70,14 @@ const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
+
+//for admin routes
+const adminUserRoutes = require("./routes/admin/userRoutes");
+const adminAccountConnectRoutes = require("./routes/admin/accountConnectRoutes");
+const addAdminRoutes = require("./routes/admin/addAdminRoutes");
+const getAdminRoutes = require("./routes/admin/getUserRoutes");
+const getAllUserAndAdminRoutes = require("./routes/admin/getAllUserAndAdminRoutes");
+
 console.log("Setting up Express app...");
 
 
@@ -87,89 +96,98 @@ console.log("Setting up routes...");
 
 // Serve static files (for accessing uploaded images)
 // app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
-app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
+app.use("/editProfile", checkForAuthentication(), checkRole(['user']), upload.single("profileImage"),
   editProfileRoutes);
 app.use("/deleteContact", deleteContactRoutes);
-app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
-app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
-app.use("/deleteMeeting", checkForAuthentication(), deleteMeetingRoutes);
-app.use("/deleteTemplate", checkForAuthentication(), deleteTemplateRoutes);
-app.use("/getUser", checkForAuthentication(), getUserRoutes);
-app.use("/addTag", checkForAuthentication(), addTagRoutes);
-app.use("/editTag", checkForAuthentication(), editTagRoutes);
-app.use("/getTag", checkForAuthentication(), getTagRoutes);
-app.use("/deleteTag", checkForAuthentication(), deleteTagRoutes);
-app.use("/addToFavourite", checkForAuthentication(), addToFavouriteRoutes);
-app.use("/getContact", checkForAuthentication(), getContactRoutes);
-app.use("/getContactEmail", checkForAuthentication(), getContactEmailRoutes);
-app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
+app.use("/deleteUser", checkForAuthentication(), checkRole(['user']), deleteUserRoutes);
+app.use("/deleteTask", checkForAuthentication(), checkRole(['user']), deleteTaskRoutes);
+app.use("/deleteMeeting", checkForAuthentication(), checkRole(['user']), deleteMeetingRoutes);
+app.use("/deleteTemplate", checkForAuthentication(), checkRole(['user']), deleteTemplateRoutes);
+app.use("/getUser", checkForAuthentication(), checkRole(['user']), getUserRoutes);
+app.use("/addTag", checkForAuthentication(), checkRole(['user']), addTagRoutes);
+app.use("/editTag", checkForAuthentication(), checkRole(['user']), editTagRoutes);
+app.use("/getTag", checkForAuthentication(), checkRole(['user']), getTagRoutes);
+app.use("/deleteTag", checkForAuthentication(), checkRole(['user']), deleteTagRoutes);
+app.use("/addToFavourite", checkForAuthentication(), checkRole(['user']), addToFavouriteRoutes);
+app.use("/getContact", checkForAuthentication(), checkRole(['user']), getContactRoutes);
+app.use("/getContactEmail", checkForAuthentication(), checkRole(['user']), getContactEmailRoutes);
+app.use("/getProfileEvent", checkForAuthentication(), checkRole(['user']), getProfileEventRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
-app.use("/my-referrals", checkForAuthentication(), myReferralsRoutes);
+app.use("/my-referrals", checkForAuthentication(), checkRole(['user']), myReferralsRoutes);
 app.use("/connect", (req, res, next) => {
   const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
   if (skipAuthPaths.includes(req.path)) {
     return next(); // No token required for callback
   }
   return checkForAuthentication()(req, res, next);
-}, accountConnect);
+}, checkRole(['user']), accountConnect);
 
 app.use(
   "/addEditContact",
   checkForAuthentication(),
+  checkRole(['user']),
   upload.single("contactImage"),
   contactRoutes
 );
-app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
-app.use("/disconnect", checkForAuthentication(), disconnectAccountRoutes);
-app.use("/sign", checkForAuthentication(), signRoutes);
+app.use("/assignedContactTag", checkForAuthentication(), checkRole(['user']), assignedContactTag);
+app.use("/disconnect", checkForAuthentication(), checkRole(['user']), disconnectAccountRoutes);
+app.use("/sign", checkForAuthentication(), checkRole(['user']), signRoutes);
 app.use("/email", emailPasswordResetRoutes);
 app.use("/phoneNumber", phoneNumberPasswordResetRoutes);
-app.use("/changePassword", checkForAuthentication(), changePasswordRoutes);
+app.use("/changePassword", checkForAuthentication(), checkRole(['user']), changePasswordRoutes);
 app.use("/scan", scanRoutes);
-app.use("/scan/get_data", checkForAuthentication(), getScanDataRoutes);
-app.use("/sendEmail", checkForAuthentication(), sendEmail);
-app.use("/reminders", checkForAuthentication(), reminderRoutes);
-app.use("/user-info", checkForAuthentication(), userInfoRoutes);
+app.use("/scan/get_data", checkForAuthentication(), checkRole(['user']), getScanDataRoutes);
+app.use("/sendEmail", checkForAuthentication(), checkRole(['user']), sendEmail);
+app.use("/reminders", checkForAuthentication(), checkRole(['user']), reminderRoutes);
+app.use("/user-info", checkForAuthentication(), checkRole(['user']), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
-app.use("/check-duplicate-user", checkForAuthentication(), checkEmailPhoneDuplicate);
-app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes);
-app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
-app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
-app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
-app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
+app.use("/check-duplicate-user", checkForAuthentication(), checkRole(['user']), checkEmailPhoneDuplicate);
+app.use("/save-bulk-contacts", checkForAuthentication(), checkRole(['user']), saveBulkContactsRoutes);
+app.use("/getContactById", checkForAuthentication(), checkRole(['user']), getContactByIdRoutes);
+app.use("/getAllContact", checkForAuthentication(), checkRole(['user']), getAllContactRoutes);
+app.use("/getContactActivities", checkForAuthentication(), checkRole(['user']), getContactActivitiesRoutes);
+app.use("/deleteAllContacts", checkForAuthentication(), checkRole(['user']), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
-app.use("/whatsapp-email-activity", checkForAuthentication(), whatsappEmailActivityRoutes);
+app.use("/whatsapp-email-activity", checkForAuthentication(), checkRole(['user']), whatsappEmailActivityRoutes);
 app.use("/fetch-google-contacts", (req, res, next) => {
   const skipAuthPaths = ["/google/callback"];
   if (skipAuthPaths.includes(req.path)) {
     return next(); // No token required for callback
   }
   return checkForAuthentication()(req, res, next);
-}, fetchGoogleContacts);
+}, checkRole(['user']), fetchGoogleContacts);
 
 app.use("/fetch-linkedin-contacts", (req, res, next) => {
-  const skipAuthPaths = ["/linkedin/callback"]; 
+  const skipAuthPaths = ["/linkedin/callback"];
   if (skipAuthPaths.includes(req.path)) {
     return next(); // No token required for callback
   }
   return checkForAuthentication()(req, res, next);
-}, fetchLinkedInContacts);
+}, checkRole(['user']), fetchLinkedInContacts);
 
 app.use("/fetch-hubspot-contacts", (req, res, next) => {
-  const skipAuthPaths = ["/hubspot/callback"];  
+  const skipAuthPaths = ["/hubspot/callback"];
   if (skipAuthPaths.includes(req.path)) {
     return next(); // No token required for callback
   }
   return checkForAuthentication()(req, res, next);
-}, hubSpotContactFetchRoutes);
+}, checkRole(['user']), hubSpotContactFetchRoutes);
 
 app.use("/fetch-zoho-contacts", (req, res, next) => {
-  const skipAuthPaths = ['/zoho/callback']; 
+  const skipAuthPaths = ['/zoho/callback'];
   if (skipAuthPaths.includes(req.path)) {
     return next(); // No token required for callback
   }
   return checkForAuthentication()(req, res, next);
-}, zohoContactFetchRoutes);
+}, checkRole(['user']), zohoContactFetchRoutes);
+
+//for admin routes
+app.use("/admin/user", adminUserRoutes);
+app.use("/admin/account-connect", checkForAuthentication(), checkRole(['admin', 'superadmin']), adminAccountConnectRoutes);
+app.use("/admin/add-admin", checkForAuthentication(), checkRole(['superadmin']), addAdminRoutes);
+app.use("/admin/get-user", checkForAuthentication(), checkRole(['superadmin', 'admin']), getAdminRoutes);
+app.use("/admin/get-all-users-admins", checkForAuthentication(), checkRole(['superadmin']), getAllUserAndAdminRoutes);
+
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });

@@ -1,18 +1,18 @@
 const { OAuth2Client } = require("google-auth-library");
 const appleSignin = require("apple-signin-auth");
-const { createTokenforUser } = require("../services/authentication");
-const User = require("../models/userModel");
-const { getNextSerialNumber } = require("../utils/serialUtils");
-const { generateUserQRCode } = require("../utils/qrUtils");
+const { createTokenforUser } = require("../../services/authentication");
+const User = require("../../models/userModel");
+const { getNextSerialNumber } = require("../../utils/serialUtils");
+const { generateUserQRCode } = require("../../utils/qrUtils");
 const crypto = require("crypto");
-const { sendVerificationEmail } = require("../utils/emailUtils");
+const { sendVerificationEmail } = require("../../utils/emailUtils");
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
-const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp');
+const sendWhatsAppOtp = require('../../utils/sendWhatsAppOtp');
 require('dotenv').config();
 const { google } = require('googleapis');
 const querystring = require('querystring');
 const axios = require('axios');
-const ReferralLog = require("../models/referralLogModel");
+const ReferralLog = require("../../models/referralLogModel");
 
 
 const oauth2Client = new google.auth.OAuth2(
