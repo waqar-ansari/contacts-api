@@ -20,7 +20,7 @@ const checkRole = (requiredRoles = []) => {
       next();
     } catch (err) {
       console.error('Role check error:', err);
-      res.status(500).json({ status: 'error', message: 'Internal server error' });
+      res.status(500).json({ status: 'error', message: 'Internal server error', error: err.message });
     }
   };
 };
