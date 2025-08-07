@@ -7,6 +7,7 @@ const getContact = async (req, res) => {
       limit = 10,
       search,
       tag,
+      sorted,
       isFavourite = false,
       favouriteContactsPage = 1,
       favouriteContactsLimit = 10,
@@ -115,7 +116,8 @@ const getContact = async (req, res) => {
 
       const rawFavouriteContacts = await Contact.find(favQuery)
         // .sort({ createdAt: -1 }) // Show newest first
-        .sort({ createdAt: -1, _id: -1 })
+        // .sort({ createdAt: -1, _id: -1 })
+        .sort(sorted === true || sorted === "true" ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
         .select("-_id -updatedAt -__v");
@@ -161,7 +163,8 @@ const getContact = async (req, res) => {
     // Normal all contact fetch
     const rawContacts = await Contact.find(baseQuery)
       // .sort({ createdAt: -1 }) // Show newest first
-      .sort({ createdAt: -1, _id: -1 })
+      // .sort({ createdAt: -1, _id: -1 })
+      .sort(sorted === true || sorted === "true" ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -updatedAt -__v");
@@ -216,4 +219,3 @@ const getContact = async (req, res) => {
 };
 
 module.exports = { getContact };
-
