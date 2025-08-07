@@ -227,13 +227,19 @@ const userSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["admin", "user", "superadmin"],
+      enum: ["user", "superadmin"],
       default: "user"
     },
 
     trialStart: { type: Date },
     trialEnd: { type: Date },
     isPremium: { type: Boolean, default: false },
+    plan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Plan",
+      default: null
+    },
+    planActivatedAt: { type: Date, default: null },
     // isActive: { type: Boolean, default: true },
 
 
@@ -392,6 +398,18 @@ const userSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+
+    // referredByAdmin: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Admin",
+    // },
+
+    tenantId: {
+      type: String,
+      unique: true,
+      sparse: true, // only enforce uniqueness when tenantId is present
+    },
+
 
     creditBalance: {
       type: Number,

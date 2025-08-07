@@ -32,6 +32,7 @@ const signupWithEmail = async (req, res) => {
     } = req.body;
 
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
+    // const tenantId = req.query.tenantId || req.body.tenantId || "";
 
     // === PART 1: Email Verification Flow ===
     if (verifyToken) {
@@ -154,7 +155,21 @@ const signupWithEmail = async (req, res) => {
     const referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
 
     let referredBy = null;
+    // let referredByAdmin = null;
 
+
+    // if (tenantId) {
+    //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
+
+    //   if (referringAdmin) {
+    //     referredByAdmin = referringAdmin._id;
+    //   } else {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Invalid tenant ID",
+    //     });
+    //   }
+    // } else 
     if (referralCodeParam) {
       const referringUser = await User.findOne({ referralCode: referralCodeParam });
       console.log(referringUser);
@@ -211,6 +226,7 @@ const signupWithEmail = async (req, res) => {
       trialStart: now,
       trialEnd: trialEnds,
       referralCode,  // 🔥 store user’s unique referral code
+      // referredByAdmin,
       referredBy
     });
 
@@ -282,6 +298,7 @@ const signupWithPhoneNumber = async (req, res) => {
   try {
     const { phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
+    // const tenantId = req.query.tenantId || req.body.tenantId || "";
 
     if (!phonenumber || !password) {
       return res.status(400).json({
@@ -513,6 +530,19 @@ const signupWithPhoneNumber = async (req, res) => {
     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
 
     // 🔥 Handle referredBy logic if referralCode was used
+    // if (tenantId) {
+    //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
+
+    //   if (referringAdmin) {
+    //     referredByAdmin = referringAdmin._id;
+    //     user.referredByAdmin = referredByAdmin;
+    //   } else {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Invalid tenant ID",
+    //     });
+    //   }
+    // } else 
     if (referralCodeParam) {
       const referringUser = await User.findOne({ referralCode: referralCodeParam });
 
@@ -545,7 +575,6 @@ const signupWithPhoneNumber = async (req, res) => {
       }
 
       user.referredBy = referringUser._id;
-
       // 🔥 Push referral entry in referring user's `myReferrals`
       referringUser.myReferrals.push({
         _id: user._id,
@@ -1039,9 +1068,11 @@ const googleCallback = async (req, res) => {
 
   const { code, state } = req.query;
   let referralCode = "";
+  // let tenantId = "";
   try {
     const parsedState = JSON.parse(state || "{}");
     referralCode = parsedState.ref || "";
+    // tenantId = parsedState.tenantId || "";
   } catch (err) {
     referralCode = "";
   }
@@ -1144,8 +1175,21 @@ const googleCallback = async (req, res) => {
     if (!user) {
       isFirstTime = true;
       let referredBy = null;
+      // let referredByAdmin = null;
+      // if (tenantId) {
+      //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
 
-      if (referralCode) {
+      //   if (!referringAdmin) {
+      //     return res.send(`
+      //   <script>
+      //     window.opener.postMessage({ status: 'error', message: 'Invalid tenant ID' }, '*');
+      //     window.close();
+      //   </script>
+      // `);
+      //   }
+      //   referredByAdmin = referringAdmin._id;
+      // } else 
+        if (referralCode) {
         const referringUser = await User.findOne({ referralCode: referralCode });
 
         if (!referringUser) {
@@ -1224,7 +1268,8 @@ const googleCallback = async (req, res) => {
         trialStart: now,
         trialEnd: trialEnds,
         referralCode: userReferralCode,
-        referredBy: referredBy
+        referredBy: referredBy,
+        // referredByAdmin: referredByAdmin
       });
 
       if (referredBy) {

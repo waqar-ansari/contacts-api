@@ -15,6 +15,7 @@ const redirectToGoogle = (req, res) => {
   const scopes = ['https://www.googleapis.com/auth/contacts.readonly'];
 
   const user_id = req.user._id; // Use user ID from request context if available
+console.log('user_id', user_id);
 
   const params = querystring.stringify({
     client_id: process.env.GOOGLE_CLIENT_ID,
