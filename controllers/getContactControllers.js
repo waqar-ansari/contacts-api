@@ -19,13 +19,29 @@ const getContact = async (req, res) => {
     // if (search?.trim() && page > 1) {
     //   pageToUse = 1;
     // }
+    // let pageToUse = parseInt(page);
+
     let pageToUse = parseInt(page);
+
+    if (
+      (search?.trim() && pageToUse > 1) ||
+      ((Array.isArray(tag) && tag.length > 0) || (typeof tag === "string" && tag.trim() !== "")) && pageToUse > 1
+    ) {
+      pageToUse = 1;
+    }
+
+
 
     // let favPageToUse = favouriteContactsPage;
     // if (favouriteContactsSearch?.trim() && favouriteContactsPage > 1) {
     //   favPageToUse = 1;
     // }
+    // let favPageToUse = parseInt(favouriteContactsPage);
     let favPageToUse = parseInt(favouriteContactsPage);
+
+    if (favouriteContactsSearch?.trim() && favPageToUse > 1) {
+      favPageToUse = 1;
+    }
 
     const skip = (pageToUse - 1) * limit;
     // const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
