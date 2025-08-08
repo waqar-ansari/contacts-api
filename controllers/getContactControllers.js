@@ -87,11 +87,18 @@ const getContact = async (req, res) => {
     //   baseQuery["tags.tag"] = tag.trim();
     // }
 
+    // if (Array.isArray(tag) && tag.length > 0) {
+    //   baseQuery["tags"] = {
+    //     $all: tag.map((t) => ({
+    //       $elemMatch: { tag: { $regex: `^${t}$`, $options: "i" } }
+    //     }))
+    //   };
+    // } 
     if (Array.isArray(tag) && tag.length > 0) {
       baseQuery["tags"] = {
-        $all: tag.map((t) => ({
-          $elemMatch: { tag: { $regex: `^${t}$`, $options: "i" } }
-        }))
+        $elemMatch: {
+          tag: { $in: tag.map(t => new RegExp(`^${t}$`, "i")) }
+        }
       };
     } else if (typeof tag === "string" && tag.trim() !== "") {
       baseQuery["tags.tag"] = { $regex: `^${tag.trim()}$`, $options: "i" };
@@ -233,5 +240,6 @@ const getContact = async (req, res) => {
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };
+
 
 module.exports = { getContact };
