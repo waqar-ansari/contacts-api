@@ -17,7 +17,19 @@ const getContact = async (req, res) => {
     // -------------------------
     // NORMAL CONTACTS PAGINATION
     // -------------------------
+    // let pageToUse = parseInt(page) || 1;
     let pageToUse = parseInt(page) || 1;
+
+    // If search or tag filter applied, reset to first page
+    if (
+      (search && search.trim() !== "") ||
+      (Array.isArray(tag) && tag.length > 0) ||
+      (typeof tag === "string" && tag.trim() !== "")
+    ) {
+      // pageToUse = 1;
+      pageToUse = parseInt(page) || 1;
+    }
+
 
     // Build base query
     const baseQuery = { createdBy: req.user._id };
@@ -58,7 +70,20 @@ const getContact = async (req, res) => {
     // -------------------------
 
     if (isFavourite === true || isFavourite === "true") {
+      // let favPageToUse = parseInt(favouriteContactsPage) || 1;
+
       let favPageToUse = parseInt(favouriteContactsPage) || 1;
+
+      // If favourite search or tag filter applied, reset to first page
+      if (
+        (favouriteContactsSearch && favouriteContactsSearch.trim() !== "") ||
+        (Array.isArray(tag) && tag.length > 0) ||
+        (typeof tag === "string" && tag.trim() !== "")
+      ) {
+        // favPageToUse = 1;
+        favPageToUse = parseInt(page) || 1;
+      }
+
 
       const favQuery = { createdBy: req.user._id, isFavourite: true };
 
