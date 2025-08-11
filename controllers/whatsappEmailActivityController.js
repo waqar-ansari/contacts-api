@@ -50,7 +50,8 @@ const logMessageActivity = async (req, res) => {
             await logActivityToContact(contact_id, {
                 action: "whatsapp_message_sent",
                 type: "whatsapp",
-                description: `WhatsApp sent: ${summary}`
+                title: "WhatsApp Message Sent",
+                description: `${summary}`
             });
         }
 
@@ -60,7 +61,8 @@ const logMessageActivity = async (req, res) => {
             await logActivityToContact(contact_id, {
                 action: "email_message_sent",
                 type: "email",
-                description: `Email sent: ${summary}`
+                title: "Email Sent",
+                description: `${summary}`
             });
         }
 

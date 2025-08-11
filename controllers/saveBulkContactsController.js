@@ -234,6 +234,12 @@ const saveBulkContacts = async (req, res) => {
           facebook,
           emailaddresses: emailList,
           phonenumbers: phoneList,
+          activities: [{
+            action: 'contact_created',
+            type: 'contact',
+            title: 'Contact Imported',
+            description: `${firstname} ${lastname}`,
+          }],
           createdBy: req.user._id,
         });
         continue;

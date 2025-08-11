@@ -14,6 +14,9 @@ const getContactActivities = async (req, res) => {
   try {
     const contact = await Contact.findById(contact_id).select("activities");
 
+    console.log("Fetched Contact Activities:", contact.activities);
+    
+
     if (!contact) {
       return res.status(404).json({
         status: "error",
@@ -25,6 +28,7 @@ const getContactActivities = async (req, res) => {
     const sortedActivities = (contact.activities || []).sort(
       (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
     );
+console.log("Sorted Activities:", sortedActivities);
 
     return res.status(200).json({
       status: "success",

@@ -570,7 +570,8 @@ const addEditContact = async (req, res) => {
       await logActivityToContact(contactData._id, {
         action: "contact_created",
         type: "contact", // ✅ this is important
-        description: `Contact Created`,
+        title: `Contact Created`,
+        description: ` ${firstname} ${lastname}`,
       });
 
 
@@ -616,26 +617,47 @@ const addEditContact = async (req, res) => {
         const addedTags = newTags.filter(tag => !oldTags.includes(tag));
         const removedTags = oldTags.filter(tag => !newTags.includes(tag));
 
-        if (addedTags.length || removedTags.length) {
-          let descriptionParts = [];
-          if (addedTags.length) {
-            descriptionParts.push(`Added tags : ${addedTags.join(", ")}`);
-          }
-          if (removedTags.length) {
-            descriptionParts.push(`Removed tags : ${removedTags.join(", ")}`);
-          }
+        // if (addedTags.length || removedTags.length) {
+        //   let titleParts = [];
+        //   let descriptionParts = [];
+        //   if (addedTags.length) {
+        //     titleParts.push(`Added tags`);
+        //     descriptionParts.push(`${addedTags.join(", ")}`);
+        //   }
+        //   if (removedTags.length) {
+        //     titleParts.push(`Removed tags`);
+        //     descriptionParts.push(`${removedTags.join(", ")}`);
+        //   }
 
 
 
+        //   await logActivityToContact(contact_id, {
+        //     action: "tags_updated",
+        //     type: "tag", // ✅ this is important
+        //     title: titleParts.join(" and "),
+        //     description: descriptionParts.join(" and "),
+        //   });
+        //   console.log(titleParts, descriptionParts);
+
+        // }
+
+        if (addedTags.length) {
           await logActivityToContact(contact_id, {
-            action: "tags_updated",
-            type: "tag", // ✅ this is important
-            description: `${descriptionParts.join(" and ")}`,
+            action: "tags_added",
+            type: "tag",
+            title: "Added tags",
+            description: addedTags.join(", "),
           });
-
         }
 
-
+        if (removedTags.length) {
+          await logActivityToContact(contact_id, {
+            action: "tags_removed",
+            type: "tag",
+            title: "Removed tags",
+            description: removedTags.join(", "),
+          });
+        }
       }
 
 
@@ -675,11 +697,18 @@ const addEditContact = async (req, res) => {
         contactData.updatedAt = new Date();
 
         //activity logging for task
+        // await logActivityToContact(contactData._id, {
+        //   action: task_id ? "task_updated" : "task_created",
+        //   type: "task",
+        //   description: `Note ${task_id ? "Updated" : "Added"} : ${taskDescription}`,
+        // });
         await logActivityToContact(contactData._id, {
           action: task_id ? "task_updated" : "task_created",
           type: "task",
-          description: `Note ${task_id ? "Updated" : "Added"} : ${taskDescription}`,
+          title: task_id ? "Note Updated" : "Note Created",
+          description: `${taskDescription}`,
         });
+
       }
 
       // ----- Update or Add Meeting -----
@@ -696,11 +725,18 @@ const addEditContact = async (req, res) => {
         }
 
         contactData.updatedAt = new Date();
+        // await logActivityToContact(contactData._id, {
+        //   action: meeting_id ? "meeting_updated" : "meeting_created",
+        //   type: "meeting",
+        //   description: `Meeting ${meeting_id ? "Updated" : "Schedule"} : ${meetingTitle}`,
+        // });
         await logActivityToContact(contactData._id, {
           action: meeting_id ? "meeting_updated" : "meeting_created",
           type: "meeting",
-          description: `Meeting ${meeting_id ? "Updated" : "Schedule"} : ${meetingTitle}`,
+          title: meeting_id ? "Meeting Updated" : "Meeting Scheduled",
+          description: `${meetingTitle}`,
         });
+
       }
 
       await contactData.save();
@@ -709,10 +745,16 @@ const addEditContact = async (req, res) => {
       const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;
 
       if (nothingElseChanged) {
+        // await logActivityToContact(contactData._id, {
+        //   action: "contact_updated",
+        //   type: "contact", // ✅ REQUIRED
+        //   description: `Contact Updated`,
+        // });
         await logActivityToContact(contactData._id, {
           action: "contact_updated",
-          type: "contact", // ✅ REQUIRED
-          description: `Contact Updated`,
+          type: "contact",
+          title: "Contact Updated",
+          description: `${contactData.firstname} ${contactData.lastname}`,
         });
       }
 

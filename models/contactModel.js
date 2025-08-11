@@ -143,6 +143,7 @@ const contactSchema = new Schema(
           required: true,
           enum: ["contact", "task", "meeting", "tag", "email", "whatsapp"], // Optional but safer
         },
+        title: { type: String },
         description: { type: String },
         timestamp: { type: Date, default: Date.now },
       }

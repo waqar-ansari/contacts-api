@@ -90,7 +90,8 @@ const fetchiCloudContacts = async (req, res) => {
           {
             action: 'contact_created',
             type: 'contact',
-            description: 'Contact imported from iCloud',
+            title: 'Contact Imported from iCloud',
+            description: `${firstname} ${lastname}`,
           }
         ],
       });

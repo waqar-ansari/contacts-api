@@ -104,7 +104,8 @@ const handleHubSpotCallback = async (req, res) => {
         activities: [{
           action: 'contact_created',
           type: 'contact',
-          description: `Contact imported from HubSpot`,
+          title: 'Contact Imported from HubSpot',
+          description: `${firstname} ${lastname}`,
         }],
       });
     }

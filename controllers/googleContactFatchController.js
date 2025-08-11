@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const querystring = require('querystring');
 const Contact = require('../models/contactModel'); // ✅ Adjust path as needed
 const mongoose = require("mongoose"); // ⬅️ Make sure this is imported at the top
+const { title } = require('process');
 
 
 const oauth2Client = new google.auth.OAuth2(
@@ -120,7 +121,8 @@ const handleGoogleCallback = async (req, res) => {
           {
             action: 'contact_created',
             type: "contact", // ✅ this is important
-            description: `Contact imported from Google`,
+            title: "Contact Imported from Google",
+            description: `${firstname} ${lastname}`,
           }
         ],
       });

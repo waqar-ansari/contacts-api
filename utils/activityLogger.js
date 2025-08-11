@@ -13,6 +13,7 @@ const logActivityToContact = async (contactId, activityObj) => {
                 activities: {
                     action: activityObj.action,
                     type: activityObj.type,
+                    title: activityObj.title || "",
                     description: activityObj.description || "",
                     timestamp: new Date(),
                 },
