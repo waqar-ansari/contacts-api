@@ -14,60 +14,23 @@ const getContact = async (req, res) => {
       favouriteContactsSearch = ""
     } = req.body;
 
-    // const skip = (page - 1) * limit;
-    // let pageToUse = page;
-    // if (search?.trim() && page > 1) {
-    //   pageToUse = 1;
-    // }
-    // let pageToUse = parseInt(page);
+    // -------------------------
+    // NORMAL CONTACTS PAGINATION
+    // -------------------------
+    let pageToUse = parseInt(page) || 1;
 
-    let pageToUse = parseInt(page);
+    // Build base query
+    const baseQuery = { createdBy: req.user._id };
 
-    if (
-      (search?.trim() && pageToUse > 1) ||
-      ((Array.isArray(tag) && tag.length > 0) || (typeof tag === "string" && tag.trim() !== "")) && pageToUse > 1
-    ) {
-      pageToUse = 1;
-    }
-
-
-
-    // let favPageToUse = favouriteContactsPage;
-    // if (favouriteContactsSearch?.trim() && favouriteContactsPage > 1) {
-    //   favPageToUse = 1;
-    // }
-    // let favPageToUse = parseInt(favouriteContactsPage);
-    let favPageToUse = parseInt(favouriteContactsPage);
-
-    if (favouriteContactsSearch?.trim() && favPageToUse > 1) {
-      favPageToUse = 1;
-    }
-
-    const skip = (pageToUse - 1) * limit;
-    // const favouriteContactsSkip = (favouriteContactsPage - 1) * favouriteContactsLimit;
-    const favouriteContactsSkip = (favPageToUse - 1) * favouriteContactsLimit;
-
-
-    // Base query
-    const baseQuery = {
-      createdBy: req.user._id,
-    };
-
-    // Optional search filter
+    // Search filter
     if (search?.trim()) {
       const fullNameRegex = new RegExp(`^${search.trim()}`, "i");
-
       baseQuery.$or = [
         { firstname: { $regex: search, $options: "i" } },
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
-        // { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
-        {
-          $or: [
-            { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } }, // if phonenumbers is array of strings
-            { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } }, // if array of objects with .number
-          ]
-        },
+        { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } },
+        { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
         {
           $expr: {
             $regexMatch: {
@@ -76,24 +39,10 @@ const getContact = async (req, res) => {
             }
           }
         }
-
       ];
     }
 
-    // // Optional tag filter
-    // if (Array.isArray(tag) && tag.length > 0) {
-    //   baseQuery["tags.tag"] = { $all: tag };
-    // } else if (typeof tag === "string" && tag.trim() !== "") {
-    //   baseQuery["tags.tag"] = tag.trim();
-    // }
-
-    // if (Array.isArray(tag) && tag.length > 0) {
-    //   baseQuery["tags"] = {
-    //     $all: tag.map((t) => ({
-    //       $elemMatch: { tag: { $regex: `^${t}$`, $options: "i" } }
-    //     }))
-    //   };
-    // } 
+    // Tag filter
     if (Array.isArray(tag) && tag.length > 0) {
       baseQuery["tags"] = {
         $elemMatch: {
@@ -104,28 +53,34 @@ const getContact = async (req, res) => {
       baseQuery["tags.tag"] = { $regex: `^${tag.trim()}$`, $options: "i" };
     }
 
+    // -------------------------
+    // FAVOURITE CONTACTS MODE
+    // -------------------------
 
-    // If request is only for favourite contacts
     if (isFavourite === true || isFavourite === "true") {
-      const favQuery = {
-        ...baseQuery,
-        isFavourite: true,
-      };
+      let favPageToUse = parseInt(favouriteContactsPage) || 1;
+
+      const favQuery = { createdBy: req.user._id, isFavourite: true };
+
+      // ADD THIS — tag filter for favourites
+      if (Array.isArray(tag) && tag.length > 0) {
+        favQuery["tags"] = {
+          $elemMatch: {
+            tag: { $in: tag.map(t => new RegExp(`^${t}$`, "i")) }
+          }
+        };
+      } else if (typeof tag === "string" && tag.trim() !== "") {
+        favQuery["tags.tag"] = { $regex: `^${tag.trim()}$`, $options: "i" };
+      }
 
       if (favouriteContactsSearch?.trim()) {
         const fullNameRegex = new RegExp(`^${favouriteContactsSearch.trim()}`, "i");
-
         favQuery.$or = [
           { firstname: { $regex: favouriteContactsSearch, $options: "i" } },
           { lastname: { $regex: favouriteContactsSearch, $options: "i" } },
           { emailaddresses: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
-          // { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } }
-          {
-            $or: [
-              { phonenumbers: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
-              { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } },
-            ]
-          },
+          { phonenumbers: { $elemMatch: { $regex: favouriteContactsSearch, $options: "i" } } },
+          { phonenumbers: { $elemMatch: { number: { $regex: favouriteContactsSearch, $options: "i" } } } },
           {
             $expr: {
               $regexMatch: {
@@ -137,102 +92,86 @@ const getContact = async (req, res) => {
         ];
       }
 
+      const totalFavCount = await Contact.countDocuments(favQuery);
+      const favTotalPages = Math.ceil(totalFavCount / favouriteContactsLimit);
+
+      if (favPageToUse > favTotalPages) {
+        favPageToUse = favTotalPages > 0 ? favTotalPages : 1;
+      }
+
+      const favouriteContactsSkip = (favPageToUse - 1) * favouriteContactsLimit;
+
       const rawFavouriteContacts = await Contact.find(favQuery)
-        // .sort({ createdAt: -1 }) // Show newest first
-        // .sort({ createdAt: -1, _id: -1 })
-        .sort(sorted === true || sorted === "true" ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
+        .sort(sorted ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
         .skip(favouriteContactsSkip)
         .limit(parseInt(favouriteContactsLimit))
         .select("-_id -updatedAt -__v");
 
-      const favouriteContacts = rawFavouriteContacts.map((contact) => {
-        const contactObj = contact.toObject();
-
-        contactObj.emailaddresses = (Array.isArray(contactObj.emailaddresses)
-          ? contactObj.emailaddresses.filter(email => email && email.trim() !== "")
-          : []);
-
-        // Clean phonenumbers (array of objects with .number)
-        contactObj.phonenumbers = (Array.isArray(contactObj.phonenumbers)
-          ? contactObj.phonenumbers.filter(number => number && number.trim() !== "")
-          : []);
-
-        if (Array.isArray(contactObj.tags)) {
-          contactObj.tags = contactObj.tags.map((tagObj) => ({
-            tag: tagObj.tag,
-            emoji: tagObj.emoji
-          }));
+      const favouriteContacts = rawFavouriteContacts.map(contact => {
+        const obj = contact.toObject();
+        obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
+        obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+        if (Array.isArray(obj.tags)) {
+          obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
         }
-        return contactObj;
+        return obj;
       });
-
-      const totalFavCount = await Contact.countDocuments(favQuery);
 
       return res.json({
         status: "success",
         message: "Favourite contacts fetched successfully",
-        // favouriteContacts: {
         data: favouriteContacts,
         pagination: {
-          // currentPage: parseInt(favouriteContactsPage),
-          currentPage: parseInt(favPageToUse),
-          totalPages: Math.ceil(totalFavCount / favouriteContactsLimit),
-          totalContacts: totalFavCount,
-        },
-        // },
+          currentPage: favPageToUse,
+          totalPages: favTotalPages,
+          totalContacts: totalFavCount
+        }
       });
     }
 
-    // Normal all contact fetch
+
+    // -------------------------
+    // NORMAL CONTACTS FETCH
+    // -------------------------
+    const totalCount = await Contact.countDocuments(baseQuery);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    if (pageToUse > totalPages) {
+      pageToUse = totalPages > 0 ? totalPages : 1;
+    }
+
+    const skip = (pageToUse - 1) * limit;
+
     const rawContacts = await Contact.find(baseQuery)
-      // .sort({ createdAt: -1 }) // Show newest first
-      // .sort({ createdAt: -1, _id: -1 })
-      .sort(sorted === true || sorted === "true" ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
+      .sort(sorted ? { firstname: 1, lastname: 1 } : { createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .select("-_id -updatedAt -__v");
 
-    const contacts = rawContacts.map((contact) => {
-      const contactObj = contact.toObject();
-
-      contactObj.emailaddresses = (Array.isArray(contactObj.emailaddresses)
-        ? contactObj.emailaddresses.filter(email => email && email.trim() !== "")
-        : []);
-
-      // Clean phonenumbers (array of objects with .number)
-      contactObj.phonenumbers = (Array.isArray(contactObj.phonenumbers)
-        ? contactObj.phonenumbers.filter(number => number && number.trim() !== "")
-        : []);
-
-      if (Array.isArray(contactObj.tags)) {
-        contactObj.tags = contactObj.tags.map((tagObj) => ({
-          tag: tagObj.tag,
-          emoji: tagObj.emoji
-        }));
+    const contacts = rawContacts.map(contact => {
+      const obj = contact.toObject();
+      obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
+      obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+      if (Array.isArray(obj.tags)) {
+        obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
       }
-      // console.log(contactObj.meetings);
-      // console.log(contactObj.meetings.length);
-
-      return contactObj;
+      return obj;
     });
 
     const totalMeetings = contacts.reduce((count, contact) => {
       return count + (Array.isArray(contact.meetings) ? contact.meetings.length : 0);
     }, 0);
 
-    const totalCount = await Contact.countDocuments(baseQuery);
-
     res.json({
       status: "success",
       message: "Contacts fetched successfully",
       data: contacts,
       pagination: {
-        // currentPage: parseInt(page),
-        currentPage: parseInt(pageToUse),
-        totalPages: Math.ceil(totalCount / limit),
+        currentPage: pageToUse,
+        totalPages,
         totalContacts: totalCount,
-        totalMeetings: totalMeetings,
-      },
+        totalMeetings
+      }
     });
 
   } catch (error) {
@@ -240,6 +179,5 @@ const getContact = async (req, res) => {
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };
-
 
 module.exports = { getContact };
