@@ -189,7 +189,8 @@ const handleZohoCallback = async (req, res) => {
                     {
                         action: 'contact_created',
                         type: 'contact',
-                        description: 'Contact imported from Zoho'
+                        title: 'Contact Imported from Zoho',
+                        description: `${firstName} ${lastName}`,
                     }
                 ]
             });
