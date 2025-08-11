@@ -1,10 +1,64 @@
+// const mongoose = require("mongoose");
+// const Contact = require("../models/contactModel");
+
+// const deleteTask = async (req, res) => {
+//     const { contact_id, task_id } = req.body;
+
+//     // Validate only contactId
+//     if (!mongoose.Types.ObjectId.isValid(contact_id)) {
+//         return res.status(400).json({
+//             status: "error",
+//             message: "Invalid contact ID",
+//         });
+//     }
+
+
+//     try {
+//         const updatedContact = await Contact.findOneAndUpdate(
+//             {
+//                 _id: contact_id,
+//                 createdBy: req.user._id,
+//                 "tasks.task_id": task_id,
+//             },
+//             {
+//                 $pull: { tasks: { task_id: task_id } },
+//             },
+//             { new: true }
+//         );
+
+//         if (!updatedContact) {
+//             return res.status(404).json({
+//                 status: "error",
+//                 message: "Note not found in this contact or unauthorized access",
+//             });
+//         }
+
+//         return res.status(200).json({
+//             status: "success",
+//             message: "Note deleted successfully",
+//             data: { task_id: task_id },
+//         });
+//     } catch (error) {
+//         console.error("Delete Task Error:", error);
+//         return res.status(500).json({
+//             status: "error",
+//             message: "An error occurred while deleting the Note",
+//         });
+//     }
+// };
+
+// module.exports = {
+//     deleteTask,
+// };
+
 const mongoose = require("mongoose");
 const Contact = require("../models/contactModel");
+const { logActivityToContact } = require("../utils/activityLogger"); // ✅ import activity logger
 
 const deleteTask = async (req, res) => {
     const { contact_id, task_id } = req.body;
 
-    // Validate only contactId
+    // Validate contactId
     if (!mongoose.Types.ObjectId.isValid(contact_id)) {
         return res.status(400).json({
             status: "error",
@@ -12,37 +66,50 @@ const deleteTask = async (req, res) => {
         });
     }
 
-
     try {
-        const updatedContact = await Contact.findOneAndUpdate(
-            {
-                _id: contact_id,
-                createdBy: req.user._id,
-                "tasks.task_id": task_id,
-            },
-            {
-                $pull: { tasks: { task_id: task_id } },
-            },
-            { new: true }
-        );
+        // 1️⃣ Find contact first to get the task description before deleting
+        const contact = await Contact.findOne({
+            _id: contact_id,
+            createdBy: req.user._id,
+            "tasks.task_id": task_id,
+        });
 
-        if (!updatedContact) {
+        if (!contact) {
             return res.status(404).json({
                 status: "error",
-                message: "Note not found in this contact or unauthorized access",
+                message: "Task not found in this contact or unauthorized access",
             });
         }
 
+        // 2️⃣ Extract the task description
+        const task = contact.tasks.find(t => t.task_id === task_id);
+        const taskDescription = task ? task.description || "No description" : "No description";
+
+        // 3️⃣ Delete the task
+        await Contact.updateOne(
+            { _id: contact_id },
+            { $pull: { tasks: { task_id } } }
+        );
+
+        // 4️⃣ Log the activity
+        await logActivityToContact(contact_id, {
+            action: "task_deleted",
+            type: "task",
+            title: "Task Deleted",
+            description: `${taskDescription}`,
+        });
+
         return res.status(200).json({
             status: "success",
-            message: "Note deleted successfully",
-            data: { task_id: task_id },
+            message: "Task deleted successfully",
+            data: { task_id },
         });
+
     } catch (error) {
         console.error("Delete Task Error:", error);
         return res.status(500).json({
             status: "error",
-            message: "An error occurred while deleting the Note",
+            message: "An error occurred while deleting the task",
         });
     }
 };
@@ -50,3 +117,4 @@ const deleteTask = async (req, res) => {
 module.exports = {
     deleteTask,
 };
+

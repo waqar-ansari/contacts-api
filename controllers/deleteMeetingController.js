@@ -1,10 +1,73 @@
+// const mongoose = require("mongoose");
+// const Contact = require("../models/contactModel");
+// const { logActivityToContact } = require("../utils/activityLogger"); // Make sure this path is correct
+
+
+// const deleteMeeting = async (req, res) => {
+//     const { contact_id, meeting_id } = req.body;
+
+//     // Validate only contactId
+//     if (!mongoose.Types.ObjectId.isValid(contact_id)) {
+//         return res.status(400).json({
+//             status: "error",
+//             message: "Invalid contact ID",
+//         });
+//     }
+
+
+//     try {
+//         const updatedContact = await Contact.findOneAndUpdate(
+//             {
+//                 _id: contact_id,
+//                 createdBy: req.user._id,
+//                 "meetings.meeting_id": meeting_id,
+//             },
+//             {
+//                 $pull: { meetings: { meeting_id: meeting_id } },
+//             },
+//             { new: true }
+//         );
+
+//         if (!updatedContact) {
+//             return res.status(404).json({
+//                 status: "error",
+//                 message: "Meeting not found in this contact or unauthorized access",
+//             });
+//         }
+
+//         // ✅ Log meeting deletion activity
+//         await logActivityToContact(contact_id, {
+//             action: "meeting_deleted",
+//             type: "meeting",
+//             title: "Meeting Deleted",
+//             description: `Meeting with ID ${meeting_id} was deleted.`,
+//         });
+
+//         return res.status(200).json({
+//             status: "success",
+//             message: "Meeting deleted successfully",
+//             data: { meeting_id: meeting_id },
+//         });
+//     } catch (error) {
+//         console.error("Delete Meeting Error:", error);
+//         return res.status(500).json({
+//             status: "error",
+//             message: "An error occurred while deleting the meeting",
+//         });
+//     }
+// };
+
+// module.exports = {
+//     deleteMeeting,
+// };
+
 const mongoose = require("mongoose");
 const Contact = require("../models/contactModel");
+const { logActivityToContact } = require("../utils/activityLogger");
 
 const deleteMeeting = async (req, res) => {
     const { contact_id, meeting_id } = req.body;
 
-    // Validate only contactId
     if (!mongoose.Types.ObjectId.isValid(contact_id)) {
         return res.status(400).json({
             status: "error",
@@ -12,33 +75,45 @@ const deleteMeeting = async (req, res) => {
         });
     }
 
-
     try {
-        const updatedContact = await Contact.findOneAndUpdate(
-            {
-                _id: contact_id,
-                createdBy: req.user._id,
-                "meetings.meeting_id": meeting_id,
-            },
-            {
-                $pull: { meetings: { meeting_id: meeting_id } },
-            },
-            { new: true }
-        );
+        // 1️⃣ Find the contact first (to get the meeting title)
+        const contact = await Contact.findOne({
+            _id: contact_id,
+            createdBy: req.user._id,
+            "meetings.meeting_id": meeting_id,
+        });
 
-        if (!updatedContact) {
+        if (!contact) {
             return res.status(404).json({
                 status: "error",
                 message: "Meeting not found in this contact or unauthorized access",
             });
         }
 
+        // 2️⃣ Get the meeting title
+        const meeting = contact.meetings.find(m => m.meeting_id === meeting_id);
+        const meetingTitle = meeting ? meeting.title : "Untitled Meeting";
+
+        // 3️⃣ Delete the meeting
+        await Contact.updateOne(
+            { _id: contact_id },
+            { $pull: { meetings: { meeting_id } } }
+        );
+
+        // 4️⃣ Log meeting deletion activity with title instead of ID
+        await logActivityToContact(contact_id, {
+            action: "meeting_deleted",
+            type: "meeting",
+            title: "Meeting Deleted",
+            description: `${meetingTitle}`,
+        });
 
         return res.status(200).json({
             status: "success",
             message: "Meeting deleted successfully",
-            data: { meeting_id: meeting_id },
+            data: { meeting_id },
         });
+
     } catch (error) {
         console.error("Delete Meeting Error:", error);
         return res.status(500).json({
@@ -51,3 +126,4 @@ const deleteMeeting = async (req, res) => {
 module.exports = {
     deleteMeeting,
 };
+
