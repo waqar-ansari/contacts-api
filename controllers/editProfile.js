@@ -308,7 +308,17 @@ const editProfile = async (req, res) => {
         }
       }
 
+      // if (req.file) {
+      //   const profileImage = await uploadImageToS3(req.file);
+      //   user.profileImageURL = profileImage;
+      // }
       if (req.file) {
+        // ✅ If user already has an image, delete the old one first
+        if (user.profileImageURL) {
+          await deleteImageFromS3(user.profileImageURL);
+        }
+
+        // ✅ Upload new image
         const profileImage = await uploadImageToS3(req.file);
         user.profileImageURL = profileImage;
       }
