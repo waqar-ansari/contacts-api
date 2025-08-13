@@ -104,18 +104,30 @@ exports.googleCallback = async (req, res) => {
         };
 
         if (type === 'mobile') {
-            // Build deep link with query params
-            const redirectUrl = `contactsManagement://google-auth`
-            // ?data=${encodeURIComponent(JSON.stringify({
-            //     status: 'success',
-            //     message: 'Google connected successfully',
-            //     googleId: user.googleId,
-            //     googleEmail: user.googleEmail,
-            //     googleAccessToken: user.googleAccessToken,
-            //     googleRefreshToken: user.googleRefreshToken,
-            //     googleConnected: user.googleConnected
-            // }))}`;
-            return res.redirect(redirectUrl);
+            return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Connected</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding-top: 50px; 
+            }
+            .success { color: green; font-size: 18px; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">Google Account Connected Successfully! You can close this window.</div>
+        <script>
+            window.location = "contactsManagement://google-auth"; // Redirect to your main app URL
+            window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+            window.close();
+        </script>
+    </body>
+    </html>
+`);
         }
 
 
