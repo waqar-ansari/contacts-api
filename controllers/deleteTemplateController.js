@@ -37,9 +37,21 @@ const deleteTemplate = async (req, res) => {
 
         await user.save();
 
+        let templateTypeMessage;
+
+        if (templateType === "whatsappTemplate") {
+            templateTypeMessage = "WhatsApp Template";
+        }
+        else if (templateType === "emailTemplate") {
+            templateTypeMessage = "Email Template";
+        }
+
+
+
+
         return res.status(200).json({
             status: "success",
-            message: `${templateType} deleted successfully`,
+            message: `${templateTypeMessage} Removed`,
             data: {
                 templateType,
                 template_id,

@@ -123,7 +123,7 @@ const addTag = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Tags added successfully",
+      message: "Tags added!",
       data: newTags,
     });
   } catch (error) {
