@@ -121,7 +121,7 @@ exports.googleCallback = async (req, res) => {
     <body>
         <div class="success">Google Account Connected Successfully! You can close this window.</div>
         <script>
-            window.location = "contactsManagement://google-auth"; // Redirect to your main app URL
+            window.location.href = "contactsManagement://google-auth";
             window.opener.postMessage(${JSON.stringify(resultData)}, '*');
             window.close();
         </script>
