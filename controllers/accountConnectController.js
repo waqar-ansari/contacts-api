@@ -104,26 +104,17 @@ exports.googleCallback = async (req, res) => {
         };
 
         if (type === 'mobile') {
-            const mobileData = {
-                status: 'success',
-                message: 'Google connected successfully',
-                googleId: user.googleId,
-                googleEmail: user.googleEmail,
-                googleAccessToken: user.googleAccessToken,
-                googleRefreshToken: user.googleRefreshToken,
-                googleConnected: user.googleConnected
-            };
-
-            // Encode data safely
-            const encodedData = encodeURIComponent(JSON.stringify(mobileData));
-
-            // Redirect to app deep link with data
-            return res.redirect(
-                `contactsManagement://google-auth?data=${encodedData}`
-            );
+            return res.send(`
+        <html>
+        <body>
+            <script>
+                window.ReactNativeWebView?.postMessage(${JSON.stringify(resultData)});
+                window.close();
+            </script>
+        </body>
+        </html>
+    `);
         }
-
-
 
 
         return res.send(`
