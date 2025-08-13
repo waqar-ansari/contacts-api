@@ -1,6 +1,6 @@
 const path = require("path");
 const mongoose = require("mongoose");
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
 const s3 = require("../utils/s3");
 const { generateUserQRCode } = require("../utils/qrUtils");
@@ -25,6 +25,31 @@ const uploadImageToS3 = async (file) => {
 
   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 };
+
+const deleteImageFromS3 = async (imageUrl) => {
+  try {
+    if (!imageUrl) return;
+
+    // Extract the Key from the URL
+    const urlParts = imageUrl.split(".amazonaws.com/");
+    if (urlParts.length < 2) return; // not a valid S3 URL
+
+    const fileKey = urlParts[1]; // profileImages/filename.jpg
+
+    const params = {
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: fileKey
+    };
+
+    const command = new DeleteObjectCommand(params);
+    await s3.send(command);
+
+    console.log(`✅ Deleted from S3: ${fileKey}`);
+  } catch (err) {
+    console.error("Failed to delete from S3:", err);
+  }
+};
+
 
 const editProfile = async (req, res) => {
   try {
@@ -278,6 +303,7 @@ const editProfile = async (req, res) => {
       if (keys.includes('profileImage')) {
         // If client sends blank, remove the image
         if (!req.body.profileImage || req.body.profileImage.trim() === "") {
+          await deleteImageFromS3(user.profileImageURL);
           user.profileImageURL = "";
         }
       }
