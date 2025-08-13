@@ -113,10 +113,16 @@ exports.googleCallback = async (req, res) => {
                 googleRefreshToken: user.googleRefreshToken,
                 googleConnected: user.googleConnected
             };
+
+            // Encode data safely
+            const encodedData = encodeURIComponent(JSON.stringify(mobileData));
+
+            // Redirect to app deep link with data
             return res.redirect(
-                `contactsManagement://google-auth`
+                `contactsManagement://google-auth?data=${encodedData}`
             );
         }
+
 
 
 
