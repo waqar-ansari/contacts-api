@@ -22,7 +22,7 @@ const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 // 1. API to Generate Google OAuth URL
 exports.connectGoogle = async (req, res) => {
     const userId = req.user._id;
-    const type = req.query.type; // Default to 'default' if not specified
+    const type = req.body.type; // Default to 'default' if not specified
     try {
         const user = await User.findById(userId);
 
