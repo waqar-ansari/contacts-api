@@ -104,16 +104,21 @@ exports.googleCallback = async (req, res) => {
         };
 
         if (type === 'mobile') {
-            return res.json({
-                status: 'success',
-                message: 'Google connected successfully',
-                googleId: user.googleId,
-                googleEmail: user.googleEmail,
-                googleAccessToken: user.googleAccessToken,
-                googleRefreshToken: user.googleRefreshToken,
-                googleConnected: user.googleConnected
-            });
+            // Build deep link with query params
+            const redirectUrl = `https://contacts.management/google-auth`
+            // ?data=${encodeURIComponent(JSON.stringify({
+            //     status: 'success',
+            //     message: 'Google connected successfully',
+            //     googleId: user.googleId,
+            //     googleEmail: user.googleEmail,
+            //     googleAccessToken: user.googleAccessToken,
+            //     googleRefreshToken: user.googleRefreshToken,
+            //     googleConnected: user.googleConnected
+            // }))}`;
+
+            return res.redirect(redirectUrl);
         }
+
 
         return res.send(`
     <!DOCTYPE html>
