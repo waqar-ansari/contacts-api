@@ -1381,40 +1381,40 @@ const googleCallback = async (req, res) => {
 
     // console.log(resultData);
 
-    return res.status(200).json({
-      status: "success",
-      message: "Google Login successfully",
-      data: {
-        token: token,
-        isFirstTime: isFirstTime,
-        referralUrl: referralUrl || "",
-        registeredWith: user.signupMethod,
-      }
-    });
+    // return res.status(200).json({
+    //   status: "success",
+    //   message: "Google Login successfully",
+    //   data: {
+    //     token: token,
+    //     isFirstTime: isFirstTime,
+    //     referralUrl: referralUrl || "",
+    //     registeredWith: user.signupMethod,
+    //   }
+    // });
 
-    // return res.send(`
-    //     <!DOCTYPE html>
-    //     <html>
-    //     <head>
-    //         <title>Google Connected</title>
-    //         <style>
-    //             body { 
-    //                 font-family: Arial, sans-serif; 
-    //                 text-align: center; 
-    //                 padding-top: 50px; 
-    //             }
-    //             .success { color: green; font-size: 18px; margin-bottom: 20px; }
-    //         </style>
-    //     </head>
-    //     <body>
-    //         <div class="success">Google Login Successfully! You can close this window.</div>
-    //         <script>
-    //             window.opener.postMessage(${JSON.stringify(resultData)}, '*');
-    //             window.close();
-    //         </script>
-    //     </body>
-    //     </html>
-    // `);
+    return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Google Connected</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    text-align: center; 
+                    padding-top: 50px; 
+                }
+                .success { color: green; font-size: 18px; margin-bottom: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="success">Google Login Successfully! You can close this window.</div>
+            <script>
+                window.opener.postMessage(${JSON.stringify(resultData)}, '*');
+                window.close();
+            </script>
+        </body>
+        </html>
+    `);
 
     // const redirectUrl = isFirstTime
     //   ? `https://app.contacts.management/registration-form?token=${token}&isFirstTime=true`

@@ -22,7 +22,7 @@ const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 // 1. API to Generate Google OAuth URL
 exports.connectGoogle = async (req, res) => {
     const userId = req.user._id;
-
+    const type = req.query.type; // Default to 'default' if not specified
     try {
         const user = await User.findById(userId);
 
@@ -45,7 +45,8 @@ exports.connectGoogle = async (req, res) => {
             scope: scopes.join(' '),
             access_type: 'offline',
             prompt: 'consent',
-            state: userId,   // ✅ Pass User ID here, not email
+            // state: userId,   // ✅ Pass User ID here, not email
+            state: JSON.stringify({ userId, type }),
         });
 
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
@@ -59,7 +60,16 @@ exports.connectGoogle = async (req, res) => {
 // 2. Google OAuth Callback API
 exports.googleCallback = async (req, res) => {
     const { code, state } = req.query;
-    const userId = state;
+    // const userId = state;
+
+    let userId, type;
+    try {
+        const parsedState = JSON.parse(state);
+        userId = parsedState.userId;
+        type = parsedState.type;
+    } catch (e) {
+        return res.status(400).json({ status: 'error', message: 'Invalid state parameter' });
+    }
 
     try {
         const { tokens } = await oauth2Client.getToken(code);
@@ -93,6 +103,17 @@ exports.googleCallback = async (req, res) => {
             googleConnected: user.googleConnected
         };
 
+        if (type === 'mobile') {
+            return res.json({
+                status: 'success',
+                message: 'Google connected successfully',
+                googleId: user.googleId,
+                googleEmail: user.googleEmail,
+                googleAccessToken: user.googleAccessToken,
+                googleRefreshToken: user.googleRefreshToken,
+                googleConnected: user.googleConnected
+            });
+        }
 
         return res.send(`
     <!DOCTYPE html>
