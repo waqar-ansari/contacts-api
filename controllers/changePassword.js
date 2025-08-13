@@ -30,15 +30,15 @@ const changePassword = async (req, res) => {
     // }
 
     // ✅ Hash new password
-    const hashedNewPassword = crypto
-      .createHmac("sha256", user.salt)
-      .update(newPassword)
-      .digest("hex");
+    // const hashedNewPassword = crypto
+    //   .createHmac("sha256", user.salt)
+    //   .update(newPassword)
+    //   .digest("hex");
 
     // ✅ Update and save password
     await User.updateOne(
       { _id: userId },
-      { $set: { password: hashedNewPassword } }
+      { $set: { password: newPassword } }
     );
 
     return res.status(200).json({

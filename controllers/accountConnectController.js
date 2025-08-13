@@ -105,7 +105,7 @@ exports.googleCallback = async (req, res) => {
 
         if (type === 'mobile') {
             // Build deep link with query params
-            const redirectUrl = `https://contacts.management/google-auth`
+            const redirectUrl = `contactsManagement://google-auth`
             // ?data=${encodeURIComponent(JSON.stringify({
             //     status: 'success',
             //     message: 'Google connected successfully',
@@ -115,7 +115,6 @@ exports.googleCallback = async (req, res) => {
             //     googleRefreshToken: user.googleRefreshToken,
             //     googleConnected: user.googleConnected
             // }))}`;
-
             return res.redirect(redirectUrl);
         }
 
