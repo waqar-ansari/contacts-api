@@ -51,8 +51,8 @@ const assignOrUnassignTag = async (req, res) => {
 
     // 2️⃣ Assign tag to "add" contacts
     for (const id of add) {
-      const contact = await Contact.findById(id)
-        .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
+      const contact = await Contact.findById(id);
+
       if (!contact) continue;
 
       const alreadyAssigned = contact.tags.some(
@@ -62,14 +62,18 @@ const assignOrUnassignTag = async (req, res) => {
       if (!alreadyAssigned) {
         contact.tags.push(tagToProcess);
         await contact.save();
-        assignedContacts.push(contact);
+
+        // Fetch updated contact with only required fields
+        const updatedContact = await Contact.findById(id)
+          .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
+        assignedContacts.push(updatedContact);
       }
     }
 
     // 3️⃣ Remove tag from "remove" contacts
     for (const id of remove) {
-      const contact = await Contact.findById(id)
-        .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
+      const contact = await Contact.findById(id);
+
       if (!contact) continue;
 
       const beforeCount = contact.tags.length;
@@ -79,16 +83,20 @@ const assignOrUnassignTag = async (req, res) => {
 
       if (contact.tags.length !== beforeCount) {
         await contact.save();
-        unassignedContacts.push(contact);
+
+        // Fetch updated contact with only required fields
+        const updatedContact = await Contact.findById(id)
+          .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
+        unassignedContacts.push(updatedContact);
       }
     }
 
     // 4️⃣ Response
     return res.status(200).json({
       status: "success",
-      message: `Tag operations completed`,
-      assignedContacts, // newly assigned
-      unassignedContacts, // newly removed
+      message: "Tag operations completed",
+      assignedContacts,
+      unassignedContacts,
     });
 
   } catch (err) {
@@ -100,6 +108,5 @@ const assignOrUnassignTag = async (req, res) => {
   }
 };
 
-
-
 module.exports = { assignOrUnassignTag };
+
