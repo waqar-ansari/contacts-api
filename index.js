@@ -133,7 +133,7 @@ app.use(
   upload.single("contactImage"),
   contactRoutes
 );
-app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
+app.use("/assign-unassign-tag", checkForAuthentication(), assignedContactTag);
 app.use("/disconnect", checkForAuthentication(), disconnectAccountRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use("/email", emailPasswordResetRoutes);

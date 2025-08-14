@@ -227,53 +227,165 @@ exports.scanUser = async (req, res) => {
 
                 }
             }
-        } else {
+        }
+        // else {
+        //     // Case 2: Scanner is not registered — store temp data in scannedMe
+        //     const alreadyExists = user.scannedMe.some(entry =>
+        //         typeof entry === 'object' &&
+        //         (entry.email === email || entry.phonenumber === phonenumber)
+        //     );
+
+        //     if (!alreadyExists) {
+        //         user.scannedMe.push({
+        //             firstname: firstname || '',
+        //             lastname: lastname || '',
+        //             email: email || '',
+        //             phonenumber: phonenumber || '',
+        //             createdAt: new Date()
+        //         });
+        //         updated = true;
+        //         const contactExists = await Contact.findOne({
+        //             createdBy: user._id,
+        //             $or: [
+        //                 { emailaddresses: { $in: [email] } },
+        //                 { phonenumbers: { $in: [phonenumber] } }
+        //             ]
+        //         });
+
+        //         if (!contactExists) {
+        //             // await Contact.create({
+        //             //     contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
+        //             //     firstname: firstname || '',
+        //             //     lastname: lastname || '',
+        //             //     emailaddresses: [email || ''],
+        //             //     phonenumbers: phonenumber ? [phonenumber] : [],
+        //             //     createdBy: user._id,
+        //             // });
+
+        //             const newContact = new Contact({
+        //                 firstname: firstname || '',
+        //                 lastname: lastname || '',
+        //                 emailaddresses: [email || ''],
+        //                 phonenumbers: phonenumber ? [phonenumber] : [],
+        //                 createdBy: user._id,
+        //             });
+        //             newContact.contact_id = newContact._id; // ensure consistency
+        //             await newContact.save();
+
+        //         }
+        //     }
+        // }
+        else {
             // Case 2: Scanner is not registered — store temp data in scannedMe
-            const alreadyExists = user.scannedMe.some(entry =>
-                typeof entry === 'object' &&
-                (entry.email === email || entry.phonenumber === phonenumber)
-            );
 
-            if (!alreadyExists) {
-                user.scannedMe.push({
-                    firstname: firstname || '',
-                    lastname: lastname || '',
-                    email: email || '',
-                    phonenumber: phonenumber || '',
-                    createdAt: new Date()
-                });
-                updated = true;
-                const contactExists = await Contact.findOne({
-                    createdBy: user._id,
-                    $or: [
-                        { emailaddresses: { $in: [email] } },
-                        { phonenumbers: { $in: [phonenumber] } }
-                    ]
+            // 🔹 Step 1: Try to match existing registered user with given email + phonenumber
+            // let matchedScanner = null;
+            // if (email && phonenumber) {
+            //     matchedScanner = await User.findOne({
+            //         email: email,
+            //         phonenumbers: { $in: [phonenumber] }
+            //     });
+            // }
+            let matchedScanner = null;
+
+            if (email && phonenumber) {
+                // 1️⃣ Try both email + phone match
+                matchedScanner = await User.findOne({
+                    email: email,
+                    phonenumbers: { $in: [phonenumber] }
                 });
 
-                if (!contactExists) {
-                    // await Contact.create({
-                    //     contact_id: new mongoose.Types.ObjectId(), // ✅ make sure to include this!
-                    //     firstname: firstname || '',
-                    //     lastname: lastname || '',
-                    //     emailaddresses: [email || ''],
-                    //     phonenumbers: phonenumber ? [phonenumber] : [],
-                    //     createdBy: user._id,
-                    // });
+                // 2️⃣ If not found, try email only
+                if (!matchedScanner) {
+                    matchedScanner = await User.findOne({ email: email });
+                }
 
-                    const newContact = new Contact({
+                // 3️⃣ If still not found, try phone only
+                if (!matchedScanner) {
+                    matchedScanner = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
+                }
+            }
+            else if (email) {
+                // 4️⃣ Only email provided
+                matchedScanner = await User.findOne({ email: email });
+            }
+            else if (phonenumber) {
+                // 5️⃣ Only phone provided
+                matchedScanner = await User.findOne({ phonenumbers: { $in: [phonenumber] } });
+            }
+            console.log("Matched Scanner:", matchedScanner);
+
+            if (matchedScanner) {
+                // ✅ Treat as registered scanner
+                const scanner = matchedScanner;
+
+                if (!Array.isArray(scanner.iScanned)) scanner.iScanned = [];
+                if (!Array.isArray(scanner.scannedMe)) scanner.scannedMe = [];
+                if (!Array.isArray(user.iScanned)) user.iScanned = [];
+                if (!Array.isArray(user.scannedMe)) user.scannedMe = [];
+
+                // Check already connected
+                const alreadyConnected = (
+                    user.scannedMe?.some(entry => entry._id?.toString() === scanner._id.toString()) ||
+                    user.iScanned?.some(entry => entry._id?.toString() === scanner._id.toString()) ||
+                    scanner.scannedMe?.some(entry => entry._id?.toString() === user._id.toString()) ||
+                    scanner.iScanned?.some(entry => entry._id?.toString() === user._id.toString())
+                );
+
+                if (!alreadyConnected) {
+                    // Add to scannedMe
+                    user.scannedMe.push({
+                        _id: scanner._id,
+                        firstname: scanner.firstname || '',
+                        lastname: scanner.lastname || '',
+                        email: scanner.email || '',
+                        phonenumber: Array.isArray(scanner.phonenumbers) ? scanner.phonenumbers[0] || '' : '',
+                        linkedin: scanner.linkedin || '',
+                        instagram: scanner.instagram || '',
+                        telegram: scanner.telegram || '',
+                        twitter: scanner.twitter || '',
+                        facebook: scanner.facebook || '',
+                        createdAt: new Date()
+                    });
+
+                    // Add to iScanned
+                    scanner.iScanned.push({
+                        _id: user._id,
+                        firstname: user.firstname || '',
+                        lastname: user.lastname || '',
+                        email: user.email || '',
+                        phonenumber: Array.isArray(user.phonenumbers) ? user.phonenumbers[0] || '' : '',
+                        linkedin: user.linkedin || '',
+                        instagram: user.instagram || '',
+                        telegram: user.telegram || '',
+                        twitter: user.twitter || '',
+                        facebook: user.facebook || '',
+                        createdAt: new Date()
+                    });
+
+                    await scanner.save();
+                    updated = true;
+                }
+            } else {
+                // 🔹 No registered user match → run your existing "unregistered scanner" logic
+                const alreadyExists = user.scannedMe.some(entry =>
+                    typeof entry === 'object' &&
+                    (entry.email === email || entry.phonenumber === phonenumber)
+                );
+
+                if (!alreadyExists) {
+                    user.scannedMe.push({
                         firstname: firstname || '',
                         lastname: lastname || '',
-                        emailaddresses: [email || ''],
-                        phonenumbers: phonenumber ? [phonenumber] : [],
-                        createdBy: user._id,
+                        email: email || '',
+                        phonenumber: phonenumber || '',
+                        createdAt: new Date()
                     });
-                    newContact.contact_id = newContact._id; // ensure consistency
-                    await newContact.save();
-
+                    updated = true;
                 }
             }
         }
+
 
         if (updated) await user.save();
 
