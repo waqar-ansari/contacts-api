@@ -279,13 +279,6 @@ exports.scanUser = async (req, res) => {
             // Case 2: Scanner is not registered — store temp data in scannedMe
 
             // 🔹 Step 1: Try to match existing registered user with given email + phonenumber
-            // let matchedScanner = null;
-            // if (email && phonenumber) {
-            //     matchedScanner = await User.findOne({
-            //         email: email,
-            //         phonenumbers: { $in: [phonenumber] }
-            //     });
-            // }
             let matchedScanner = null;
 
             if (email && phonenumber) {
@@ -315,6 +308,58 @@ exports.scanUser = async (req, res) => {
             }
             console.log("Matched Scanner:", matchedScanner);
 
+            // if (matchedScanner) {
+            //     // ✅ Treat as registered scanner
+            //     const scanner = matchedScanner;
+
+            //     if (!Array.isArray(scanner.iScanned)) scanner.iScanned = [];
+            //     if (!Array.isArray(scanner.scannedMe)) scanner.scannedMe = [];
+            //     if (!Array.isArray(user.iScanned)) user.iScanned = [];
+            //     if (!Array.isArray(user.scannedMe)) user.scannedMe = [];
+
+            //     // Check already connected
+            //     const alreadyConnected = (
+            //         user.scannedMe?.some(entry => entry._id?.toString() === scanner._id.toString()) ||
+            //         user.iScanned?.some(entry => entry._id?.toString() === scanner._id.toString()) ||
+            //         scanner.scannedMe?.some(entry => entry._id?.toString() === user._id.toString()) ||
+            //         scanner.iScanned?.some(entry => entry._id?.toString() === user._id.toString())
+            //     );
+
+            //     if (!alreadyConnected) {
+            //         // Add to scannedMe
+            //         user.scannedMe.push({
+            //             _id: scanner._id,
+            //             firstname: scanner.firstname || '',
+            //             lastname: scanner.lastname || '',
+            //             email: scanner.email || '',
+            //             phonenumber: Array.isArray(scanner.phonenumbers) ? scanner.phonenumbers[0] || '' : '',
+            //             linkedin: scanner.linkedin || '',
+            //             instagram: scanner.instagram || '',
+            //             telegram: scanner.telegram || '',
+            //             twitter: scanner.twitter || '',
+            //             facebook: scanner.facebook || '',
+            //             createdAt: new Date()
+            //         });
+
+            //         // Add to iScanned
+            //         scanner.iScanned.push({
+            //             _id: user._id,
+            //             firstname: user.firstname || '',
+            //             lastname: user.lastname || '',
+            //             email: user.email || '',
+            //             phonenumber: Array.isArray(user.phonenumbers) ? user.phonenumbers[0] || '' : '',
+            //             linkedin: user.linkedin || '',
+            //             instagram: user.instagram || '',
+            //             telegram: user.telegram || '',
+            //             twitter: user.twitter || '',
+            //             facebook: user.facebook || '',
+            //             createdAt: new Date()
+            //         });
+
+            //         await scanner.save();
+            //         updated = true;
+            //     }
+            // } 
             if (matchedScanner) {
                 // ✅ Treat as registered scanner
                 const scanner = matchedScanner;
@@ -363,10 +408,80 @@ exports.scanUser = async (req, res) => {
                         createdAt: new Date()
                     });
 
+                    // ✅ NEW: Create contact for UserID
+                    const contactExistsForUser = await Contact.findOne({
+                        createdBy: user._id,
+                        $or: [
+                            { emailaddresses: { $in: [scanner.email] } },
+                            { phonenumbers: { $in: [scanner.phonenumbers[0]] } }
+                        ]
+                    });
+                    if (!contactExistsForUser) {
+                        const newContact = new Contact({
+                            firstname: scanner.firstname || '',
+                            lastname: scanner.lastname || '',
+                            emailaddresses: [scanner.email || ''],
+                            phonenumbers: Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0] ? [scanner.phonenumbers[0]] : [],
+                            linkedin: scanner.linkedin || '',
+                            instagram: scanner.instagram || '',
+                            telegram: scanner.telegram || '',
+                            twitter: scanner.twitter || '',
+                            facebook: scanner.facebook || '',
+                            createdBy: user._id,
+                        });
+                        newContact.contact_id = newContact._id;
+                        await newContact.save();
+                    }
+
+                    // ✅ NEW: Create contact for Scanner
+                    const contactExistsForScanner = await Contact.findOne({
+                        createdBy: scanner._id,
+                        $or: [
+                            { emailaddresses: { $in: [user.email] } },
+                            { phonenumbers: { $in: [user.phonenumbers[0]] } }
+                        ]
+                    });
+                    if (!contactExistsForScanner) {
+                        const newContact = new Contact({
+                            firstname: user.firstname || '',
+                            lastname: user.lastname || '',
+                            emailaddresses: [user.email || ''],
+                            phonenumbers: Array.isArray(user.phonenumbers) && user.phonenumbers[0] ? [user.phonenumbers[0]] : [],
+                            linkedin: user.linkedin || '',
+                            instagram: user.instagram || '',
+                            telegram: user.telegram || '',
+                            twitter: user.twitter || '',
+                            facebook: user.facebook || '',
+                            createdBy: scanner._id,
+                        });
+                        newContact.contact_id = newContact._id;
+                        await newContact.save();
+                    }
+
                     await scanner.save();
                     updated = true;
                 }
-            } else {
+            }
+
+            // else {
+            //     // 🔹 No registered user match → run your existing "unregistered scanner" logic
+            //     const alreadyExists = user.scannedMe.some(entry =>
+            //         typeof entry === 'object' &&
+            //         (entry.email === email || entry.phonenumber === phonenumber)
+            //     );
+
+            //     if (!alreadyExists) {
+            //         user.scannedMe.push({
+            //             firstname: firstname || '',
+            //             lastname: lastname || '',
+            //             email: email || '',
+            //             phonenumber: phonenumber || '',
+            //             createdAt: new Date()
+            //         });
+            //         updated = true;
+            //     }
+            // }
+            else {
                 // 🔹 No registered user match → run your existing "unregistered scanner" logic
                 const alreadyExists = user.scannedMe.some(entry =>
                     typeof entry === 'object' &&
@@ -382,6 +497,26 @@ exports.scanUser = async (req, res) => {
                         createdAt: new Date()
                     });
                     updated = true;
+
+                    // ✅ NEW: Create contact for UserID from temp data
+                    const contactExists = await Contact.findOne({
+                        createdBy: user._id,
+                        $or: [
+                            { emailaddresses: { $in: [email] } },
+                            { phonenumbers: { $in: [phonenumber] } }
+                        ]
+                    });
+                    if (!contactExists) {
+                        const newContact = new Contact({
+                            firstname: firstname || '',
+                            lastname: lastname || '',
+                            emailaddresses: [email || ''],
+                            phonenumbers: phonenumber ? [phonenumber] : [],
+                            createdBy: user._id,
+                        });
+                        newContact.contact_id = newContact._id;
+                        await newContact.save();
+                    }
                 }
             }
         }
