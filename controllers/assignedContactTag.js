@@ -46,13 +46,9 @@
 //       emoji: matchingTag.emoji || null,
 //     };
 
-//     let assignedContacts = [];
-//     let unassignedContacts = [];
-
 //     // 2️⃣ Assign tag to "add" contacts
 //     for (const id of add) {
 //       const contact = await Contact.findById(id);
-
 //       if (!contact) continue;
 
 //       const alreadyAssigned = contact.tags.some(
@@ -62,18 +58,12 @@
 //       if (!alreadyAssigned) {
 //         contact.tags.push(tagToProcess);
 //         await contact.save();
-
-//         // Fetch updated contact with only required fields
-//         const updatedContact = await Contact.findById(id)
-//           .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
-//         assignedContacts.push(updatedContact);
 //       }
 //     }
 
 //     // 3️⃣ Remove tag from "remove" contacts
 //     for (const id of remove) {
 //       const contact = await Contact.findById(id);
-
 //       if (!contact) continue;
 
 //       const beforeCount = contact.tags.length;
@@ -83,22 +73,30 @@
 
 //       if (contact.tags.length !== beforeCount) {
 //         await contact.save();
-
-//         // Fetch updated contact with only required fields
-//         const updatedContact = await Contact.findById(id)
-//           .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
-//         unassignedContacts.push(updatedContact);
 //       }
 //     }
 
-//     // 4️⃣ Response
+//     // 4️⃣ After operations, fetch updated tags with contacts
+//     const updatedUser = await User.findById(req.user._id);
+//     const tagsWithContacts = [];
+
+//     for (const tag of updatedUser.tags) {
+//       const contacts = await Contact.find({ "tags.tag_id": tag.tag_id })
+//         .select("_id firstname lastname emailaddresses phonenumbers contactImageURL");
+
+//       tagsWithContacts.push({
+//         tag_id: tag.tag_id,
+//         tag: tag.tag,
+//         emoji: tag.emoji || null,
+//         contacts
+//       });
+//     }
+
+//     // 5️⃣ Response
 //     return res.status(200).json({
 //       status: "success",
 //       message: "Tag operations completed",
-//       data: [
-//         assignedContacts,
-//         unassignedContacts,
-//       ]
+//       data: tagsWithContacts
 //     });
 
 //   } catch (err) {
@@ -117,7 +115,7 @@ const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 
 const assignOrUnassignTag = async (req, res) => {
-  const { tagId, add = [], remove = [] } = req.body;
+  const { tagId, add = [], remove = [], tag: newTagName, emoji: newEmoji } = req.body;
 
   if (!tagId) {
     return res.status(400).json({
@@ -154,13 +152,44 @@ const assignOrUnassignTag = async (req, res) => {
       });
     }
 
+    // 2️⃣ If tagName or emoji is provided, update it in both User and Contact
+    if (newTagName || newEmoji) {
+      if (newTagName) matchingTag.tag = newTagName;
+      if (newEmoji) matchingTag.emoji = newEmoji;
+
+      // Update in user model
+      await User.updateOne(
+        { _id: req.user._id, "tags.tag_id": tagId },
+        {
+          $set: {
+            "tags.$.tag": newTagName || matchingTag.tag,
+            "tags.$.emoji": newEmoji || matchingTag.emoji
+          }
+        }
+      );
+
+      // Update in all contacts having this tag
+      await Contact.updateMany(
+        { "tags.tag_id": tagId },
+        {
+          $set: {
+            "tags.$[elem].tag": newTagName || matchingTag.tag,
+            "tags.$[elem].emoji": newEmoji || matchingTag.emoji
+          }
+        },
+        {
+          arrayFilters: [{ "elem.tag_id": new mongoose.Types.ObjectId(tagId) }]
+        }
+      );
+    }
+
     const tagToProcess = {
       tag_id: matchingTag.tag_id,
       tag: matchingTag.tag,
       emoji: matchingTag.emoji || null,
     };
 
-    // 2️⃣ Assign tag to "add" contacts
+    // 3️⃣ Assign tag to "add" contacts
     for (const id of add) {
       const contact = await Contact.findById(id);
       if (!contact) continue;
@@ -175,7 +204,7 @@ const assignOrUnassignTag = async (req, res) => {
       }
     }
 
-    // 3️⃣ Remove tag from "remove" contacts
+    // 4️⃣ Remove tag from "remove" contacts
     for (const id of remove) {
       const contact = await Contact.findById(id);
       if (!contact) continue;
@@ -190,7 +219,7 @@ const assignOrUnassignTag = async (req, res) => {
       }
     }
 
-    // 4️⃣ After operations, fetch updated tags with contacts
+    // 5️⃣ After operations, fetch updated tags with contacts
     const updatedUser = await User.findById(req.user._id);
     const tagsWithContacts = [];
 
@@ -206,7 +235,7 @@ const assignOrUnassignTag = async (req, res) => {
       });
     }
 
-    // 5️⃣ Response
+    // 6️⃣ Response
     return res.status(200).json({
       status: "success",
       message: "Tag operations completed",
@@ -223,5 +252,6 @@ const assignOrUnassignTag = async (req, res) => {
 };
 
 module.exports = { assignOrUnassignTag };
+
 
 
