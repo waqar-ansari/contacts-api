@@ -51,7 +51,8 @@ const assignOrUnassignTag = async (req, res) => {
 
     // 2️⃣ Assign tag to "add" contacts
     for (const id of add) {
-      const contact = await Contact.findById(id);
+      const contact = await Contact.findById(id)
+        .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
       if (!contact) continue;
 
       const alreadyAssigned = contact.tags.some(
@@ -67,7 +68,8 @@ const assignOrUnassignTag = async (req, res) => {
 
     // 3️⃣ Remove tag from "remove" contacts
     for (const id of remove) {
-      const contact = await Contact.findById(id);
+      const contact = await Contact.findById(id)
+        .select("_id firstname lastname emailaddresses phonenumbers contactImageURL tags");
       if (!contact) continue;
 
       const beforeCount = contact.tags.length;
