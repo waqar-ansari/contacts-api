@@ -3,7 +3,7 @@ const appleSignin = require("apple-signin-auth");
 const { createTokenforUser } = require("../services/authentication");
 const User = require("../models/userModel");
 const { getNextSerialNumber } = require("../utils/serialUtils");
-const { generateUserQRCode } = require("../utils/qrUtils");
+// const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
 const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
@@ -54,16 +54,32 @@ const signupWithEmail = async (req, res) => {
         user.signupMethod = "email";
       }
 
-      if (!user.qrCode) {
-        const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
-          firstname: user.firstname,
-          lastname: user.lastname,
-          email: user.email,
-          phonenumbers: user.phonenumbers,
-          provider: "local"
-        });
-        user.qrCode = qrCode;
-      }
+      // if (!user.qrCode) {
+      //   // const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
+      //   //   firstname: user.firstname,
+      //   //   lastname: user.lastname,
+      //   //   email: user.emailaddresses,
+      //   //   phonenumbers: user.phonenumbers,
+      //   //   provider: "local"
+      //   // });
+      //   // user.qrCode = qrCode;
+      //   let userDetails = user.toObject();
+
+      //   // Remove sensitive fields
+      //   delete userDetails.password;
+      //   delete userDetails.emailVerificationToken;
+      //   delete userDetails.resetPasswordToken;
+      //   delete userDetails.resetPasswordExpires;
+
+      //   // Create QR code with full (safe) details
+      //   const { qrCode } = await generateUserQRCode(
+      //     user.firstname || "user",
+      //     user.serialNumber,
+      //     userDetails
+      //   );
+
+      //   user.qrCode = qrCode;
+      // }
 
       // ✅ Optional: Update scannedMe for other users
       let matchConditions = [];
@@ -448,16 +464,41 @@ const signupWithPhoneNumber = async (req, res) => {
 
     const serialNumber = await User.getNextSerialNumber();
 
-    const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
-      firstname,
-      lastname,
-      phonenumbers: [sanitizedPhone],
-      provider: "local",
-    });
+    // const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+    //   firstname,
+    //   lastname,
+    //   phonenumbers: [sanitizedPhone],
+    //   provider: "local",
+    // });
+
+    let userDetails = user.toObject();
+
+    // Remove sensitive fields
+    delete userDetails.password;
+    delete userDetails.otp;
+    delete userDetails.otpExpiresAt;
+    delete userDetails.emailVerificationToken;
+    delete userDetails.resetPasswordToken;
+    delete userDetails.resetPasswordExpires;
+
+    // Add/override fields before generating QR code
+    userDetails.serialNumber = serialNumber;
+    userDetails.firstname = firstname;
+    userDetails.lastname = lastname;
+    userDetails.phonenumbers = [sanitizedPhone];
+    userDetails.signupMethod = "phoneNumber";
+    userDetails.provider = "local";
+
+    // // Generate QR code with full safe details
+    // const { qrCode } = await generateUserQRCode(
+    //   firstname || "user",
+    //   serialNumber,
+    //   userDetails
+    // );
 
     user.serialNumber = serialNumber;
     user.isVerified = true;
-    user.qrCode = qrCode;
+    // user.qrCode = qrCode;
     user.signupMethod = "phoneNumber";
     user.role = "user"; // Default role for new users
     user.password = password;
@@ -874,12 +915,12 @@ const unifiedLogin = async (req, res) => {
           const serialNumber = await User.getNextSerialNumber();
           const firstname = ticket.getPayload().given_name || "Google";
           const lastname = ticket.getPayload().family_name || "User";
-          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-            firstname,
-            lastname,
-            email,
-            provider: "google"
-          });
+          // const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+          //   firstname,
+          //   lastname,
+          //   email,
+          //   provider: "google"
+          // });
 
           const now = new Date();
           const trialEnds = new Date(now);
@@ -894,7 +935,7 @@ const unifiedLogin = async (req, res) => {
             lastname,
             provider: "google",
             serialNumber,
-            qrCode,
+            // qrCode,
             signupMethod: "google",
             isVerified: true,
             isPremium: false,
@@ -992,12 +1033,12 @@ const unifiedLogin = async (req, res) => {
           const firstname = appleUser.firstName || "Apple";
           const lastname = appleUser.lastName || "User";
 
-          const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-            firstname,
-            lastname,
-            email: appleEmail,
-            provider: "apple"
-          });
+          // const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+          //   firstname,
+          //   lastname,
+          //   email: appleEmail,
+          //   provider: "apple"
+          // });
 
           const now = new Date();
           const trialEnds = new Date(now);
@@ -1009,7 +1050,7 @@ const unifiedLogin = async (req, res) => {
             firstname,
             lastname,
             serialNumber,
-            qrCode,
+            // qrCode,
             signupMethod: "apple",
             isPremium: false,
             trialStart: now,
@@ -1240,12 +1281,12 @@ const googleCallback = async (req, res) => {
       const firstname = given_name || "Google";
       const lastname = family_name || "User";
 
-      const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-        firstname,
-        lastname,
-        email,
-        provider: "google"
-      });
+      // const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+      //   firstname,
+      //   lastname,
+      //   email,
+      //   provider: "google"
+      // });
 
       const now = new Date();
       const trialEnds = new Date(now);
@@ -1260,7 +1301,7 @@ const googleCallback = async (req, res) => {
         lastname,
         provider: "google",
         serialNumber,
-        qrCode,
+        // qrCode,
         signupMethod: "google",
         role: "user", // Default role for new users
         isVerified: true,
@@ -1633,12 +1674,12 @@ const linkedinCallback = async (req, res) => {
 
       const serialNumber = await User.getNextSerialNumber();
 
-      const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-        firstname,
-        lastname,
-        email,
-        provider: "linkedin"
-      });
+      // const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
+      //   firstname,
+      //   lastname,
+      //   email,
+      //   provider: "linkedin"
+      // });
 
       const now = new Date();
       const trialEnds = new Date(now);
@@ -1653,7 +1694,7 @@ const linkedinCallback = async (req, res) => {
         lastname,
         provider: "linkedin",
         serialNumber,
-        qrCode,
+        // qrCode,
         signupMethod: "linkedin",
         role: "user", // Default role for new users
         isVerified: true,

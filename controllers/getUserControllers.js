@@ -1,6 +1,10 @@
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
+const QRCode = require("qrcode");
+// const { generateUserQRCode } = require("../utils/qrUtils");
+
+
 
 const getUserData = async (req, res) => {
   try {
@@ -65,6 +69,33 @@ const getUserData = async (req, res) => {
         whatsappTemplatePage * whatsappTemplateLimit
       );
 
+      // Before return res.json(...)
+
+      const qrPayload = {
+        id: user._id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        phonenumbers: user.phonenumbers,
+        serialNumber: user.serialNumber,
+        email: user.email,
+        profileImageURL: user.profileImageURL,
+        instagram: user.instagram,
+        linkedin: user.linkedin,
+        telegram: user.telegram,
+        twitter: user.twitter,
+        facebook: user.facebook,
+        designation: user.designation,
+        signupMethod: user.signupMethod,
+        role: user.role,
+        referredBy: user.referredBy || null,
+        referralCode: user.referralCode || null,
+        referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+      };
+
+      // Generate QR code (as Base64 image)
+      const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
+
       return res.json({
         status: "success",
         message: "Favourite WhatsApp templates fetched successfully.",
@@ -76,7 +107,8 @@ const getUserData = async (req, res) => {
           serialNumber: user.serialNumber,
           email: user.email,
           profileImageURL: user.profileImageURL,
-          qrCode: user.qrCode,
+          // qrCode: user.qrCode,
+          qrCode: qrCodeDataURL,
           instagram: user.instagram,
           linkedin: user.linkedin,
           telegram: user.telegram,
@@ -161,6 +193,31 @@ const getUserData = async (req, res) => {
         emailTemplatePage * emailTemplateLimit
       );
 
+      const qrPayload = {
+        id: user._id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        phonenumbers: user.phonenumbers,
+        serialNumber: user.serialNumber,
+        email: user.email,
+        profileImageURL: user.profileImageURL,
+        instagram: user.instagram,
+        linkedin: user.linkedin,
+        telegram: user.telegram,
+        twitter: user.twitter,
+        facebook: user.facebook,
+        designation: user.designation,
+        signupMethod: user.signupMethod,
+        role: user.role,
+        referredBy: user.referredBy || null,
+        referralCode: user.referralCode || null,
+        referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+      };
+
+      // Generate QR code (as Base64 image)
+      const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
+
       return res.json({
         status: "success",
         message: "Favourite Email templates fetched successfully.",
@@ -172,7 +229,7 @@ const getUserData = async (req, res) => {
           serialNumber: user.serialNumber,
           email: user.email,
           profileImageURL: user.profileImageURL,
-          qrCode: user.qrCode,
+          // qrCode: user.qrCode,
           instagram: user.instagram,
           linkedin: user.linkedin,
           telegram: user.telegram,
@@ -186,6 +243,7 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
           creditBalance: user.creditBalance || 0,
+          qrCode: qrCodeDataURL,
           accounts: [
             {
               type: "google",
@@ -247,7 +305,7 @@ const getUserData = async (req, res) => {
       serialNumber: user.serialNumber,
       email: user.email,
       profileImageURL: user.profileImageURL,
-      qrCode: user.qrCode,
+      // qrCode: user.qrCode,
       instagram: user.instagram,
       linkedin: user.linkedin,
       telegram: user.telegram,
@@ -349,6 +407,33 @@ const getUserData = async (req, res) => {
         totalTemplates: totalEmail,
       },
     };
+
+
+    const qrPayload = {
+      id: user._id,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      phonenumbers: user.phonenumbers,
+      serialNumber: user.serialNumber,
+      email: user.email,
+      profileImageURL: user.profileImageURL,
+      instagram: user.instagram,
+      linkedin: user.linkedin,
+      telegram: user.telegram,
+      twitter: user.twitter,
+      facebook: user.facebook,
+      designation: user.designation,
+      signupMethod: user.signupMethod,
+      role: user.role,
+      referredBy: user.referredBy || null,
+      referralCode: user.referralCode || null,
+      referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+    };
+
+    // Generate QR code (as Base64 image)
+    const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
+    data.qrCode = qrCodeDataURL;
 
     return res.json({
       status: "success",
