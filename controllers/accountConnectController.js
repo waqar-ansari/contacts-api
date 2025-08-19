@@ -103,18 +103,25 @@ exports.googleCallback = async (req, res) => {
             googleConnected: user.googleConnected
         };
 
-        if (type === 'mobile') {
-            return res.send(`
-        <html>
-        <body>
-            <script>
-                window.ReactNativeWebView?.postMessage(${JSON.stringify(resultData)});
-                window.close();
-            </script>
-        </body>
-        </html>
-    `);
+        //     if (type === 'mobile') {
+        //         return res.send(`
+        //     <html>
+        //     <body>
+        //         <script>
+        //             window.ReactNativeWebView?.postMessage(${JSON.stringify(resultData)});
+        //             window.close();
+        //         </script>
+        //     </body>
+        //     </html>
+        // `);
+        //     }
+
+        if (type === "mobile") {
+            // Instead of sending HTML with JS, redirect directly
+            const redirectUrl = `contactsManagement://google-auth?status=success&googleId=${user.googleId}&googleEmail=${user.googleEmail}&accessToken=${user.googleAccessToken}&refreshToken=${user.googleRefreshToken}`;
+            return res.redirect(redirectUrl);
         }
+
 
 
         return res.send(`
@@ -143,6 +150,11 @@ exports.googleCallback = async (req, res) => {
 
 
     } catch (error) {
+        if (type === "mobile") {
+            return res.redirect(
+                `contactsManagement://google-auth?status=error&message=${encodeURIComponent(error.message)}`
+            );
+        }
         return res.send(`
             <script>
                 window.opener.postMessage({ status: 'error', message: 'Google callback failed', error: '${error.message}' }, '*');
