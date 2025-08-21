@@ -1,141 +1,8 @@
-// const Contact = require("../models/contactModel");
-// const User = require("../models/userModel");
-// const mongoose = require("mongoose");
-
-// const saveBulkContacts = async (req, res) => {
-//   try {
-//     const user = await User.findById(req.user._id);
-//     if (!user) {
-//       return res.status(401).json({
-//         status: "error",
-//         message: "Unauthorized: User not found",
-//       });
-//     }
-
-//     const { contacts } = req.body;
-//     if (!Array.isArray(contacts) || contacts.length === 0) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "No contacts provided",
-//       });
-//     }
-//     const allowedFields = [
-//       "firstname",
-//       "lastname",
-//       "company",
-//       "designation",
-//       "linkedin",
-//       "instagram",
-//       "telegram",
-//       "twitter",
-//       "facebook",
-//       "emailaddresses",
-//       "phonenumbers",
-//     ];
-//     for (const contact of contacts) {
-//       const invalidKeys = Object.keys(contact).filter(
-//         (key) => !allowedFields.includes(key)
-//       );
-//       if (invalidKeys.length > 0) {
-//         return res.status(400).json({
-//           status: "error",
-//           message: `Invalid columns: ${invalidKeys.join(", ")}`,
-//         });
-//       }
-//     }
-//     const bulkPayload = [];
-//     const skippedContacts = [];
-
-//     for (const contact of contacts) {
-//       const {
-//         firstname,
-//         lastname,
-//         company,
-//         designation,
-//         linkedin,
-//         instagram,
-//         telegram,
-//         twitter,
-//         facebook,
-//         emailaddresses,
-//         phonenumbers,
-//       } = contact;
-
-//       const parsedPhones = Array.isArray(phonenumbers)
-//         ? phonenumbers.map((num) => String(num).replace(/[^\d]/g, ""))
-//         : [String(phonenumbers).replace(/[^\d]/g, "")];
-
-//       const emailList = Array.isArray(emailaddresses)
-//         ? emailaddresses
-//         : emailaddresses
-//         ? [emailaddresses]
-//         : [];
-//       const phoneList = parsedPhones;
-
-//       let isDuplicate = false;
-//       if (emailList.length || phoneList.length) {
-//         const duplicateQuery = {
-//           createdBy: req.user._id,
-//           $or: [],
-//         };
-
-//         if (phoneList.length) {
-//           duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
-//         }
-//         if (duplicateQuery.$or.length > 0) {
-//           const existing = await Contact.findOne(duplicateQuery);
-//           if (existing) isDuplicate = true;
-//         }
-//       }
-
-//       if (isDuplicate) {
-//         skippedContacts.push(contact);
-//         continue;
-//       }
-
-//       const generatedId = new mongoose.Types.ObjectId();
-//       bulkPayload.push({
-//         _id: generatedId,
-//         contact_id: generatedId,
-//         firstname,
-//         lastname,
-//         company,
-//         designation,
-//         linkedin,
-//         instagram,
-//         telegram,
-//         twitter,
-//         facebook,
-//         emailaddresses,
-//         phonenumbers: parsedPhones,
-//         createdBy: req.user._id,
-//       });
-//     }
-
-//     const savedContacts = await Contact.insertMany(bulkPayload);
-
-//     return res.status(201).json({
-//       status: "success",
-//       message: `Processed ${contacts.length} contact(s): ${savedContacts.length} added, ${skippedContacts.length} skipped (duplicates).`,
-//       data: savedContacts.map((c) => {
-//         const { _id, __v, ...contact } = c.toObject();
-//         return { ...contact };
-//       }),
-//       skipped: skippedContacts,
-//     });
-//   } catch (error) {
-//     console.error("Bulk contact save error:", error);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Something went wrong",
-//     });
-//   }
-// };
-
-// module.exports = { saveBulkContacts };
 const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
+
 
 const saveBulkContacts = async (req, res) => {
   try {
@@ -198,11 +65,70 @@ const saveBulkContacts = async (req, res) => {
         phonenumbers = [],
       } = contact;
 
-      const parsedPhones = Array.isArray(phonenumbers)
-        ? phonenumbers.map((num) => String(num).replace(/[^\d]/g, ""))
-        : [String(phonenumbers).replace(/[^\d]/g, "")];
+      // const parsedPhones = Array.isArray(phonenumbers)
+      //   ? phonenumbers.map((num) => String(num).replace(/[^\d]/g, ""))
+      //   : [String(phonenumbers).replace(/[^\d]/g, "")];
 
-      const phoneList = parsedPhones.filter((n) => n);
+      let phoneList = [];
+
+      // if (Array.isArray(phonenumbers)) {
+      //   for (const num of phonenumbers) {
+      //     if (!num) continue;
+
+      //     let phoneObj = { countryCode: "", number: "" };
+
+      //     // if request already sends structured object { countryCode, number }
+      //     if (typeof num === "object" && num.number) {
+      //       phoneObj.countryCode = num.countryCode || "";
+      //       phoneObj.number = String(num.number).replace(/[^\d]/g, "");
+      //     } else {
+      //       // if plain number, try to parse
+      //       const parsed = parsePhoneNumberFromString(String(num));
+      //       if (parsed) {
+      //         phoneObj.countryCode = parsed.countryCallingCode || "";
+      //         phoneObj.number = parsed.nationalNumber || String(num).replace(/[^\d]/g, "");
+      //       } else {
+      //         phoneObj.number = String(num).replace(/[^\d]/g, "");
+      //       }
+      //     }
+
+      //     if (phoneObj.number) phoneList.push(phoneObj);
+      //   }
+      // }
+      if (Array.isArray(phonenumbers) && phonenumbers.length > 0) {
+        const num = phonenumbers[0]; // ✅ only take first number
+
+        let phoneObj = { countryCode: "", number: "" };
+
+        if (typeof num === "object" && num.number) {
+          phoneObj.countryCode = num.countryCode || "";
+          phoneObj.number = String(num.number).replace(/[^\d]/g, "");
+        } else {
+          const parsed = parsePhoneNumberFromString(String(num));
+          if (parsed) {
+            phoneObj.countryCode = parsed.countryCallingCode || "";
+            phoneObj.number =
+              parsed.nationalNumber || String(num).replace(/[^\d]/g, "");
+          } else {
+            phoneObj.number = String(num).replace(/[^\d]/g, "");
+          }
+        }
+
+        if (phoneObj.number) phoneList.push(phoneObj);
+      } else if (phonenumbers) {
+        let phoneObj = { countryCode: "", number: "" };
+        const parsed = parsePhoneNumberFromString(String(phonenumbers));
+        if (parsed) {
+          phoneObj.countryCode = parsed.countryCallingCode || "";
+          phoneObj.number = parsed.nationalNumber || String(phonenumbers).replace(/[^\d]/g, "");
+        } else {
+          phoneObj.number = String(phonenumbers).replace(/[^\d]/g, "");
+        }
+        if (phoneObj.number) phoneList.push(phoneObj);
+      }
+
+
+      // const phoneList = parsedPhones.filter((n) => n);
       const emailList = Array.isArray(emailaddresses)
         ? emailaddresses.filter((e) => e)
         : emailaddresses
@@ -212,7 +138,8 @@ const saveBulkContacts = async (req, res) => {
       const existingContact = await Contact.findOne({
         createdBy: req.user._id,
         $or: [
-          { phonenumbers: { $in: phoneList } },
+          // { phonenumbers: { $in: phoneList } },
+          { phonenumbers: { $elemMatch: { number: { $in: phoneList.map(p => p.number) } } } },
           { emailaddresses: { $in: emailList } },
         ],
       });
@@ -275,8 +202,11 @@ const saveBulkContacts = async (req, res) => {
       const existingPhones = existingObj.phonenumbers || [];
       const existingEmails = existingObj.emailaddresses || [];
 
+      // const newPhones = phoneList.filter(
+      //   (p) => !existingPhones.includes(p)
+      // );
       const newPhones = phoneList.filter(
-        (p) => !existingPhones.includes(p)
+        (p) => !existingPhones.some(ep => ep.number === p.number && ep.countryCode === p.countryCode)
       );
       const newEmails = emailList.filter(
         (e) => !existingEmails.includes(e)

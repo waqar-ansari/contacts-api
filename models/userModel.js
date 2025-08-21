@@ -307,16 +307,17 @@ const userSchema = new Schema(
     },
 
 
-    // phonenumbers: [
-    //   {
-    //     countryCode: {
-    //       type: String,
-    //     },
-    //     number: {
-    //       type: String,
-    //     },
-    //   },
-    // ],
+    phonenumbers: [
+      {
+        countryCode: {
+          type: String,
+        },
+        number: {
+          type: String,
+        },
+        _id: false, // Use the number as the unique identifier
+      },
+    ],
     // phonenumber: {
     //   countryCode: {
     //     type: String,
@@ -327,9 +328,9 @@ const userSchema = new Schema(
     //     default: "",
     //   },
     // },
-    phonenumbers: {
-      type: [String],
-    },
+    // phonenumbers: {
+    //   type: [String],
+    // },
 
     otp: { type: String },
     otpExpiresAt: { type: Date },

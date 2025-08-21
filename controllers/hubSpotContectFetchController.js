@@ -2,6 +2,7 @@ const axios = require('axios');
 const querystring = require('querystring');
 const Contact = require('../models/contactModel'); // adjust as needed
 const mongoose = require('mongoose');
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 
 // Step 1: Redirect to HubSpot OAuth
 const redirectToHubSpot = (req, res) => {
@@ -64,7 +65,12 @@ const handleHubSpotCallback = async (req, res) => {
 
     for (const contact of existingContacts) {
       for (const email of contact.emailaddresses || []) existingEmails.add(email.toLowerCase());
-      for (const phone of contact.phonenumbers || []) existingPhones.add(phone);
+      // for (const phone of contact.phonenumbers || []) existingPhones.add(phone);
+      for (const phone of contact.phonenumbers || []) {
+        const key = (phone.countryCode ? `+${phone.countryCode}` : '') + phone.number;
+        existingPhones.add(key);
+      }
+
     }
 
     const contactsToInsert = [];
@@ -74,14 +80,53 @@ const handleHubSpotCallback = async (req, res) => {
       const firstname = props.firstname || '';
       const lastname = props.lastname || '';
       const email = props.email ? props.email.toLowerCase() : '';
+      // const phone = props.phone || '';
+
+      // const emailList = email ? [email] : [];
+      // const phoneList = phone ? [phone.replace(/\+/g, '')] : [];
+
+      // const isDuplicate =
+      //   emailList.some(e => existingEmails.has(e)) ||
+      //   phoneList.some(p => existingPhones.has(p));
+
       const phone = props.phone || '';
 
       const emailList = email ? [email] : [];
-      const phoneList = phone ? [phone.replace(/\+/g, '')] : [];
+
+      let phoneObj = null;
+      if (phone) {
+        try {
+          const parsed = parsePhoneNumberFromString(phone);
+          if (parsed) {
+            phoneObj = {
+              countryCode: parsed.countryCallingCode || '',
+              number: parsed.nationalNumber || '',
+            };
+          } else {
+            // fallback: no country code, just store number
+            phoneObj = {
+              countryCode: '',
+              number: phone.replace(/\D/g, ''),
+            };
+          }
+        } catch (e) {
+          phoneObj = {
+            countryCode: '',
+            number: phone.replace(/\D/g, ''),
+          };
+        }
+      }
+
+      const phoneList = phoneObj ? [phoneObj] : [];
 
       const isDuplicate =
         emailList.some(e => existingEmails.has(e)) ||
-        phoneList.some(p => existingPhones.has(p));
+        phoneList.some(p =>
+          existingPhones.has(
+            (p.countryCode ? `+${p.countryCode}` : '') + p.number
+          )
+        );
+
 
       if (isDuplicate) continue;
 

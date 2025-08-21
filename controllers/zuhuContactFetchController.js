@@ -2,6 +2,7 @@ const querystring = require("querystring");
 const axios = require("axios");
 const Contact = require("../models/contactModel"); // adjust as needed
 const mongoose = require("mongoose");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 require("dotenv").config();
 
 const redirectToZoho = (req, res) => {
@@ -39,53 +40,6 @@ const handleZohoCallback = async (req, res) => {
 
 
     try {
-        // Step 1: Get Access Token
-        // const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`, {}, {
-        //     params: {
-        //         grant_type: 'authorization_code',
-        //         client_id: process.env.ZOHO_CLIENT_ID,
-        //         client_secret: process.env.ZOHO_CLIENT_SECRET,
-        //         redirect_uri: process.env.ZOHO_REDIRECT_URI,
-        //         code,
-        //     },
-        //     headers: {
-        //         'Content-Type': 'application/x-www-form-urlencoded',
-        //     }
-        // });
-        // const querystring = require("querystring");
-
-        // const tokenRes = await axios.post(`${zohoAccountsURL}/oauth/v2/token`,
-        //     querystring.stringify({
-        //         grant_type: 'authorization_code',
-        //         client_id: process.env.ZOHO_CLIENT_ID,
-        //         client_secret: process.env.ZOHO_CLIENT_SECRET,
-        //         redirect_uri: process.env.ZOHO_REDIRECT_URI,
-        //         code
-        //     }),
-        //     {
-        //         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        //     }
-        // );
-
-        // console.log('CODE:', code);
-        // console.log('Zoho token response:', tokenRes.data);
-
-        // const tokenData = tokenRes.data;
-        // const userInfoRes = await axios.get(`${zohoAccountsURL}/oauth/user/info`, {
-        //     headers: {
-        //         Authorization: `Zoho-oauthtoken ${tokenData.access_token}`
-        //     }
-        // });
-
-        // const realDomain = userInfoRes.data?.Accounts_domain || `zoho.${domain}`;
-        // // Optionally, update user model with this real domain
-        // console.log("Detected Zoho Domain:", realDomain);
-
-        // if (!tokenData.access_token) {
-        //     console.error('Zoho token response:', tokenData);
-        //     return res.status(400).json({ status: 'error', message: 'Access token not received from Zoho' });
-        // }
-
         // Step 1: Try getting Access Token from all known domains
         const domainsToTry = ['in', 'com', 'eu', 'com.au']; // Extend this list as needed
         let tokenData = null;
@@ -147,9 +101,15 @@ const handleZohoCallback = async (req, res) => {
             for (const email of contact.emailaddresses || []) {
                 existingEmails.add(email.toLowerCase());
             }
+            // for (const phone of contact.phonenumbers || []) {
+            //     existingPhones.add(phone);
+            // }
             for (const phone of contact.phonenumbers || []) {
-                existingPhones.add(phone);
+                if (phone.countryCode && phone.number) {
+                    existingPhones.add(`${phone.countryCode}-${phone.number}`);
+                }
             }
+
         }
 
         // Step 4: Format and filter contacts
@@ -159,12 +119,67 @@ const handleZohoCallback = async (req, res) => {
             const firstName = contact.First_Name || '';
             const lastName = contact.Last_Name || '';
             const email = contact.Email?.toLowerCase();
-            const phone = contact.Phone;
+            // const phone = contact.Phone;
+            const rawPhone = contact.Phone;
+            // let parsedPhone = null;
+
+            // if (rawPhone) {
+            //     try {
+            //         const phoneObj = parsePhoneNumberFromString(rawPhone);
+            //         if (phoneObj) {
+            //             parsedPhone = {
+            //                 countryCode: phoneObj.countryCallingCode, // e.g. "1" for US, "91" for India
+            //                 number: phoneObj.nationalNumber,          // e.g. "9876543210"
+            //             };
+            //         }
+            //     } catch (e) {
+            //         console.log("Phone parse failed:", rawPhone, e.message);
+            //     }
+            // }
+
+            let parsedPhone = null;
+
+            if (rawPhone) {
+                try {
+                    const phoneObj = parsePhoneNumberFromString(rawPhone);
+                    if (phoneObj) {
+                        parsedPhone = {
+                            countryCode: phoneObj.countryCallingCode, // e.g. "1"
+                            number: phoneObj.nationalNumber,          // e.g. "5555555555"
+                        };
+                    } else {
+                        // ❗ fallback: store raw number if parsing fails
+                        parsedPhone = {
+                            countryCode: "",
+                            number: rawPhone.replace(/[^\d]/g, ""), // keep digits only
+                        };
+                    }
+                } catch (e) {
+                    console.log("Phone parse failed:", rawPhone, e.message);
+                    parsedPhone = {
+                        countryCode: "",
+                        number: rawPhone.replace(/[^\d]/g, ""),
+                    };
+                }
+            }
+
 
             // Skip if duplicate
-            const isDuplicate =
-                (email && existingEmails.has(email)) ||
-                (phone && existingPhones.has(phone));
+            // const isDuplicate =
+            //     (email && existingEmails.has(email)) ||
+            //     (phone && existingPhones.has(phone));
+
+            let isDuplicate = false;
+            if (email && existingEmails.has(email)) {
+                isDuplicate = true;
+            }
+            if (parsedPhone) {
+                const phoneKey = `${parsedPhone.countryCode}-${parsedPhone.number}`;
+                if (existingPhones.has(phoneKey)) {
+                    isDuplicate = true;
+                }
+            }
+
 
             if (isDuplicate) continue;
 
@@ -176,7 +191,8 @@ const handleZohoCallback = async (req, res) => {
                 firstname: firstName,
                 lastname: lastName,
                 emailaddresses: email ? [email] : [],
-                phonenumbers: phone ? [phone] : [],
+                // phonenumbers: phone ? [phone] : [],
+                phonenumbers: parsedPhone ? [parsedPhone] : [],
                 company: '',
                 designation: '',
                 linkedin: '',

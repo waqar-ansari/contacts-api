@@ -84,7 +84,18 @@ const signupWithEmail = async (req, res) => {
       // ✅ Optional: Update scannedMe for other users
       let matchConditions = [];
       if (user.email) matchConditions.push({ email: user.email });
-      if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
+      // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
+      if (user.phonenumbers?.[0]) {
+        matchConditions.push({
+          phonenumbers: {
+            $elemMatch: {
+              countryCode: user.phonenumbers[0].countryCode,
+              number: user.phonenumbers[0].number,
+            },
+          },
+        });
+      }
+
 
       const matchingUsers = matchConditions.length > 0
         ? await User.find({
@@ -101,7 +112,9 @@ const signupWithEmail = async (req, res) => {
         scanner.scannedMe = scanner.scannedMe.map(entry => {
           if (typeof entry === "object" && (
             (entry.email && entry.email === user.email) ||
-            (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
+            // (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
+            (entry.phonenumber &&
+              entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
           )) {
             updated = true;
             return user._id;
@@ -259,7 +272,7 @@ const signupWithEmail = async (req, res) => {
           firstname: newUser.firstname,
           lastname: newUser.lastname,
           email: newUser.email,
-          phonenumbers: newUser.phonenumbers,
+          // phonenumbers: newUser.phonenumbers,
           signupDate: new Date(),
         });
 
@@ -312,22 +325,41 @@ const signupWithEmail = async (req, res) => {
 
 const signupWithPhoneNumber = async (req, res) => {
   try {
-    const { phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
+    const { countryCode, phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
     // const tenantId = req.query.tenantId || req.body.tenantId || "";
 
-    if (!phonenumber || !password) {
+    // if (!phonenumber || !password) {
+    //   return res.status(400).json({
+    //     status: "error",
+    //     message: "Phone number and password are required",
+    //   });
+    // }
+
+    // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+
+    if (!countryCode || !phonenumber || !password) {
       return res.status(400).json({
         status: "error",
-        message: "Phone number and password are required",
+        message: "Country code, phone number, and password are required",
       });
     }
 
-    const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+    // Remove + from countryCode and sanitize number
+    const sanitizedCountryCode = countryCode.replace("+", "");
+    const sanitizedNumber = phonenumber.replace(/[^0-9]/g, "");
+
 
     const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-    let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
+    // let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
+
+    let user = await User.findOne({
+      phonenumbers: {
+        $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
+      }
+    });
+
 
     // === Step 1: If No OTP in Request → Generate and Send OTP ===
     // if (!otp) {
@@ -396,7 +428,15 @@ const signupWithPhoneNumber = async (req, res) => {
       const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
 
       user = await User.findOneAndUpdate(
-        { phonenumbers: { $in: [sanitizedPhone] } },
+        // { phonenumbers: { $in: [sanitizedPhone] } },
+        {
+          phonenumbers: {
+            $elemMatch: {
+              countryCode: sanitizedCountryCode,
+              number: sanitizedNumber
+            }
+          }
+        },
         {
           $setOnInsert: { serialNumber: tempSerialNumber },
           $set: {
@@ -405,14 +445,16 @@ const signupWithPhoneNumber = async (req, res) => {
             firstname,
             lastname,
             signupMethod: "phoneNumber",
-            phonenumbers: [sanitizedPhone],
+            // phonenumbers: [sanitizedPhone],
+            phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
       try {
-        const phoneForWhatsAppApi = `+${sanitizedPhone}`;
+        // const phoneForWhatsAppApi = `+${sanitizedPhone}`;
+        const phoneForWhatsAppApi = `+${sanitizedCountryCode}${sanitizedNumber}`;
         await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
       } catch (error) {
         console.error("OTP Send Failed ❌", error.response?.data || error.message);
@@ -485,7 +527,8 @@ const signupWithPhoneNumber = async (req, res) => {
     userDetails.serialNumber = serialNumber;
     userDetails.firstname = firstname;
     userDetails.lastname = lastname;
-    userDetails.phonenumbers = [sanitizedPhone];
+    // userDetails.phonenumbers = [sanitizedPhone];
+    userDetails.phonenumbers = [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }];
     userDetails.signupMethod = "phoneNumber";
     userDetails.provider = "local";
 
@@ -514,7 +557,18 @@ const signupWithPhoneNumber = async (req, res) => {
     const matchConditions = [];
 
     if (user.email) matchConditions.push({ email: user.email });
-    if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
+    // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
+    if (user.phonenumbers?.[0]) {
+      matchConditions.push({
+        phonenumbers: {
+          $elemMatch: {
+            countryCode: user.phonenumbers[0].countryCode,
+            number: user.phonenumbers[0].number,
+          },
+        },
+      });
+    }
+
 
     if (matchConditions.length > 0) {
       const matchingUsers = await User.find({
@@ -529,7 +583,9 @@ const signupWithPhoneNumber = async (req, res) => {
             typeof entry === "object" &&
             (
               (entry.email && entry.email === user.email) ||
-              (entry.phonenumber && entry.phonenumber === user.phonenumbers[0])
+              // (entry.phonenumber && entry.phonenumber === user.phonenumbers[0])
+              (entry.phonenumber &&
+                entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
             )
           ) {
             updated = true;
@@ -567,7 +623,8 @@ const signupWithPhoneNumber = async (req, res) => {
     user.isPremium = false;
 
     // 🔥 Generate and assign user’s unique referral code
-    const referralCodeRaw = sanitizedPhone + Date.now();
+    // const referralCodeRaw = sanitizedPhone + Date.now();
+    const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
 
     // 🔥 Handle referredBy logic if referralCode was used
@@ -604,9 +661,14 @@ const signupWithPhoneNumber = async (req, res) => {
       //   });
       // }
 
+      // const previouslyReferred = await ReferralLog.findOne({
+      //   phonenumber: sanitizedPhone,
+      // });
+
       const previouslyReferred = await ReferralLog.findOne({
-        phonenumber: sanitizedPhone,
+        phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
       });
+
 
       if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
         return res.status(400).json({
@@ -630,7 +692,8 @@ const signupWithPhoneNumber = async (req, res) => {
       user.creditBalance = (user.creditBalance || 0) + 10;
       await referringUser.save();
       await ReferralLog.create({
-        phonenumber: sanitizedPhone,
+        // phonenumber: sanitizedPhone,
+        phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
         referredBy: referringUser._id,
         referredUserId: user._id,
       });

@@ -17,8 +17,17 @@ const getAllContact = async (req, res) => {
             emailaddresses: Array.isArray(contact.emailaddresses)
                 ? contact.emailaddresses.filter(email => email && email.trim() !== "")
                 : [],
+            // phonenumbers: Array.isArray(contact.phonenumbers)
+            //     ? contact.phonenumbers.filter(phone => phone && phone.trim() !== "")
+            //     : []
             phonenumbers: Array.isArray(contact.phonenumbers)
-                ? contact.phonenumbers.filter(phone => phone && phone.trim() !== "")
+                ? contact.phonenumbers.filter(p => {
+                    const hasNumber =
+                        p?.number && typeof p.number === "string" && p.number.trim() !== "";
+                    const hasCountry =
+                        p?.countryCode && typeof p.countryCode === "string" && p.countryCode.trim() !== "";
+                    return hasNumber || hasCountry;
+                })
                 : []
         }));
 

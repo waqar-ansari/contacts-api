@@ -58,7 +58,8 @@ const editProfile = async (req, res) => {
       firstname,
       lastname,
       email,
-      phonenumbers,
+      // phonenumber,
+      // countryCode,
       linkedin,
       instagram,
       telegram,
@@ -185,19 +186,29 @@ const editProfile = async (req, res) => {
       //   });
       // }
 
-      if (keys.includes('phonenumbers')) {
-        let parsedPhones;
+      // if (keys.includes('phonenumbers')) {
+      //   let parsedPhones;
 
-        try {
-          parsedPhones = JSON.parse(phonenumbers);
-          if (!Array.isArray(parsedPhones)) parsedPhones = [parsedPhones];
-        } catch {
-          parsedPhones = [phonenumbers];
-        }
+      //   try {
+      //     parsedPhones = JSON.parse(phonenumbers);
+      //     if (!Array.isArray(parsedPhones)) parsedPhones = [parsedPhones];
+      //   } catch {
+      //     parsedPhones = [phonenumbers];
+      //   }
 
-        user.phonenumbers = parsedPhones
-          .map(num => typeof num === 'string' ? num.replace(/[^\d]/g, "") : String(num))
-          .filter(num => num !== ""); // ✅ Remove empty strings
+      //   user.phonenumbers = parsedPhones
+      //     .map(num => typeof num === 'string' ? num.replace(/[^\d]/g, "") : String(num))
+      //     .filter(num => num !== ""); // ✅ Remove empty strings
+      // }
+
+      // ✅ Add phone update here
+      if (req.body.countryCode && req.body.phonenumber) {
+        user.phonenumbers = [
+          {
+            countryCode: String(req.body.countryCode).replace(/\D/g, ""), // keep only digits
+            number: String(req.body.phonenumber).replace(/\D/g, "")       // keep only digits
+          }
+        ];
       }
 
 
@@ -324,15 +335,15 @@ const editProfile = async (req, res) => {
       }
     }
 
-    const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
-      firstname: user.firstname,
-      lastname: user.lastname,
-      phonenumbers: user.phonenumbers,
-      email: user.emailaddresses,
-      provider: "local"
-    });
+    // const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
+    //   firstname: user.firstname,
+    //   lastname: user.lastname,
+    //   phonenumbers: user.phonenumbers,
+    //   email: user.emailaddresses,
+    //   provider: "local"
+    // });
 
-    user.qrcode = qrCode;
+    // user.qrcode = qrCode;
 
 
     await user.save();

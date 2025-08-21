@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const querystring = require('querystring');
 const Contact = require('../models/contactModel'); // ✅ Adjust path as needed
 const mongoose = require("mongoose"); // ⬅️ Make sure this is imported at the top
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const { title } = require('process');
 
 
@@ -16,7 +17,7 @@ const redirectToGoogle = (req, res) => {
   const scopes = ['https://www.googleapis.com/auth/contacts.readonly'];
 
   const user_id = req.user._id; // Use user ID from request context if available
-console.log('user_id', user_id);
+  console.log('user_id', user_id);
 
   const params = querystring.stringify({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -69,8 +70,11 @@ const handleGoogleCallback = async (req, res) => {
       for (const email of contact.emailaddresses || []) {
         existingEmails.add(email.toLowerCase());
       }
+      // for (const phone of contact.phonenumbers || []) {
+      //   existingPhones.add(phone);
+      // }
       for (const phone of contact.phonenumbers || []) {
-        existingPhones.add(phone);
+        existingPhones.add(`${phone.countryCode}-${phone.number}`);
       }
     }
 
@@ -85,16 +89,50 @@ const handleGoogleCallback = async (req, res) => {
       // const phoneList = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || []; // ⬅️ Cleaned
 
       const emailListRaw = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
-      const phoneListRaw = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || [];
+      // const phoneListRaw = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || [];
 
       const emailList = emailListRaw.length > 0 ? [emailListRaw[0]] : [];
-      const phoneList = phoneListRaw.length > 0 ? [phoneListRaw[0]] : [];
+      // const phoneList = phoneListRaw.length > 0 ? [phoneListRaw[0]] : [];
 
+      // Convert Google phone numbers to [{ countryCode, number }]
+      // const phoneList = (person.phoneNumbers || []).map(p => {
+      //   let raw = p.value.trim();
+
+      //   // Extract country code (if starts with +XX) and number
+      //   let match = raw.match(/^(\+\d{1,4})?\s*(.*)$/);
+      //   let countryCode = match && match[1] ? match[1] : "";
+      //   let number = match && match[2] ? match[2].replace(/\s+/g, "") : raw;
+
+      //   return { countryCode, number };
+      // });
+
+      const phoneListRaw = (person.phoneNumbers || []).map(p => {
+        let raw = p.value.trim();
+
+        // Use libphonenumber-js to parse
+        const parsed = parsePhoneNumberFromString(raw);
+
+        if (parsed) {
+          return {
+            countryCode: `+${parsed.countryCallingCode}`, // ✅ Always correct, e.g., +91, +1, +44
+            number: parsed.nationalNumber // ✅ Clean national number (without country code)
+          };
+        } else {
+          // fallback: if libphonenumber-js fails
+          return {
+            countryCode: "",
+            number: raw.replace(/\D/g, "") // keep only digits
+          };
+        }
+      });
+
+      const phoneList = phoneListRaw.length > 0 ? [phoneListRaw[0]] : [];
 
       // Skip if any email or phone matches existing
       const isDuplicate =
         emailList.some(email => existingEmails.has(email)) ||
-        phoneList.some(phone => existingPhones.has(phone));
+        // phoneList.some(phone => existingPhones.has(phone));
+        phoneList.some(phone => existingPhones.has(`${phone.countryCode}-${phone.number}`));
 
       if (isDuplicate) continue;
 

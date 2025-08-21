@@ -22,9 +22,16 @@ exports.getScanData = async (req, res) => {
             firstname: scannedUser.firstname || '',
             lastname: scannedUser.lastname || '',
             email: scannedUser.email || '',
-            phonenumbers: Array.isArray(scannedUser.phonenumber)
-                ? scannedUser.phonenumber
-                : (scannedUser.phonenumber ? [scannedUser.phonenumber] : []),
+            // phonenumbers: Array.isArray(scannedUser.phonenumber)
+            //     ? scannedUser.phonenumber
+            //     : (scannedUser.phonenumber ? [scannedUser.phonenumber] : []),
+            phonenumbers: Array.isArray(scannedUser.phonenumbers)
+                ? scannedUser.phonenumbers.map(p => ({
+                    countryCode: p.countryCode || "",
+                    number: p.number || ""
+                }))
+                : [],
+
             profileImageURL: scannedUser.profileImageURL || '',
             linkedin: scannedUser.linkedin || '',
             instagram: scannedUser.instagram || '',
@@ -55,9 +62,16 @@ exports.getScanData = async (req, res) => {
                         firstname: fullUser.firstname || '',
                         lastname: fullUser.lastname || '',
                         email: fullUser.email || '',
+                        // phonenumbers: Array.isArray(fullUser.phonenumbers)
+                        //     ? fullUser.phonenumbers
+                        //     : (fullUser.phonenumbers ? [fullUser.phonenumbers] : []),
                         phonenumbers: Array.isArray(fullUser.phonenumbers)
-                            ? fullUser.phonenumbers
-                            : (fullUser.phonenumbers ? [fullUser.phonenumbers] : []),
+                            ? fullUser.phonenumbers.map(p => ({
+                                countryCode: p.countryCode || "",
+                                number: p.number || ""
+                            }))
+                            : [],
+
                         profileImageURL: fullUser.profileImageURL || '',
                         linkedin: fullUser.linkedin || '',
                         instagram: fullUser.instagram || '',
@@ -75,9 +89,18 @@ exports.getScanData = async (req, res) => {
                     firstname: entry.firstname || '',
                     lastname: entry.lastname || '',
                     email: entry.email || '',
-                    phonenumbers: Array.isArray(entry.phonenumber)
-                        ? entry.phonenumber
-                        : (entry.phonenumber ? [entry.phonenumber] : []),
+                    // phonenumbers: Array.isArray(entry.phonenumber)
+                    //     ? entry.phonenumber
+                    //     : (entry.phonenumber ? [entry.phonenumber] : []),
+                    phonenumbers: Array.isArray(entry.phonenumbers)
+                        ? entry.phonenumbers.map(p => ({
+                            countryCode: p.countryCode || "",
+                            number: p.number || ""
+                        }))
+                        : (entry.phonenumber ? [{
+                            countryCode: entry.countryCode?.replace(/^\+/, "") || "",
+                            number: entry.phonenumber.replace(/^\+/, "")
+                        }] : []),
                     linkedin: entry.linkedin || '',
                     instagram: entry.instagram || '',
                     telegram: entry.telegram || '',

@@ -157,6 +157,7 @@ exports.submitUserOnboarding = async (req, res) => {
       gender = "",
       email = "",
       phonenumber = "",
+      countryCode = "",
       designation = ""
     } = req.body;
 
@@ -179,12 +180,34 @@ exports.submitUserOnboarding = async (req, res) => {
       }
     }
 
-    if (phonenumber) {
+    // if (phonenumber) {
+    //   const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+    //   const existingPhoneUser = await User.findOne({
+    //     _id: { $ne: req.user._id },
+    //     phonenumbers: cleanedPhone,
+    //   });
+    //   if (existingPhoneUser) {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Phone number is already used by another user",
+    //     });
+    //   }
+    // }
+
+    if (phonenumber && countryCode) {
       const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+      const cleanedCode = String(countryCode).replace(/^\+/, "");
+
       const existingPhoneUser = await User.findOne({
         _id: { $ne: req.user._id },
-        phonenumbers: cleanedPhone,
+        phonenumbers: {
+          $elemMatch: {
+            countryCode: cleanedCode,
+            number: cleanedPhone,
+          },
+        },
       });
+
       if (existingPhoneUser) {
         return res.status(400).json({
           status: "error",
@@ -193,21 +216,40 @@ exports.submitUserOnboarding = async (req, res) => {
       }
     }
 
+
     // ✅ If user signed up with phone number, but now also providing email, save it if not already saved
     if (!user.email && email) {
       user.email = email.trim();
     }
 
     // ✅ If user signed up with email, but now providing phonenumber, add it to phonenumbers array (prevent duplicate)
-    if (phonenumber) {
+    // if (phonenumber) {
+    //   const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+    //   if (cleanedPhone) {
+    //     if (!user.phonenumbers) user.phonenumbers = [];
+    //     if (!user.phonenumbers.includes(cleanedPhone)) {
+    //       user.phonenumbers.push(cleanedPhone);
+    //     }
+    //   }
+    // }
+
+    if (phonenumber && countryCode) {
       const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+      const cleanedCode = String(countryCode).replace(/^\+/, "");
+
       if (cleanedPhone) {
         if (!user.phonenumbers) user.phonenumbers = [];
-        if (!user.phonenumbers.includes(cleanedPhone)) {
-          user.phonenumbers.push(cleanedPhone);
+
+        const alreadyExists = user.phonenumbers.some(
+          p => p.countryCode === cleanedCode && p.number === cleanedPhone
+        );
+
+        if (!alreadyExists) {
+          user.phonenumbers.push({ countryCode: cleanedCode, number: cleanedPhone });
         }
       }
     }
+
 
     // ✅ Update other basic fields
     if (firstname) user.firstname = firstname;

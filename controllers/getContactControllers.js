@@ -41,8 +41,18 @@ const getContact = async (req, res) => {
         { firstname: { $regex: search, $options: "i" } },
         { lastname: { $regex: search, $options: "i" } },
         { emailaddresses: { $elemMatch: { $regex: search, $options: "i" } } },
-        { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } },
-        { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
+        // { phonenumbers: { $elemMatch: { $regex: search, $options: "i" } } },
+        // { phonenumbers: { $elemMatch: { number: { $regex: search, $options: "i" } } } },
+        {
+          phonenumbers: {
+            $elemMatch: {
+              $or: [
+                { countryCode: { $regex: search, $options: "i" } },
+                { number: { $regex: search, $options: "i" } }
+              ]
+            }
+          }
+        },
         {
           $expr: {
             $regexMatch: {
@@ -135,7 +145,10 @@ const getContact = async (req, res) => {
       const favouriteContacts = rawFavouriteContacts.map(contact => {
         const obj = contact.toObject();
         obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
-        obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+        // obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+        obj.phonenumbers = Array.isArray(obj.phonenumbers)
+          ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
+          : [];
         if (Array.isArray(obj.tags)) {
           obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
         }
@@ -176,7 +189,10 @@ const getContact = async (req, res) => {
     const contacts = rawContacts.map(contact => {
       const obj = contact.toObject();
       obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
-      obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+      // obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
+      obj.phonenumbers = Array.isArray(obj.phonenumbers)
+        ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
+        : [];
       if (Array.isArray(obj.tags)) {
         obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
       }

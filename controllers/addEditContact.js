@@ -28,7 +28,8 @@ const addEditContact = async (req, res) => {
       twitter,
       facebook,
       emailaddresses,
-      phonenumbers,
+      phonenumber,
+      countryCode,
       isFavourite,
       notes,
       website,
@@ -69,32 +70,42 @@ const addEditContact = async (req, res) => {
 
 
     // ---------- Normalize Phone Numbers ----------
+    // let parsedPhones = [];
+
+    // if (phonenumbers) {
+    //   try {
+    //     // Case 1: Valid JSON array string like '["1234","5678"]' or plain number: 1111111
+    //     const temp = JSON.parse(phonenumbers);
+    //     console.log("Parsed phone numbers:", temp);
+
+    //     const phoneArray = Array.isArray(temp) ? temp : [temp];
+    //     console.log("Phone array:", phoneArray);
+
+    //     parsedPhones = phoneArray
+    //       .filter(num => num !== null && num !== undefined && num !== "undefined")
+    //       .map(num => String(num).replace(/[^\d]/g, ""));
+
+    //     console.log("Normalized phone numbers:", parsedPhones);
+
+    //   } catch (e) {
+    //     // Case 2: Plain string like "1111111"
+    //     if (typeof phonenumbers === "string" && phonenumbers.trim() !== "" && phonenumbers !== "undefined") {
+    //       parsedPhones = [phonenumbers.replace(/[^\d]/g, "")];
+    //     }
+    //   }
+    // }
+
     let parsedPhones = [];
 
-    if (phonenumbers) {
-      try {
-        // Case 1: Valid JSON array string like '["1234","5678"]' or plain number: 1111111
-        const temp = JSON.parse(phonenumbers);
-        console.log("Parsed phone numbers:", temp);
-
-        const phoneArray = Array.isArray(temp) ? temp : [temp];
-        console.log("Phone array:", phoneArray);
-
-        parsedPhones = phoneArray
-          .filter(num => num !== null && num !== undefined && num !== "undefined")
-          .map(num => String(num).replace(/[^\d]/g, ""));
-
-        console.log("Normalized phone numbers:", parsedPhones);
-
-      } catch (e) {
-        // Case 2: Plain string like "1111111"
-        if (typeof phonenumbers === "string" && phonenumbers.trim() !== "" && phonenumbers !== "undefined") {
-          parsedPhones = [phonenumbers.replace(/[^\d]/g, "")];
-        }
-      }
+    if (phonenumber && countryCode) {
+      parsedPhones.push({
+        countryCode: String(countryCode).replace(/[^\d]/g, ""), // remove +
+        number: String(phonenumber).replace(/[^\d]/g, ""),      // keep only digits
+      });
     }
 
-    console.log("Parsed Phones:", phonenumbers, parsedPhones);
+
+    // console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
     // ---------- ✅ Check Duplicate Email or Phone ----------
     const emailList = cleanedEmails;
@@ -118,7 +129,17 @@ const addEditContact = async (req, res) => {
       }
 
       if (phoneList.length) {
-        duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
+        // duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
+        phoneList.forEach(p => {
+          duplicateQuery.$or.push({
+            phonenumbers: {
+              $elemMatch: {
+                countryCode: p.countryCode,
+                number: p.number
+              }
+            }
+          });
+        });
       }
 
       if (duplicateQuery.$or.length > 0) {
@@ -132,11 +153,22 @@ const addEditContact = async (req, res) => {
               }
             }
 
+            // if (!duplicatePhone && phoneList.length) {
+            //   if (contact.phonenumbers.some(phone => phoneList.includes(phone))) {
+            //     duplicatePhone = true;
+            //   }
+            // }
+
             if (!duplicatePhone && phoneList.length) {
-              if (contact.phonenumbers.some(phone => phoneList.includes(phone))) {
+              if (
+                contact.phonenumbers.some(phone =>
+                  phoneList.some(p => p.countryCode === phone.countryCode && p.number === phone.number)
+                )
+              ) {
                 duplicatePhone = true;
               }
             }
+
 
             // If both found, stop checking
             if (duplicateEmail && duplicatePhone) break;
@@ -596,9 +628,13 @@ const addEditContact = async (req, res) => {
       };
 
 
-      if (req.body.phonenumbers !== undefined && Array.isArray(parsedPhones)) {
+      // if (req.body.phonenumbers !== undefined && Array.isArray(parsedPhones)) {
+      //   updateFields.phonenumbers = parsedPhones;
+      // }
+      if (req.body.phonenumber || req.body.countryCode) {
         updateFields.phonenumbers = parsedPhones;
       }
+
       if (req.body.emailaddresses !== undefined && Array.isArray(cleanedEmails)) {
         updateFields.emailaddresses = cleanedEmails;
       }

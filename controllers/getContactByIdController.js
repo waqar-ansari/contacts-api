@@ -17,9 +17,18 @@ const getContactById = async (req, res) => {
             ? contact.emailaddresses.filter(email => email && email.trim() !== "")
             : []);
         // Clean phonenumbers (array of strings)
-        contact.phonenumbers = (Array.isArray(contact.phonenumbers)
-            ? contact.phonenumbers.filter(number => number && number.trim() !== "")
-            : []);
+        // contact.phonenumbers = (Array.isArray(contact.phonenumbers)
+        //     ? contact.phonenumbers.filter(number => number && number.trim() !== "")
+        //     : []);
+        contact.phonenumbers = Array.isArray(contact.phonenumbers)
+            ? contact.phonenumbers.filter(p => {
+                const hasNumber =
+                    p?.number && typeof p.number === "string" && p.number.trim() !== "";
+                const hasCountry =
+                    p?.countryCode && typeof p.countryCode === "string" && p.countryCode.trim() !== "";
+                return hasNumber || hasCountry;
+            })
+            : [];
         if (Array.isArray(contact.tags)) {
             contact.tags = contact.tags.map((tagObj) => ({
                 tag: tagObj.tag,
@@ -29,7 +38,7 @@ const getContactById = async (req, res) => {
         return res.json({
             status: "success",
             message: "Contact fetched successfully",
-            data : contact,
+            data: contact,
         });
     } catch (error) {
         console.error("Error fetching contact:", error);

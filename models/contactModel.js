@@ -82,9 +82,20 @@ const contactSchema = new Schema(
     //     },
     //   },
     // ],
-    phonenumbers: {
-      type: [String],
-    },
+    phonenumbers: [
+      {
+        countryCode: {
+          type: String,
+        },
+        number: {
+          type: String,
+        },
+        _id: false,
+      },
+    ],
+    // phonenumbers: {
+    //   type: [String],
+    // },
     contactImageURL: {
       type: String,
       default: "",

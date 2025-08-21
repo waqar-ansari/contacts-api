@@ -5,15 +5,29 @@ const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp'); // ✅ Assuming you
 
 // Step 1: Request OTP for Forgot Password
 exports.forgotPasswordPhone = async (req, res) => {
-    const { phonenumber } = req.body;
+    const { phonenumber, countryCode } = req.body;
 
     try {
-        if (!phonenumber) {
+        if (!phonenumber || !countryCode) {
             return res.status(400).json({ status: "error", message: "Phone number is required" });
         }
 
+        // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+        // const user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] }, isVerified: true });
+
         const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
-        const user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] }, isVerified: true });
+        const sanitizedCountryCode = countryCode.replace(/^\+/, "");
+
+        const user = await User.findOne({
+            phonenumbers: {
+                $elemMatch: {
+                    countryCode: sanitizedCountryCode,
+                    number: sanitizedPhone,
+                },
+            },
+            isVerified: true,
+        });
+
 
         if (!user) {
             return res.status(404).json({ status: "error", message: "User with this phone number not found or not verified" });
@@ -49,10 +63,10 @@ exports.forgotPasswordPhone = async (req, res) => {
 
 // Step 2: Verify OTP and Reset Password
 exports.resetPasswordPhone = async (req, res) => {
-    const { phonenumber, otp, password, confirmPassword } = req.body;
+    const { phonenumber, countryCode, otp, password, confirmPassword } = req.body;
 
     try {
-        if (!phonenumber || !otp || !password || !confirmPassword) {
+        if (!phonenumber || !otp || !password || !confirmPassword || !countryCode) {
             return res.status(400).json({
                 status: "error",
                 message: "Phone number, OTP, password, and confirm password are required",
@@ -63,12 +77,27 @@ exports.resetPasswordPhone = async (req, res) => {
             return res.status(400).json({ status: "error", message: "Passwords do not match" });
         }
 
+        // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+        // const user = await User.findOne({
+        //     phonenumbers: { $in: [sanitizedPhone] },
+        //     otp: otp,
+        //     otpExpiresAt: { $gt: new Date() },
+        // });
+
         const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+        const sanitizedCountryCode = countryCode.replace(/^\+/, "");
+
         const user = await User.findOne({
-            phonenumbers: { $in: [sanitizedPhone] },
+            phonenumbers: {
+                $elemMatch: {
+                    countryCode: sanitizedCountryCode,
+                    number: sanitizedPhone,
+                },
+            },
             otp: otp,
             otpExpiresAt: { $gt: new Date() },
         });
+
 
         if (!user) {
             return res.status(400).json({

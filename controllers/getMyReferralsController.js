@@ -58,10 +58,20 @@ const getMyReferrals = async (req, res) => {
                 changed = true;
             }
 
+            // if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
+            //     updatedEntry.phonenumbers = refUser.phonenumbers;
+            //     changed = true;
+            // }
+
             if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
-                updatedEntry.phonenumbers = refUser.phonenumbers;
+                // Ensure phonenumbers follow new structure
+                updatedEntry.phonenumbers = refUser.phonenumbers.map(p => ({
+                    countryCode: p.countryCode?.replace(/^\+/, "") || "",
+                    number: p.number?.replace(/^\+/, "") || ""
+                }));
                 changed = true;
             }
+
 
             if (!entry.signupDate && refUser.createdAt) {
                 updatedEntry.signupDate = refUser.createdAt;
