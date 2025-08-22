@@ -41,7 +41,8 @@ exports.forgotPasswordPhone = async (req, res) => {
         await user.save();
         console.log(user.otp);
         try {
-            await sendWhatsAppOtp(`+${sanitizedPhone}`, otp);
+            // await sendWhatsAppOtp(`+${sanitizedPhone}`, otp);
+            await sendWhatsAppOtp(`+${sanitizedCountryCode}${sanitizedPhone}`, otp);
         } catch (error) {
             console.error("OTP Send Failed", error.response?.data || error.message);
             return res.status(500).json({
