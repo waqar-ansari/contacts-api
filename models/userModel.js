@@ -514,14 +514,15 @@ userSchema.post("save", async function (doc, next) {
   }
 });
 
-userSchema.static("matchPasswordAndGenerateToken", async function ({ email, phonenumber, password }) {
+userSchema.static("matchPasswordAndGenerateToken", async function ({ email, phonenumber, countryCode, password }) {
   if (!password || (!email && !phonenumber)) {
     throw new Error("Email or phone number and password are required");
   }
 
   const query = email
     ? { email }
-    : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
+    // : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
+    : { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
 
   const user = await this.findOne(query);
   if (!user) throw new Error("User not found");

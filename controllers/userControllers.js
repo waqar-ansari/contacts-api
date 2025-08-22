@@ -781,22 +781,35 @@ const resendVerificationLink = async (req, res) => {
 
 const unifiedLogin = async (req, res) => {
   try {
-    const { email = "", phonenumber = "", password = "", googleToken, appleToken } = req.body;
+    const { email = "", phonenumber = "", countryCode = "", password = "", googleToken, appleToken } = req.body;
 
     //email and phoneNumber Login
     if ((email || phonenumber) && password && !googleToken && !appleToken) {
       try {
         const trimmedEmail = email?.trim()?.toLowerCase();
+        // const trimmedPhone = phonenumber?.trim();
         const trimmedPhone = phonenumber?.trim();
+        const trimmedCountry = countryCode?.trim()?.replace(/^\+/, ""); // remove + if present
 
-        let normalizedPhone = trimmedPhone;
-        if (normalizedPhone?.startsWith('+')) {
-          normalizedPhone = normalizedPhone.slice(1);
-        }
+
+        // let normalizedPhone = trimmedPhone;
+        // if (normalizedPhone?.startsWith('+')) {
+        //   normalizedPhone = normalizedPhone.slice(1);
+        // }
 
         const queryConditions = [];
         if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
-        if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
+        // if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
+
+        if (trimmedPhone && trimmedCountry) {
+          queryConditions.push({
+            phonenumbers: {
+              $elemMatch: { number: trimmedPhone, countryCode: trimmedCountry }
+            }
+          });
+        } else if (trimmedPhone) {
+          queryConditions.push({ "phonenumbers.number": trimmedPhone });
+        }
 
         if (queryConditions.length === 0) {
           return res.status(400).json({ status: "error", message: "Email or phone number is required" });
@@ -812,9 +825,17 @@ const unifiedLogin = async (req, res) => {
           return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
         }
 
-        if (normalizedPhone && !user.isVerified) {
-          return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
+        // if (normalizedPhone && !user.isVerified) {
+        //   return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
+        // }
+
+        if ((trimmedPhone && trimmedCountry) && !user.isVerified) {
+          return res.status(403).json({
+            status: "error",
+            message: "Please complete signup and verify OTP first"
+          });
         }
+
 
         // ✅ Prevent wrong login method
         if (user.signupMethod === "google") {
@@ -838,6 +859,20 @@ const unifiedLogin = async (req, res) => {
           });
         }
 
+        // if (user.signupMethod === "phoneNumber" && trimmedEmail) {
+        //   return res.status(400).json({
+        //     status: "error",
+        //     message: "This user signed up with phone number. Please login with phone number and password."
+        //   });
+        // }
+
+        // if (user.signupMethod === "email" && normalizedPhone) {
+        //   return res.status(400).json({
+        //     status: "error",
+        //     message: "This user signed up with email. Please login with email and password."
+        //   });
+        // }
+
         if (user.signupMethod === "phoneNumber" && trimmedEmail) {
           return res.status(400).json({
             status: "error",
@@ -845,7 +880,7 @@ const unifiedLogin = async (req, res) => {
           });
         }
 
-        if (user.signupMethod === "email" && normalizedPhone) {
+        if (user.signupMethod === "email" && (trimmedPhone && trimmedCountry)) {
           return res.status(400).json({
             status: "error",
             message: "This user signed up with email. Please login with email and password."
@@ -853,9 +888,17 @@ const unifiedLogin = async (req, res) => {
         }
 
 
+
+        // const token = await User.matchPasswordAndGenerateToken({
+        //   email: trimmedEmail,
+        //   phonenumber: normalizedPhone,
+        //   password
+        // });
+
         const token = await User.matchPasswordAndGenerateToken({
           email: trimmedEmail,
-          phonenumber: normalizedPhone,
+          phonenumber: trimmedPhone,
+          countryCode: trimmedCountry,
           password
         });
 
