@@ -70,6 +70,7 @@ const whatsappEmailActivityRoutes = require("./routes/whatsappEmailActivityRoute
 const hubSpotContactFetchRoutes = require("./routes/hubSpotContactFetchRoutes");
 const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
+const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -153,6 +154,7 @@ app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesR
 app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
 app.use("/whatsapp-email-activity", checkForAuthentication(), whatsappEmailActivityRoutes);
+app.use("/help-support", checkForAuthentication(), helpSupportRoutes);
 app.use("/fetch-google-contacts", (req, res, next) => {
   const skipAuthPaths = ["/google/callback"];
   if (skipAuthPaths.includes(req.path)) {

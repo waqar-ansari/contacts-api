@@ -4,8 +4,8 @@ const s3 = require("../utils/s3");
 // Create Help & Support Request
 exports.createHelpSupport = async (req, res) => {
     try {
+        let userId = req.user._id;
         const {
-            userId,
             name,
             subject,
             emailaddresses,
@@ -19,7 +19,7 @@ exports.createHelpSupport = async (req, res) => {
         const uploadImageToS3 = async (file) => {
             const ext = path.extname(file.originalname);
             const name = path.basename(file.originalname, ext);
-            const fileName = `contactImages/${name}_${Date.now()}${ext}`;
+            const fileName = `helpAndSupportAttachments/${name}_${Date.now()}${ext}`;
             const params = {
                 Bucket: process.env.AWS_BUCKET_NAME,
                 Key: fileName,
@@ -91,7 +91,9 @@ exports.createHelpSupport = async (req, res) => {
 // Get all requests of a user
 exports.getUserHelpRequests = async (req, res) => {
     try {
-        const { userId } = req.params;
+        // const { userId } = req.params;
+
+        const userId = req.user._id;
 
         const requests = await HelpSupport.find({ userId }).sort({ createdAt: -1 });
 
