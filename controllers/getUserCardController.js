@@ -21,15 +21,32 @@ exports.getUserInfo = async (req, res) => {
       });
     }
 
-    let rawFirstname = match[1];        // With spaces
-    const serialNumber = match[2];      // e.g., "02"
+    // let rawFirstname = match[1];        // With spaces
+    // const serialNumber = match[2];      // e.g., "02"
 
-    const firstname = rawFirstname.trim().replace(/\s+/g, " "); // Normalize spaces
+    // const firstname = rawFirstname.trim().replace(/\s+/g, " "); // Normalize spaces
+
+    // const user = await User.findOne({
+    //   firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match with spaces
+    //   serialNumber,
+    // });
+
+    let rawFirstname = match[1];
+    const serialNumber = match[2];
+
+    // ✅ Remove all spaces for comparison (frontend sends without spaces)
+    const normalizedFirstname = rawFirstname.replace(/\s+/g, "").toLowerCase();
 
     const user = await User.findOne({
-      firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match with spaces
-      serialNumber,
+      // compare firstname after removing spaces
+      $expr: {
+        $and: [
+          { $eq: [{ $replaceAll: { input: { $toLower: "$firstname" }, find: " ", replacement: "" } }, normalizedFirstname] },
+          { $eq: ["$serialNumber", serialNumber] }
+        ]
+      }
     });
+
 
     if (!user) {
       return res.status(404).json({

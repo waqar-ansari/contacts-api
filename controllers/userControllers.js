@@ -272,7 +272,7 @@ const signupWithEmail = async (req, res) => {
           firstname: newUser.firstname,
           lastname: newUser.lastname,
           email: newUser.email,
-          // phonenumbers: newUser.phonenumbers,
+          phonenumbers: newUser.phonenumbers,
           signupDate: new Date(),
         });
 
@@ -665,10 +665,15 @@ const signupWithPhoneNumber = async (req, res) => {
       //   phonenumber: sanitizedPhone,
       // });
 
-      const previouslyReferred = await ReferralLog.findOne({
-        phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
-      });
+      // const previouslyReferred = await ReferralLog.findOne({
+      //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
+      // });
 
+      const previouslyReferred = await ReferralLog.findOne({
+        phonenumbers: {
+          $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
+        }
+      });
 
       if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
         return res.status(400).json({
@@ -691,9 +696,14 @@ const signupWithPhoneNumber = async (req, res) => {
       referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
       user.creditBalance = (user.creditBalance || 0) + 10;
       await referringUser.save();
+      // await ReferralLog.create({
+      //   // phonenumber: sanitizedPhone,
+      //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
+      //   referredBy: referringUser._id,
+      //   referredUserId: user._id,
+      // });
       await ReferralLog.create({
-        // phonenumber: sanitizedPhone,
-        phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
+        phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
         referredBy: referringUser._id,
         referredUserId: user._id,
       });

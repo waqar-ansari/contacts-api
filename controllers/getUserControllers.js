@@ -2,9 +2,8 @@ const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
-// const { generateUserQRCode } = require("../utils/qrUtils");
-
-
+// const LZString = require("lz-string");
+const zlib = require("zlib");
 
 const getUserData = async (req, res) => {
   try {
@@ -92,8 +91,15 @@ const getUserData = async (req, res) => {
         referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       };
 
+      // Step 1: Compress payload
+      const compressed = zlib.deflateSync(JSON.stringify(qrPayload)).toString("base64");
+      // const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(qrPayload));
+
+      // Step 2: Encode compressed string into QR
+      const qrCodeDataURL = await QRCode.toDataURL(compressed);
+
       // Generate QR code (as Base64 image)
-      const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+      // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
 
       return res.json({
@@ -215,8 +221,14 @@ const getUserData = async (req, res) => {
       };
 
       // Generate QR code (as Base64 image)
-      const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+      // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
+      // Step 1: Compress payload
+      const compressed = zlib.deflateSync(JSON.stringify(qrPayload)).toString("base64");
+      // const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(qrPayload));
+
+      // Step 2: Encode compressed string into QR
+      const qrCodeDataURL = await QRCode.toDataURL(compressed);
 
       return res.json({
         status: "success",
@@ -431,7 +443,18 @@ const getUserData = async (req, res) => {
     };
 
     // Generate QR code (as Base64 image)
-    const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+    // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
+    // Step 1: Compress payload
+    const compressed = zlib.deflateSync(JSON.stringify(qrPayload)).toString("base64");
+    // const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(qrPayload));
+    console.log("Compressed QR Payload:", compressed);
+
+    // Step 2: Encode compressed string into QR
+    const qrCodeDataURL = await QRCode.toDataURL(compressed);
+
+    console.log("Generated QR Code Data URL:", qrCodeDataURL);
+
 
     data.qrCode = qrCodeDataURL;
 
