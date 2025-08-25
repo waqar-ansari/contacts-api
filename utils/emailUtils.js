@@ -1,24 +1,24 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  service: "smtp", // Use your SMTP service
-  host: "smtp.titan.email", // SMTP server address
-  port: 465, // Port for secure connection
-  secure: true, // Use SSL/TLS
-  auth: {
-    user: "noreply@contacts.management",
-    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-    // user: "makvanayash12@gmail.com",
-    // pass: "fybb lnri tmrq otmg", // App Password, not normal password
-  },
+    service: "smtp", // Use your SMTP service
+    host: "smtp.titan.email", // SMTP server address
+    port: 465, // Port for secure connection
+    secure: true, // Use SSL/TLS
+    auth: {
+        user: "noreply@contacts.management",
+        pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+        // user: "makvanayash12@gmail.com",
+        // pass: "fybb lnri tmrq otmg", // App Password, not normal password
+    },
 });
 
 const sendVerificationEmail = async (email, link) => {
-  const mailOptions = {
-    from: '"Contacts Management" <noreply@contacts.management>',
-    to: email,
-    subject: "Contacts.Management : Verify Your E-mail",
-    html: `<html lang="en">
+    const mailOptions = {
+        from: '"Contacts Management" <noreply@contacts.management>',
+        to: email,
+        subject: "Contacts.Management : Verify Your E-mail",
+        html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -76,9 +76,11 @@ const sendVerificationEmail = async (email, link) => {
 
 <body>
     <div class="container">
-        <center> <img src="https://contacts.management/wp-content/uploads/2024/12/1.svg" alt=""></center>
-        <p><strong>Hello,</strong></p>
 
+        <center> <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png"
+                    alt="Contacts Management Logo" style="width:200px; display:block;"></center>
+        <p><strong>Hello,</strong></p>
+        
         <p>Congratulations on creating your <strong>Contacts Management CRM</strong> account — a powerful step toward
             organizing, connecting, and growing your professional network.</p>
 
@@ -101,7 +103,7 @@ const sendVerificationEmail = async (email, link) => {
 
             <!-- Left Column (Image) -->
             <div style="float:left; width:110px; margin-right:10px;">
-                <img src="https://contacts.management/wp-content/uploads/2024/12/contacts-500-x-120-px-250-x-250-px.svg"
+                <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logo.png"
                     alt="Contacts Management Logo" style="width:100px; display:block;">
             </div>
 
@@ -128,25 +130,27 @@ const sendVerificationEmail = async (email, link) => {
             <p>Follow Contacts Management social media on:</p>
             <div class="social-icons">
                 <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/5/51/Facebook_f_logo_%282019%29.svg"
+                        src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/facebookIcon.png"
                         alt="Facebook"></a>
-                <a href="#"><img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Instagram_icon.png"
+                <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/instagramIcon.png"
                         alt="Instagram"></a>
+                <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/linkedinIcon.png"
+                        alt="linkedin"></a>
                 <a href="#"><img
-                        src="https://ci3.googleusercontent.com/meips/ADKq_NbZPGDXAu0Emv9YP-ZjPge6Lx8Ot1BFDSPs6nLKb8fg6UebyPKdTp1wg2S1-Di0Psv4zsM8HmRt4HwcUeSOxoTX5x8dVSs9xGWstdwld__JN5HSdIR9=s0-d-e1-ft#http://s46.mindvalley.us/mindvalley/media/images/ico-twitter.png"
+                        src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/twitterIcon.png"
                         alt="Twitter"></a>
                 <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/4/42/YouTube_icon_%282013-2017%29.png"
+                        src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/youtubeIcon.png"
                         alt="YouTube"></a>
             </div>
             <br><br>
             <div class="app-buttons">
                 <p>Download the Contacts Managementt App:</p>
                 <a href="#"><img
-                        src="https://ci3.googleusercontent.com/meips/ADKq_NbbTO579ABd3_rqhYTPRe1LB5W5bkOPUOiE5a4s7NCrpnxohoiYpU6Rrh7JXnWE56K_J438i86VY_hHHTuewCcARIUrzBkWxtWZcAE7HyE-iParGLl-940=s0-d-e1-ft#http://s81.mindvalley.us/mindvalley/media/images/btn-app-store.png"
+                        src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/appStoreIcon.png"
                         alt="App Store"></a>
                 <a href="#"><img
-                        src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                        src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/playStoreIcon.png"
                         alt="Google Play"></a>
             </div>
 
@@ -158,9 +162,9 @@ const sendVerificationEmail = async (email, link) => {
 </body>
 
 </html>`,
-  };
+    };
 
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 };
 
 module.exports = { sendVerificationEmail };

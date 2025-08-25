@@ -95,14 +95,33 @@ const addEditContact = async (req, res) => {
     //   }
     // }
 
+    // let parsedPhones = [];
+
+    // if (phonenumber && countryCode) {
+    //   parsedPhones.push({
+    //     countryCode: String(countryCode).replace(/[^\d]/g, ""), // remove +
+    //     number: String(phonenumber).replace(/[^\d]/g, ""),      // keep only digits
+    //   });
+    // }
+
+    // ---------- Normalize Phone Numbers ----------
     let parsedPhones = [];
 
-    if (phonenumber && countryCode) {
-      parsedPhones.push({
-        countryCode: String(countryCode).replace(/[^\d]/g, ""), // remove +
-        number: String(phonenumber).replace(/[^\d]/g, ""),      // keep only digits
-      });
+    // Treat “field present (even if empty)” as an instruction about phones.
+    const hasPhoneInput =
+      Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
+      Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+
+    // Only push a phone object if BOTH cleaned values are non-empty.
+    // If fields are present but blank, parsedPhones will remain [] (meaning: clear phones).
+    if (hasPhoneInput) {
+      const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, "");
+      const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
+      if (cleanedCC && cleanedNum) {
+        parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
+      }
     }
+
 
 
     // console.log("Parsed Phones:", phonenumbers, parsedPhones);
@@ -631,9 +650,15 @@ const addEditContact = async (req, res) => {
       // if (req.body.phonenumbers !== undefined && Array.isArray(parsedPhones)) {
       //   updateFields.phonenumbers = parsedPhones;
       // }
-      if (req.body.phonenumber || req.body.countryCode) {
+      // if (req.body.phonenumber || req.body.countryCode) {
+      //   updateFields.phonenumbers = parsedPhones;
+      // }
+
+      if (hasPhoneInput) {
+        // This sets phonenumbers to [] when blanks are sent, effectively removing the phone(s).
         updateFields.phonenumbers = parsedPhones;
       }
+
 
       if (req.body.emailaddresses !== undefined && Array.isArray(cleanedEmails)) {
         updateFields.emailaddresses = cleanedEmails;
