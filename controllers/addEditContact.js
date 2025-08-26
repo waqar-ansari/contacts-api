@@ -152,30 +152,60 @@ const addEditContact = async (req, res) => {
     }
 
     // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
+    // else if (apiType === "web" || apiType === "scan") {
+    //   if (phonenumber) {
+    //     if (!phonenumber.startsWith("+")) {
+    //       phonenumber = "+" + phonenumber;
+    //     }
+    //     const phoneObj = parsePhoneNumberFromString(phonenumber);
+    //     console.log(phoneObj);
+
+    //     if (phoneObj) {
+    //       const cleanedCC = phoneObj.countryCallingCode
+    //         .toString()
+    //         .replace(/[^\d]/g, ""); // clean country code
+    //       const cleanedNum = phoneObj.nationalNumber
+    //         .toString()
+    //         .replace(/[^\d]/g, ""); // clean national number
+
+    //       parsedPhones.push({
+    //         countryCode: cleanedCC,
+    //         number: cleanedNum,
+    //       });
+
+    //       hasPhoneInput = true;
+    //     }
+    //   }
+    // }
+
+    // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
+    // Treat presence of the phonenumber field (even if empty) as an instruction
     else if (apiType === "web" || apiType === "scan") {
-      if (phonenumber) {
-        if (!phonenumber.startsWith("+")) {
-          phonenumber = "+" + phonenumber;
-        }
-        const phoneObj = parsePhoneNumberFromString(phonenumber);
+      // Consider the field present if client sent it at all
+      hasPhoneInput = Object.prototype.hasOwnProperty.call(req.body, "phonenumber");
+
+      // If client provided a non-empty value, parse it into countryCode/number
+      if (hasPhoneInput && phonenumber && String(phonenumber).trim() !== "") {
+        let raw = String(phonenumber).trim();
+        if (!raw.startsWith("+")) raw = "+" + raw;
+        const phoneObj = parsePhoneNumberFromString(raw);
         console.log(phoneObj);
 
         if (phoneObj) {
-          const cleanedCC = phoneObj.countryCallingCode
-            .toString()
-            .replace(/[^\d]/g, ""); // clean country code
-          const cleanedNum = phoneObj.nationalNumber
-            .toString()
-            .replace(/[^\d]/g, ""); // clean national number
+          const cleanedCC = String(phoneObj.countryCallingCode ?? "").replace(/[^\d]/g, "");
+          const cleanedNum = String(phoneObj.nationalNumber ?? "").replace(/[^\d]/g, "");
 
-          parsedPhones.push({
-            countryCode: cleanedCC,
-            number: cleanedNum,
-          });
-
-          hasPhoneInput = true;
+          if (cleanedCC && cleanedNum) {
+            parsedPhones.push({
+              countryCode: cleanedCC,
+              number: cleanedNum,
+            });
+          }
         }
       }
+      // If hasPhoneInput === true but value empty -> parsedPhones remains []
+      // Later the code `if (hasPhoneInput) updateFields.phonenumbers = parsedPhones;`
+      // will set phonenumbers to [] and thus remove phone(s) from DB on edit.
     }
 
 
@@ -913,6 +943,49 @@ const addEditContact = async (req, res) => {
         updatedAt: m.updatedAt,
       }));
     }
+
+    // ---- Response: format phonenumbers depending on apiType ----
+    // If contact has phonenumbers, convert the shape for web/mobile/scan
+    if (Array.isArray(responseData.phonenumbers)) {
+      if (apiType === "web") {
+        // For web -> return array of strings like ["9170565456655"]
+        responseData.phonenumbers = responseData.phonenumbers
+          .map((p) => {
+            if (typeof p === "string") {
+              // remove leading + if present and non-digit chars
+              return String(p).replace(/^\+/, "").replace(/[^\d]/g, "");
+            }
+            const cc = String(p.countryCode ?? "").replace(/[^\d]/g, "");
+            const num = String(p.number ?? p.nationalNumber ?? "").replace(/[^\d]/g, "");
+            return (cc && num) ? cc + num : (cc || num) ? (cc + num) : "";
+          })
+          .filter(Boolean); // remove empty strings
+      } else {
+        // For mobile/scan (and other types) -> keep object form { countryCode, number }
+        // Also normalize strings into objects where possible
+        responseData.phonenumbers = responseData.phonenumbers.map((p) => {
+          if (typeof p === "string") {
+            // try to parse string using libphonenumber (you already imported parsePhoneNumberFromString)
+            const raw = p.startsWith("+") ? p : "+" + p;
+            const parsed = parsePhoneNumberFromString(raw);
+            if (parsed) {
+              return {
+                countryCode: String(parsed.countryCallingCode).replace(/[^\d]/g, ""),
+                number: String(parsed.nationalNumber).replace(/[^\d]/g, ""),
+              };
+            }
+            // fallback: return cleaned string (no plus)
+            return { countryCode: "", number: String(p).replace(/^\+/, "").replace(/[^\d]/g, "") };
+          }
+          // already an object — ensure digits-only strings
+          return {
+            countryCode: String(p.countryCode ?? "").replace(/[^\d]/g, ""),
+            number: String(p.number ?? p.nationalNumber ?? "").replace(/[^\d]/g, ""),
+          };
+        });
+      }
+    }
+
 
     delete responseData.createdBy;
     delete responseData._id;
