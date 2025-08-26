@@ -6,6 +6,7 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
 const { createGoogleMeetEvent } = require("../utils/googleCalendar");
 const { logActivityToContact } = require("../utils/activityLogger");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 
 
 
@@ -48,7 +49,8 @@ const addEditContact = async (req, res) => {
       // meetingEndTime,
       meetingType,
       meetingLocation,
-      meetingLink
+      meetingLink,
+      apiType = "web", // "web" | "mobile" | "scan"
     } = req.body;
 
     let cleanedEmails = [];
@@ -105,23 +107,73 @@ const addEditContact = async (req, res) => {
     // }
 
     // ---------- Normalize Phone Numbers ----------
+    // let parsedPhones = [];
+
+    // // Treat “field present (even if empty)” as an instruction about phones.
+    // const hasPhoneInput =
+    //   Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
+    //   Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+
+    // // Only push a phone object if BOTH cleaned values are non-empty.
+    // // If fields are present but blank, parsedPhones will remain [] (meaning: clear phones).
+    // if (hasPhoneInput) {
+    //   const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, "");
+    //   const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
+    //   if (cleanedCC && cleanedNum) {
+    //     parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
+    //   }
+    // }
+
+    // ---------- Normalize Phone Numbers ----------
     let parsedPhones = [];
+    let hasPhoneInput = false;
 
-    // Treat “field present (even if empty)” as an instruction about phones.
-    const hasPhoneInput =
-      Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
-      Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+    // ✅ Case 1: apiType = "mobile" (phonenumber & countryCode come separately)
+    if (apiType === "mobile") {
+      hasPhoneInput =
+        hasPhoneInput =
+        Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
+        Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+      console.log(hasPhoneInput, phonenumber, countryCode);
 
-    // Only push a phone object if BOTH cleaned values are non-empty.
-    // If fields are present but blank, parsedPhones will remain [] (meaning: clear phones).
-    if (hasPhoneInput) {
-      const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, "");
-      const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
-      if (cleanedCC && cleanedNum) {
-        parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
+      if (hasPhoneInput) {
+        console.log("Phone input detected:", phonenumber, countryCode);
+
+        const cleanedCC = (countryCode ?? "")
+          .toString()
+          .replace(/[^\d]/g, ""); // remove all non-digits
+        const cleanedNum = (phonenumber ?? "")
+          .toString()
+          .replace(/[^\d]/g, "");
+        if (cleanedCC && cleanedNum) {
+          parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
+        }
       }
     }
 
+    // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
+    else if (apiType === "web" || apiType === "scan") {
+      if (phonenumber) {
+        const phoneObj = parsePhoneNumberFromString(phonenumber);
+        console.log(phoneObj);
+
+        if (phoneObj) {
+          const cleanedCC = phoneObj.countryCallingCode
+            .toString()
+            .replace(/[^\d]/g, ""); // clean country code
+          const cleanedNum = phoneObj.nationalNumber
+            .toString()
+            .replace(/[^\d]/g, ""); // clean national number
+
+          parsedPhones.push({
+            countryCode: cleanedCC,
+            number: cleanedNum,
+          });
+
+          hasPhoneInput = true;
+        }
+      }
+    }
 
 
     // console.log("Parsed Phones:", phonenumbers, parsedPhones);
