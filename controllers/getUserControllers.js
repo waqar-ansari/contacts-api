@@ -16,6 +16,7 @@ const getUserData = async (req, res) => {
       emailTemplateLimit = 10,
       whatsappTemplateIsFavourite,
       emailTemplateIsFavourite,
+      apiType = "web", // <-- ADDED
     } = req.body;
 
     const isWhatsappFav = whatsappTemplateIsFavourite === true || whatsappTemplateIsFavourite === "true";
@@ -48,6 +49,41 @@ const getUserData = async (req, res) => {
     ]);
     const tagCount = tagCountAgg.length > 0 ? tagCountAgg[0].tagCount : 0;
 
+    // --------- Normalize phonenumbers for response based on apiType ----------
+    const phonenumbersForResponse = (() => {
+      const phones = Array.isArray(user.phonenumbers) ? user.phonenumbers : [];
+
+      if (apiType === "web") {
+        // For web: return array of concatenated digits like ["917046658651"]
+        return phones
+          .map(p => {
+            if (!p) return null;
+
+            if (typeof p === "string") {
+              // strip '+', spaces, parentheses, dashes, etc -> digits only
+              return p.replace(/[^\d]/g, "");
+            }
+
+            // if stored as object { countryCode, number } (or similar)
+            const cc = String(p.countryCode || p.country || "").replace(/[^\d]/g, "");
+            const num = String(p.number || p.nationalNumber || p.phone || "").replace(/[^\d]/g, "");
+
+            // If only `number` exists but already contains country code (e.g., "9170..."), return it cleaned
+            if (!cc && num.length > 6) {
+              return num;
+            }
+
+            // join cc + num (safe even if one of them is empty)
+            return (cc + num).replace(/[^\d]/g, "");
+          })
+          .filter(Boolean); // remove null/empty entries
+      }
+
+      // For mobile (or by default) return raw stored structure so mobile UI keeps objects
+      return phones;
+    })();
+
+
     // Only return WhatsApp templates if specifically requested
     if (isWhatsappFav && !isEmailFav) {
       let whatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates : [];
@@ -74,7 +110,8 @@ const getUserData = async (req, res) => {
         id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
-        phonenumbers: user.phonenumbers,
+        // phonenumbers: user.phonenumbers,
+        phonenumbers: phonenumbersForResponse,
         serialNumber: user.serialNumber,
         email: user.email,
         profileImageURL: user.profileImageURL,
@@ -114,7 +151,8 @@ const getUserData = async (req, res) => {
           id: user._id,
           firstname: user.firstname,
           lastname: user.lastname,
-          phonenumbers: user.phonenumbers,
+          // phonenumbers: user.phonenumbers,
+          phonenumbers: phonenumbersForResponse,
           serialNumber: user.serialNumber,
           email: user.email,
           profileImageURL: user.profileImageURL,
@@ -211,7 +249,8 @@ const getUserData = async (req, res) => {
         id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
-        phonenumbers: user.phonenumbers,
+        // phonenumbers: user.phonenumbers,
+        phonenumbers: phonenumbersForResponse,
         serialNumber: user.serialNumber,
         email: user.email,
         profileImageURL: user.profileImageURL,
@@ -250,7 +289,8 @@ const getUserData = async (req, res) => {
           id: user._id,
           firstname: user.firstname,
           lastname: user.lastname,
-          phonenumbers: user.phonenumbers,
+          // phonenumbers: user.phonenumbers,
+          phonenumbers: phonenumbersForResponse,
           serialNumber: user.serialNumber,
           email: user.email,
           profileImageURL: user.profileImageURL,
@@ -329,7 +369,8 @@ const getUserData = async (req, res) => {
       id: user._id,
       firstname: user.firstname,
       lastname: user.lastname,
-      phonenumbers: user.phonenumbers,
+      // phonenumbers: user.phonenumbers,
+      phonenumbers: phonenumbersForResponse,
       serialNumber: user.serialNumber,
       email: user.email,
       profileImageURL: user.profileImageURL,
@@ -444,7 +485,8 @@ const getUserData = async (req, res) => {
       id: user._id,
       firstname: user.firstname,
       lastname: user.lastname,
-      phonenumbers: user.phonenumbers,
+      // phonenumbers: user.phonenumbers,
+      phonenumbers: phonenumbersForResponse,
       serialNumber: user.serialNumber,
       email: user.email,
       profileImageURL: user.profileImageURL,

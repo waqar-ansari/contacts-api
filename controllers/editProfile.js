@@ -2,6 +2,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../utils/s3");
 // const { generateUserQRCode } = require("../utils/qrUtils");
 // const crypto = require("crypto"); // ✅ for randomBytes, createHmac, etc.
@@ -75,6 +76,7 @@ const editProfile = async (req, res) => {
       emailTemplateSubject,
       emailTemplateBody,
       emailTemplateIsFavourite,
+      apiType = "web" // default to web if not provided
     } = req.body;
 
     const user = await User.findById(userId);
@@ -202,13 +204,52 @@ const editProfile = async (req, res) => {
       // }
 
       // ✅ Add phone update here
-      if (req.body.countryCode && req.body.phonenumber) {
-        user.phonenumbers = [
-          {
-            countryCode: String(req.body.countryCode).replace(/\D/g, ""), // keep only digits
-            number: String(req.body.phonenumber).replace(/\D/g, "")       // keep only digits
+      // if (req.body.countryCode && req.body.phonenumber) {
+      //   user.phonenumbers = [
+      //     {
+      //       countryCode: String(req.body.countryCode).replace(/\D/g, ""), // keep only digits
+      //       number: String(req.body.phonenumber).replace(/\D/g, "")       // keep only digits
+      //     }
+      //   ];
+      // }
+
+      // === Phone Numbers ===
+      if (apiType === "mobile") {
+        // 📱 Case 1: Mobile - user gives separate countryCode & phonenumber
+        if (req.body.countryCode && req.body.phonenumber) {
+          user.phonenumbers = [
+            {
+              countryCode: String(req.body.countryCode).replace(/\D/g, ""),
+              number: String(req.body.phonenumber).replace(/\D/g, "")
+            }
+          ];
+        }
+      } else if (apiType === "web") {
+        // 💻 Case 2: Web - user gives full number (with or without '+')
+        if (req.body.phonenumber) {
+          let rawNumber = req.body.phonenumber.trim();
+
+          // Ensure number starts with '+'
+          if (!rawNumber.startsWith("+")) {
+            rawNumber = "+" + rawNumber;
           }
-        ];
+
+          const phoneObj = parsePhoneNumberFromString(rawNumber);
+
+          if (phoneObj && phoneObj.isValid()) {
+            user.phonenumbers = [
+              {
+                countryCode: phoneObj.countryCallingCode,  // e.g. "91"
+                number: phoneObj.nationalNumber            // e.g. "7046658651"
+              }
+            ];
+          } else {
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid phone number format"
+            });
+          }
+        }
       }
 
 
