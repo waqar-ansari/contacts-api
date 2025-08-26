@@ -17,7 +17,7 @@ const addEditContact = async (req, res) => {
       return res.status(401).json({ status: "error", message: "Unauthorized: User not found" });
     }
 
-    const {
+    let {
       contact_id,
       firstname,
       lastname,
@@ -154,6 +154,9 @@ const addEditContact = async (req, res) => {
     // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
     else if (apiType === "web" || apiType === "scan") {
       if (phonenumber) {
+        if (!phonenumber.startsWith("+")) {
+          phonenumber = "+" + phonenumber;
+        }
         const phoneObj = parsePhoneNumberFromString(phonenumber);
         console.log(phoneObj);
 
