@@ -7,8 +7,8 @@ const helpSupportSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
-        name: { type: String, required: true, trim: true },
-        subject: { type: String, required: true, trim: true },
+        name: { type: String, trim: true },
+        subject: { type: String, trim: true },
         // email: { type: String, required: true, trim: true, lowercase: true },
         emailaddresses: {
             type: [String],
@@ -28,10 +28,9 @@ const helpSupportSchema = new mongoose.Schema(
         ],
         inquiryType: {
             type: String,
-            enum: ["General", "Billing & Subscription", "Support", "Bug Report", "Others"],
-            required: true,
+            enum: ["General", "Billing & Subscription", "Support", "Bug Report", "Others"]
         },
-        message: { type: String, required: true, trim: true },
+        message: { type: String, trim: true },
         fileUrl: { type: String }, // S3 file URL
         subscribe: { type: Boolean, default: false },
     },

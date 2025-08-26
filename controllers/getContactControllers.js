@@ -11,7 +11,8 @@ const getContact = async (req, res) => {
       isFavourite = false,
       favouriteContactsPage = 1,
       favouriteContactsLimit = 10,
-      favouriteContactsSearch = ""
+      favouriteContactsSearch = "",
+      apiType = "web"
     } = req.body;
 
     // -------------------------
@@ -146,9 +147,29 @@ const getContact = async (req, res) => {
         const obj = contact.toObject();
         obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
         // obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
-        obj.phonenumbers = Array.isArray(obj.phonenumbers)
-          ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
-          : [];
+        // obj.phonenumbers = Array.isArray(obj.phonenumbers)
+        //   ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
+        //   : [];
+        if (Array.isArray(obj.phonenumbers)) {
+          const filteredPhones = obj.phonenumbers.filter(
+            p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim())
+          );
+
+          if (apiType === "web") {
+            // For web: combine countryCode + number as strings
+            obj.phonenumbers = filteredPhones.map(p => {
+              let cc = p.countryCode ? p.countryCode.trim() : "";
+              let num = p.number ? p.number.trim() : "";
+              return cc && num ? `${cc}${num}` : num || cc;
+            });
+          } else {
+            // For mobile: keep original object format
+            obj.phonenumbers = filteredPhones;
+          }
+        } else {
+          obj.phonenumbers = [];
+        }
+
         if (Array.isArray(obj.tags)) {
           obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
         }
@@ -190,9 +211,28 @@ const getContact = async (req, res) => {
       const obj = contact.toObject();
       obj.emailaddresses = Array.isArray(obj.emailaddresses) ? obj.emailaddresses.filter(e => e?.trim()) : [];
       // obj.phonenumbers = Array.isArray(obj.phonenumbers) ? obj.phonenumbers.filter(n => n?.trim()) : [];
-      obj.phonenumbers = Array.isArray(obj.phonenumbers)
-        ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
-        : [];
+      // obj.phonenumbers = Array.isArray(obj.phonenumbers)
+      //   ? obj.phonenumbers.filter(p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim()))
+      //   : [];
+      if (Array.isArray(obj.phonenumbers)) {
+        const filteredPhones = obj.phonenumbers.filter(
+          p => (p?.number && p.number.trim()) || (p?.countryCode && p.countryCode.trim())
+        );
+
+        if (apiType === "web") {
+          // For web: combine countryCode + number as strings
+          obj.phonenumbers = filteredPhones.map(p => {
+            let cc = p.countryCode ? p.countryCode.trim() : "";
+            let num = p.number ? p.number.trim() : "";
+            return cc && num ? `${cc}${num}` : num || cc;
+          });
+        } else {
+          // For mobile: keep original object format
+          obj.phonenumbers = filteredPhones;
+        }
+      } else {
+        obj.phonenumbers = [];
+      }
       if (Array.isArray(obj.tags)) {
         obj.tags = obj.tags.map(t => ({ tag: t.tag, emoji: t.emoji }));
       }

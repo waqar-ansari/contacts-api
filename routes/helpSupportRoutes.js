@@ -1,9 +1,10 @@
-const express = require("express");
-const router = express.Router();
-// const multer = require("multer");
+// const express = require("express");
+// const router = express.Router();
+const { Router } = require("express");
+const router = Router();
+
 const { createHelpSupport, getUserHelpRequests } = require("../controllers/helpSupportController");
 
-// const upload = multer({ storage: multer.memoryStorage() });
 
 router.post(
     "/create", createHelpSupport

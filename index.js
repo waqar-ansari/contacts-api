@@ -154,7 +154,7 @@ app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesR
 app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
 app.use("/whatsapp-email-activity", checkForAuthentication(), whatsappEmailActivityRoutes);
-app.use("/help-support", checkForAuthentication(), helpSupportRoutes);
+app.use("/help-support", checkForAuthentication(), upload.single("helpAndSupportAttachments"), helpSupportRoutes);
 app.use("/fetch-google-contacts", (req, res, next) => {
   const skipAuthPaths = ["/google/callback"];
   if (skipAuthPaths.includes(req.path)) {
