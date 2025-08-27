@@ -63,6 +63,7 @@ exports.getUserInfo = async (req, res) => {
 
     console.log(`${user.firstname} shareProfile count: ${user.shareProfileCount}`);
 
+
     let formattedPhonenumbers = user.phonenumbers;
     if (apiType === "web") {
       formattedPhonenumbers = user.phonenumbers.map(
@@ -73,11 +74,14 @@ exports.getUserInfo = async (req, res) => {
       formattedPhonenumbers = user.phonenumbers;
     }
 
+    console.log(user.phonenumbers, formattedPhonenumbers);
+
+
     const qrPayload = {
       id: user._id,
       firstname: user.firstname,
       lastname: user.lastname,
-      phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+      phonenumbers: user.phonenumbers,
       email: user.email,
       profileImageURL: user.profileImageURL,
       instagram: user.instagram,
