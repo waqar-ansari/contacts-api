@@ -1,4 +1,5 @@
 const User = require("../models/userModel");
+const QRCode = require("qrcode");
 
 exports.getUserInfo = async (req, res) => {
   try {
