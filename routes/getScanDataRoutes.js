@@ -42,6 +42,6 @@ const { getScanData } = require("../controllers/getScanDataControllers");
  *       500:
  *         description: Internal server error
  */
-router.get("/", getScanData); // POST /api/scan
+router.post("/", getScanData); // POST /api/scan
 
 module.exports = router;
