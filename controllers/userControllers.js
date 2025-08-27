@@ -13,6 +13,7 @@ const { google } = require('googleapis');
 const querystring = require('querystring');
 const axios = require('axios');
 const ReferralLog = require("../models/referralLogModel");
+const { normalizePhone } = require('../utils/phoneUtils');
 
 
 const oauth2Client = new google.auth.OAuth2(
@@ -85,16 +86,31 @@ const signupWithEmail = async (req, res) => {
       let matchConditions = [];
       if (user.email) matchConditions.push({ email: user.email });
       // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
-      if (user.phonenumbers?.[0]) {
-        matchConditions.push({
-          phonenumbers: {
-            $elemMatch: {
-              countryCode: user.phonenumbers[0].countryCode,
-              number: user.phonenumbers[0].number,
+      // if (user.phonenumbers?.[0]) {
+      //   matchConditions.push({
+      //     phonenumbers: {
+      //       $elemMatch: {
+      //         countryCode: user.phonenumbers[0].countryCode,
+      //         number: user.phonenumbers[0].number,
+      //       },
+      //     },
+      //   });
+      // }
+
+      if (user.phonenumbers && user.phonenumbers.length > 0) {
+        const phone = user.phonenumbers[0];
+        if (phone.countryCode && phone.number) {
+          matchConditions.push({
+            phonenumbers: {
+              $elemMatch: {
+                countryCode: phone.countryCode,
+                number: phone.number,
+              },
             },
-          },
-        });
+          });
+        }
       }
+
 
 
       const matchingUsers = matchConditions.length > 0
@@ -113,7 +129,13 @@ const signupWithEmail = async (req, res) => {
           if (typeof entry === "object" && (
             (entry.email && entry.email === user.email) ||
             // (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
+            // (entry.phonenumber &&
+            //   entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
             (entry.phonenumber &&
+              user.phonenumbers &&
+              user.phonenumbers.length > 0 &&
+              user.phonenumbers[0].countryCode &&
+              user.phonenumbers[0].number &&
               entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
           )) {
             updated = true;
@@ -323,99 +345,467 @@ const signupWithEmail = async (req, res) => {
   }
 };
 
+// const signupWithPhoneNumber = async (req, res) => {
+//   try {
+//     const { countryCode, phonenumber, password, otp, firstname, lastname, resendOtp = false, apiType = "mobile" } = req.body;
+//     const referralCodeParam = req.body.referralCode || req.query.ref || "";
+//     // const tenantId = req.query.tenantId || req.body.tenantId || "";
+
+//     // if (!phonenumber || !password) {
+//     //   return res.status(400).json({
+//     //     status: "error",
+//     //     message: "Phone number and password are required",
+//     //   });
+//     // }
+
+//     // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
+
+//     if (!countryCode || !phonenumber || !password) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: "Country code, phone number, and password are required",
+//       });
+//     }
+
+//     // Remove + from countryCode and sanitize number
+//     const sanitizedCountryCode = countryCode.replace("+", "");
+//     const sanitizedNumber = phonenumber.replace(/[^0-9]/g, "");
+
+
+//     const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+//     // let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
+
+//     let user = await User.findOne({
+//       phonenumbers: {
+//         $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
+//       }
+//     });
+
+
+//     // === Step 1: If No OTP in Request → Generate and Send OTP ===
+//     // if (!otp) {
+
+//     //   if (phonenumber && phonenumber.trim() !== "") {
+//     //     const phoneExists = await User.findOne({
+//     //       phonenumbers: { $in: [phonenumber] },
+//     //     });
+//     //     if (phoneExists) {
+//     //       return res.status(409).json({
+//     //         status: "error",
+//     //         message: "User with this phone number already exists",
+//     //       });
+//     //     }
+//     //   }
+
+//     //   const generatedOtp = generateOtp();
+//     //   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
+//     //   const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
+
+//     //   user = await User.findOneAndUpdate(
+//     //     { phonenumbers: { $in: [sanitizedPhone] } },
+//     //     {
+//     //       $setOnInsert: { serialNumber: tempSerialNumber },
+//     //       $set: {
+//     //         otp: generatedOtp,
+//     //         otpExpiresAt,
+//     //         firstname,
+//     //         lastname,
+//     //         signupMethod: "phoneNumber",
+//     //         phonenumbers: [sanitizedPhone], // ✅ Always set as array
+//     //       },
+//     //     },
+//     //     { upsert: true, new: true, setDefaultsOnInsert: true }
+//     //   );
+
+//     //   try {
+//     //     const phoneForWhatsAppApi = `+${sanitizedPhone}`;
+//     //     await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
+//     //   } catch (error) {
+//     //     console.error("OTP Send Failed ❌", error.response?.data || error.message);
+//     //     return res.status(500).json({
+//     //       status: "error",
+//     //       message: "Failed to send WhatsApp OTP",
+//     //       error: error.response?.data || error.message,
+//     //     });
+//     //   }
+
+//     //   return res.status(200).json({
+//     //     status: "pending",
+//     //     message: "OTP sent to your WhatsApp number",
+//     //   });
+//     // }
+
+//     if (!otp || resendOtp) {
+//       // ✅ Check if user already exists and is verified
+//       if (user && user.isVerified && !resendOtp) {
+//         return res.status(409).json({
+//           status: "error",
+//           message: "User with this phone number already exists. Please login.",
+//         });
+//       }
+
+//       const generatedOtp = generateOtp();
+//       const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
+//       const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
+
+//       user = await User.findOneAndUpdate(
+//         // { phonenumbers: { $in: [sanitizedPhone] } },
+//         {
+//           phonenumbers: {
+//             $elemMatch: {
+//               countryCode: sanitizedCountryCode,
+//               number: sanitizedNumber
+//             }
+//           }
+//         },
+//         {
+//           $setOnInsert: { serialNumber: tempSerialNumber },
+//           $set: {
+//             otp: generatedOtp,
+//             otpExpiresAt,
+//             firstname,
+//             lastname,
+//             signupMethod: "phoneNumber",
+//             // phonenumbers: [sanitizedPhone],
+//             phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+//           },
+//         },
+//         { upsert: true, new: true, setDefaultsOnInsert: true }
+//       );
+
+//       try {
+//         // const phoneForWhatsAppApi = `+${sanitizedPhone}`;
+//         const phoneForWhatsAppApi = `+${sanitizedCountryCode}${sanitizedNumber}`;
+//         await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
+//       } catch (error) {
+//         console.error("OTP Send Failed ❌", error.response?.data || error.message);
+//         return res.status(500).json({
+//           status: "error",
+//           message: "Failed to send WhatsApp OTP",
+//           error: error.response?.data || error.message,
+//         });
+//       }
+
+//       return res.status(200).json({
+//         status: "pending",
+//         message: resendOtp ? "OTP resent to your WhatsApp number" : "OTP sent to your WhatsApp number",
+//       });
+//     }
+
+
+//     // === Step 2: If OTP present → Verify OTP and Create User ===
+
+//     if (!user) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: "No signup request found for this phone number. Please request a new OTP.",
+//       });
+//     }
+
+//     if (user.isVerified) {
+//       return res.status(409).json({
+//         status: "error",
+//         message: "User with this phone number already verified. Please login.",
+//       });
+//     }
+
+//     if (user.otp !== otp) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: "Invalid OTP",
+//       });
+//     }
+
+//     if (user.otpExpiresAt < new Date()) {
+//       return res.status(400).json({
+//         status: "error",
+//         message: "OTP has expired. Please request a new OTP.",
+//       });
+//     }
+
+//     // ✅ OTP Verified → Finalize Signup
+
+//     const serialNumber = await User.getNextSerialNumber();
+
+//     // const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
+//     //   firstname,
+//     //   lastname,
+//     //   phonenumbers: [sanitizedPhone],
+//     //   provider: "local",
+//     // });
+
+//     let userDetails = user.toObject();
+
+//     // Remove sensitive fields
+//     delete userDetails.password;
+//     delete userDetails.otp;
+//     delete userDetails.otpExpiresAt;
+//     delete userDetails.emailVerificationToken;
+//     delete userDetails.resetPasswordToken;
+//     delete userDetails.resetPasswordExpires;
+
+//     // Add/override fields before generating QR code
+//     userDetails.serialNumber = serialNumber;
+//     userDetails.firstname = firstname;
+//     userDetails.lastname = lastname;
+//     // userDetails.phonenumbers = [sanitizedPhone];
+//     userDetails.phonenumbers = [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }];
+//     userDetails.signupMethod = "phoneNumber";
+//     userDetails.provider = "local";
+
+//     // // Generate QR code with full safe details
+//     // const { qrCode } = await generateUserQRCode(
+//     //   firstname || "user",
+//     //   serialNumber,
+//     //   userDetails
+//     // );
+
+//     user.serialNumber = serialNumber;
+//     user.isVerified = true;
+//     // user.qrCode = qrCode;
+//     user.signupMethod = "phoneNumber";
+//     user.role = "user"; // Default role for new users
+//     user.password = password;
+//     user.firstname = firstname;
+//     user.lastname = lastname;
+
+
+
+//     // ✅ Clear OTP fields
+//     user.otp = undefined;
+//     user.otpExpiresAt = undefined;
+
+//     const matchConditions = [];
+
+//     if (user.email) matchConditions.push({ email: user.email });
+//     // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
+//     if (user.phonenumbers?.[0]) {
+//       matchConditions.push({
+//         phonenumbers: {
+//           $elemMatch: {
+//             countryCode: user.phonenumbers[0].countryCode,
+//             number: user.phonenumbers[0].number,
+//           },
+//         },
+//       });
+//     }
+
+
+//     if (matchConditions.length > 0) {
+//       const matchingUsers = await User.find({
+//         scannedMe: { $elemMatch: { $or: matchConditions } },
+//       });
+
+//       for (const scanner of matchingUsers) {
+//         let updated = false;
+
+//         scanner.scannedMe = scanner.scannedMe.map(entry => {
+//           if (
+//             typeof entry === "object" &&
+//             (
+//               (entry.email && entry.email === user.email) ||
+//               // (entry.phonenumber && entry.phonenumber === user.phonenumbers[0])
+//               (entry.phonenumber &&
+//                 entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
+//             )
+//           ) {
+//             updated = true;
+//             return user._id;
+//           }
+//           return entry;
+//         });
+
+//         if (updated) await scanner.save();
+
+//         if (!Array.isArray(user.iScanned)) user.iScanned = [];
+
+//         const alreadyAdded = user.iScanned.some(entry => {
+//           if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
+//           return entry.toString() === scanner._id.toString();
+//         });
+
+//         if (!alreadyAdded) {
+//           user.iScanned.push({
+//             _id: scanner._id,
+//             firstname: scanner.firstname || "",
+//             lastname: scanner.lastname || "",
+//             email: scanner.email || "",
+//             phonenumbers: scanner.phonenumbers || [],
+//             profileImageURL: scanner.profileImageURL || "",
+//           });
+//         }
+//       }
+//     }
+//     // ✅ iScanned / scannedMe logic ends here.
+
+//     const now = new Date();
+//     user.trialStart = now;
+//     user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days later
+//     user.isPremium = false;
+
+//     // 🔥 Generate and assign user’s unique referral code
+//     // const referralCodeRaw = sanitizedPhone + Date.now();
+//     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
+//     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+
+//     // 🔥 Handle referredBy logic if referralCode was used
+//     // if (tenantId) {
+//     //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
+
+//     //   if (referringAdmin) {
+//     //     referredByAdmin = referringAdmin._id;
+//     //     user.referredByAdmin = referredByAdmin;
+//     //   } else {
+//     //     return res.status(400).json({
+//     //       status: "error",
+//     //       message: "Invalid tenant ID",
+//     //     });
+//     //   }
+//     // } else 
+//     if (referralCodeParam) {
+//       const referringUser = await User.findOne({ referralCode: referralCodeParam });
+
+//       // if (referringUser) {
+//       // const previouslyReferred = await User.findOne({
+//       //   myReferrals: { $elemMatch: { phonenumbers: { $in: [sanitizedPhone] } } },
+//       //   // phonenumbers: { $in: [sanitizedPhone] },
+//       //   $or: [
+//       //     { referredBy: referringUser._id },
+//       //     { referralCode: referralCodeParam }
+//       //   ]
+//       // });
+
+//       // if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
+//       //   return res.status(400).json({
+//       //     status: "error",
+//       //     message: "This referral link has already been used with this phone number. Please sign up manually.",
+//       //   });
+//       // }
+
+//       // const previouslyReferred = await ReferralLog.findOne({
+//       //   phonenumber: sanitizedPhone,
+//       // });
+
+//       // const previouslyReferred = await ReferralLog.findOne({
+//       //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
+//       // });
+
+//       const previouslyReferred = await ReferralLog.findOne({
+//         phonenumbers: {
+//           $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
+//         }
+//       });
+
+//       if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
+//         return res.status(400).json({
+//           status: "error",
+//           message: "This referral link has already been used with this phone number. Please sign up manually.",
+//         });
+//       }
+
+//       user.referredBy = referringUser._id;
+//       // 🔥 Push referral entry in referring user's `myReferrals`
+//       referringUser.myReferrals.push({
+//         _id: user._id,
+//         firstname: user.firstname,
+//         lastname: user.lastname,
+//         email: user.email,
+//         phonenumbers: user.phonenumbers,
+//         signupDate: new Date(),
+//       });
+
+//       referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
+//       user.creditBalance = (user.creditBalance || 0) + 10;
+//       await referringUser.save();
+//       // await ReferralLog.create({
+//       //   // phonenumber: sanitizedPhone,
+//       //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
+//       //   referredBy: referringUser._id,
+//       //   referredUserId: user._id,
+//       // });
+//       await ReferralLog.create({
+//         phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+//         referredBy: referringUser._id,
+//         referredUserId: user._id,
+//       });
+
+//       // }
+//     }
+
+
+//     await user.save();
+
+//     const token = createTokenforUser(user);
+//     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
+
+//     return res.status(201).json({
+//       status: "success",
+//       message: "Phone signup completed successfully",
+//       data: {
+//         _id: user._id,
+//         token,
+//         registeredWith: user.signupMethod,
+//         referUrl
+//       },
+//     });
+
+//   } catch (error) {
+//     console.error("Signup Error ❌", error);
+//     return res.status(500).json({
+//       status: "error",
+//       message: "Server error during signup",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const signupWithPhoneNumber = async (req, res) => {
   try {
-    const { countryCode, phonenumber, password, otp, firstname, lastname, resendOtp = false } = req.body;
+    const {
+      countryCode,
+      phonenumber,
+      password,
+      otp,
+      firstname,
+      lastname,
+      resendOtp = false,
+      apiType = "mobile"
+    } = req.body;
+
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
-    // const tenantId = req.query.tenantId || req.body.tenantId || "";
 
-    // if (!phonenumber || !password) {
-    //   return res.status(400).json({
-    //     status: "error",
-    //     message: "Phone number and password are required",
-    //   });
-    // }
-
-    // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
-
-    if (!countryCode || !phonenumber || !password) {
+    if (!phonenumber || !password) {
       return res.status(400).json({
         status: "error",
-        message: "Country code, phone number, and password are required",
+        message: "Phone number and password are required",
       });
     }
 
-    // Remove + from countryCode and sanitize number
-    const sanitizedCountryCode = countryCode.replace("+", "");
-    const sanitizedNumber = phonenumber.replace(/[^0-9]/g, "");
+    // ---------- NORMALIZE PHONE ----------
+    // Use our helper which understands both "mobile" (separate cc + number)
+    // and "web" (combined like "917046658651").
+    const { countryCode: sanitizedCountryCode, number: sanitizedNumber } =
+      normalizePhone({ phonenumber, countryCode, apiType });
 
+    if (!sanitizedNumber) {
+      return res.status(400).json({
+        status: "error",
+        message: "Unable to parse phone number. Please include country code or send valid phone.",
+      });
+    }
 
-    const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-    // let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
-
+    // ---------- find existing user by structured phonenumbers ----------
     let user = await User.findOne({
       phonenumbers: {
         $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
       }
     });
 
+    const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-    // === Step 1: If No OTP in Request → Generate and Send OTP ===
-    // if (!otp) {
-
-    //   if (phonenumber && phonenumber.trim() !== "") {
-    //     const phoneExists = await User.findOne({
-    //       phonenumbers: { $in: [phonenumber] },
-    //     });
-    //     if (phoneExists) {
-    //       return res.status(409).json({
-    //         status: "error",
-    //         message: "User with this phone number already exists",
-    //       });
-    //     }
-    //   }
-
-    //   const generatedOtp = generateOtp();
-    //   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
-    //   const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
-
-    //   user = await User.findOneAndUpdate(
-    //     { phonenumbers: { $in: [sanitizedPhone] } },
-    //     {
-    //       $setOnInsert: { serialNumber: tempSerialNumber },
-    //       $set: {
-    //         otp: generatedOtp,
-    //         otpExpiresAt,
-    //         firstname,
-    //         lastname,
-    //         signupMethod: "phoneNumber",
-    //         phonenumbers: [sanitizedPhone], // ✅ Always set as array
-    //       },
-    //     },
-    //     { upsert: true, new: true, setDefaultsOnInsert: true }
-    //   );
-
-    //   try {
-    //     const phoneForWhatsAppApi = `+${sanitizedPhone}`;
-    //     await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
-    //   } catch (error) {
-    //     console.error("OTP Send Failed ❌", error.response?.data || error.message);
-    //     return res.status(500).json({
-    //       status: "error",
-    //       message: "Failed to send WhatsApp OTP",
-    //       error: error.response?.data || error.message,
-    //     });
-    //   }
-
-    //   return res.status(200).json({
-    //     status: "pending",
-    //     message: "OTP sent to your WhatsApp number",
-    //   });
-    // }
-
+    // === Step 1: No OTP or resendOtp -> generate/send OTP ===
     if (!otp || resendOtp) {
-      // ✅ Check if user already exists and is verified
       if (user && user.isVerified && !resendOtp) {
         return res.status(409).json({
           status: "error",
@@ -424,11 +814,10 @@ const signupWithPhoneNumber = async (req, res) => {
       }
 
       const generatedOtp = generateOtp();
-      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
       const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
 
       user = await User.findOneAndUpdate(
-        // { phonenumbers: { $in: [sanitizedPhone] } },
         {
           phonenumbers: {
             $elemMatch: {
@@ -445,7 +834,6 @@ const signupWithPhoneNumber = async (req, res) => {
             firstname,
             lastname,
             signupMethod: "phoneNumber",
-            // phonenumbers: [sanitizedPhone],
             phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
           },
         },
@@ -453,7 +841,6 @@ const signupWithPhoneNumber = async (req, res) => {
       );
 
       try {
-        // const phoneForWhatsAppApi = `+${sanitizedPhone}`;
         const phoneForWhatsAppApi = `+${sanitizedCountryCode}${sanitizedNumber}`;
         await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
       } catch (error) {
@@ -471,9 +858,7 @@ const signupWithPhoneNumber = async (req, res) => {
       });
     }
 
-
-    // === Step 2: If OTP present → Verify OTP and Create User ===
-
+    // === Step 2: OTP present -> verify/create user ===
     if (!user) {
       return res.status(400).json({
         status: "error",
@@ -502,20 +887,11 @@ const signupWithPhoneNumber = async (req, res) => {
       });
     }
 
-    // ✅ OTP Verified → Finalize Signup
-
+    // OTP valid → finalize signup
     const serialNumber = await User.getNextSerialNumber();
-
-    // const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
-    //   firstname,
-    //   lastname,
-    //   phonenumbers: [sanitizedPhone],
-    //   provider: "local",
-    // });
-
     let userDetails = user.toObject();
 
-    // Remove sensitive fields
+    // strip sensitive
     delete userDetails.password;
     delete userDetails.otp;
     delete userDetails.otpExpiresAt;
@@ -523,57 +899,60 @@ const signupWithPhoneNumber = async (req, res) => {
     delete userDetails.resetPasswordToken;
     delete userDetails.resetPasswordExpires;
 
-    // Add/override fields before generating QR code
+    // set final fields consistently
     userDetails.serialNumber = serialNumber;
     userDetails.firstname = firstname;
     userDetails.lastname = lastname;
-    // userDetails.phonenumbers = [sanitizedPhone];
     userDetails.phonenumbers = [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }];
     userDetails.signupMethod = "phoneNumber";
     userDetails.provider = "local";
 
-    // // Generate QR code with full safe details
-    // const { qrCode } = await generateUserQRCode(
-    //   firstname || "user",
-    //   serialNumber,
-    //   userDetails
-    // );
-
+    // finalize user object
     user.serialNumber = serialNumber;
     user.isVerified = true;
-    // user.qrCode = qrCode;
     user.signupMethod = "phoneNumber";
-    user.role = "user"; // Default role for new users
+    user.role = "user";
     user.password = password;
     user.firstname = firstname;
     user.lastname = lastname;
 
-
-
-    // ✅ Clear OTP fields
+    // clear OTP
     user.otp = undefined;
     user.otpExpiresAt = undefined;
 
+    // ---------- scannedMe / iScanned matching ----------
     const matchConditions = [];
-
     if (user.email) matchConditions.push({ email: user.email });
-    // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
     if (user.phonenumbers?.[0]) {
       matchConditions.push({
         phonenumbers: {
           $elemMatch: {
             countryCode: user.phonenumbers[0].countryCode,
             number: user.phonenumbers[0].number,
-          },
-        },
+          }
+        }
       });
     }
-
 
     if (matchConditions.length > 0) {
       const matchingUsers = await User.find({
         scannedMe: { $elemMatch: { $or: matchConditions } },
       });
+
+      // helper to compare various stored formats
+      const equalPhone = (entryPhone, userPhoneObj) => {
+        if (!entryPhone) return false;
+        // entryPhone can be string or object
+        if (typeof entryPhone === 'string') {
+          const raw = entryPhone.replace(/\D/g, '');
+          const u = `${userPhoneObj.countryCode}${userPhoneObj.number}`;
+          return raw === u || raw === userPhoneObj.number || raw === `+${u}`;
+        }
+        if (typeof entryPhone === 'object' && entryPhone.countryCode && entryPhone.number) {
+          return entryPhone.countryCode === userPhoneObj.countryCode && entryPhone.number === userPhoneObj.number;
+        }
+        return false;
+      };
 
       for (const scanner of matchingUsers) {
         let updated = false;
@@ -583,9 +962,7 @@ const signupWithPhoneNumber = async (req, res) => {
             typeof entry === "object" &&
             (
               (entry.email && entry.email === user.email) ||
-              // (entry.phonenumber && entry.phonenumber === user.phonenumbers[0])
-              (entry.phonenumber &&
-                entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
+              (entry.phonenumber && equalPhone(entry.phonenumber, user.phonenumbers[0]))
             )
           ) {
             updated = true;
@@ -615,59 +992,18 @@ const signupWithPhoneNumber = async (req, res) => {
         }
       }
     }
-    // ✅ iScanned / scannedMe logic ends here.
 
+    // trial, referral, etc.
     const now = new Date();
     user.trialStart = now;
-    user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days later
+    user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
     user.isPremium = false;
 
-    // 🔥 Generate and assign user’s unique referral code
-    // const referralCodeRaw = sanitizedPhone + Date.now();
     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
 
-    // 🔥 Handle referredBy logic if referralCode was used
-    // if (tenantId) {
-    //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
-
-    //   if (referringAdmin) {
-    //     referredByAdmin = referringAdmin._id;
-    //     user.referredByAdmin = referredByAdmin;
-    //   } else {
-    //     return res.status(400).json({
-    //       status: "error",
-    //       message: "Invalid tenant ID",
-    //     });
-    //   }
-    // } else 
     if (referralCodeParam) {
       const referringUser = await User.findOne({ referralCode: referralCodeParam });
-
-      // if (referringUser) {
-      // const previouslyReferred = await User.findOne({
-      //   myReferrals: { $elemMatch: { phonenumbers: { $in: [sanitizedPhone] } } },
-      //   // phonenumbers: { $in: [sanitizedPhone] },
-      //   $or: [
-      //     { referredBy: referringUser._id },
-      //     { referralCode: referralCodeParam }
-      //   ]
-      // });
-
-      // if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
-      //   return res.status(400).json({
-      //     status: "error",
-      //     message: "This referral link has already been used with this phone number. Please sign up manually.",
-      //   });
-      // }
-
-      // const previouslyReferred = await ReferralLog.findOne({
-      //   phonenumber: sanitizedPhone,
-      // });
-
-      // const previouslyReferred = await ReferralLog.findOne({
-      //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
-      // });
 
       const previouslyReferred = await ReferralLog.findOne({
         phonenumbers: {
@@ -682,35 +1018,28 @@ const signupWithPhoneNumber = async (req, res) => {
         });
       }
 
-      user.referredBy = referringUser._id;
-      // 🔥 Push referral entry in referring user's `myReferrals`
-      referringUser.myReferrals.push({
-        _id: user._id,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        email: user.email,
-        phonenumbers: user.phonenumbers,
-        signupDate: new Date(),
-      });
+      if (referringUser) {
+        user.referredBy = referringUser._id;
+        referringUser.myReferrals.push({
+          _id: user._id,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          email: user.email,
+          phonenumbers: user.phonenumbers,
+          signupDate: new Date(),
+        });
 
-      referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
-      user.creditBalance = (user.creditBalance || 0) + 10;
-      await referringUser.save();
-      // await ReferralLog.create({
-      //   // phonenumber: sanitizedPhone,
-      //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
-      //   referredBy: referringUser._id,
-      //   referredUserId: user._id,
-      // });
-      await ReferralLog.create({
-        phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
-        referredBy: referringUser._id,
-        referredUserId: user._id,
-      });
+        referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
+        user.creditBalance = (user.creditBalance || 0) + 10;
+        await referringUser.save();
 
-      // }
+        await ReferralLog.create({
+          phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+          referredBy: referringUser._id,
+          referredUserId: user._id,
+        });
+      }
     }
-
 
     await user.save();
 
@@ -737,6 +1066,7 @@ const signupWithPhoneNumber = async (req, res) => {
     });
   }
 };
+
 
 const resendVerificationLink = async (req, res) => {
   try {
@@ -791,34 +1121,230 @@ const resendVerificationLink = async (req, res) => {
 
 const unifiedLogin = async (req, res) => {
   try {
-    const { email = "", phonenumber = "", countryCode = "", password = "", googleToken, appleToken } = req.body;
+    const { email = "", phonenumber = "", countryCode = "", password = "", googleToken, appleToken, apiType = "mobile" } = req.body;
 
     //email and phoneNumber Login
+    // if ((email || phonenumber) && password && !googleToken && !appleToken) {
+    //   try {
+    //     const trimmedEmail = email?.trim()?.toLowerCase();
+    //     // const trimmedPhone = phonenumber?.trim();
+    //     const trimmedPhone = phonenumber?.trim();
+    //     const trimmedCountry = countryCode?.trim()?.replace(/^\+/, ""); // remove + if present
+
+
+    //     // let normalizedPhone = trimmedPhone;
+    //     // if (normalizedPhone?.startsWith('+')) {
+    //     //   normalizedPhone = normalizedPhone.slice(1);
+    //     // }
+
+    //     const queryConditions = [];
+    //     if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
+    //     // if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
+
+    //     if (trimmedPhone && trimmedCountry) {
+    //       queryConditions.push({
+    //         phonenumbers: {
+    //           $elemMatch: { number: trimmedPhone, countryCode: trimmedCountry }
+    //         }
+    //       });
+    //     } else if (trimmedPhone) {
+    //       queryConditions.push({ "phonenumbers.number": trimmedPhone });
+    //     }
+
+    //     if (queryConditions.length === 0) {
+    //       return res.status(400).json({ status: "error", message: "Email or phone number is required" });
+    //     }
+
+    //     const user = await User.findOne({ $or: queryConditions });
+
+    //     if (!user) {
+    //       return res.status(401).json({ status: "error", message: "User not found" });
+    //     }
+
+    //     if (trimmedEmail && !user.isVerified) {
+    //       return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
+    //     }
+
+    //     // if (normalizedPhone && !user.isVerified) {
+    //     //   return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
+    //     // }
+
+    //     if ((trimmedPhone && trimmedCountry) && !user.isVerified) {
+    //       return res.status(403).json({
+    //         status: "error",
+    //         message: "Please complete signup and verify OTP first"
+    //       });
+    //     }
+
+
+    //     // ✅ Prevent wrong login method
+    //     if (user.signupMethod === "google") {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "This user signed up with Google. Please use Google login."
+    //       });
+    //     }
+
+    //     if (user.signupMethod === "linkedin") {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "This user signed up with linkedin. Please use linkedin login."
+    //       });
+    //     }
+
+    //     if (user.signupMethod === "apple") {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "This user signed up with Apple. Please use Apple login."
+    //       });
+    //     }
+
+    //     // if (user.signupMethod === "phoneNumber" && trimmedEmail) {
+    //     //   return res.status(400).json({
+    //     //     status: "error",
+    //     //     message: "This user signed up with phone number. Please login with phone number and password."
+    //     //   });
+    //     // }
+
+    //     // if (user.signupMethod === "email" && normalizedPhone) {
+    //     //   return res.status(400).json({
+    //     //     status: "error",
+    //     //     message: "This user signed up with email. Please login with email and password."
+    //     //   });
+    //     // }
+
+    //     if (user.signupMethod === "phoneNumber" && trimmedEmail) {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "This user signed up with phone number. Please login with phone number and password."
+    //       });
+    //     }
+
+    //     if (user.signupMethod === "email" && (trimmedPhone && trimmedCountry)) {
+    //       return res.status(400).json({
+    //         status: "error",
+    //         message: "This user signed up with email. Please login with email and password."
+    //       });
+    //     }
+
+
+
+    //     // const token = await User.matchPasswordAndGenerateToken({
+    //     //   email: trimmedEmail,
+    //     //   phonenumber: normalizedPhone,
+    //     //   password
+    //     // });
+
+    //     const token = await User.matchPasswordAndGenerateToken({
+    //       email: trimmedEmail,
+    //       phonenumber: trimmedPhone,
+    //       countryCode: trimmedCountry,
+    //       password
+    //     });
+
+    //     const now = new Date();
+    //     const isTrialActive = user.trialEnd && now < user.trialEnd;
+    //     const hasAccess = user.isPremium || isTrialActive;
+
+    //     // try {
+    //     //   if (user.myReferrals?.length > 0) {
+    //     //     let isUpdated = false;
+
+    //     //     for (let i = 0; i < user.myReferrals.length; i++) {
+    //     //       const referralEntry = user.myReferrals[i];
+    //     //       const referredUser = await User.findById(referralEntry._id);
+
+    //     //       if (referredUser) {
+    //     //         let needsUpdate = false;
+
+    //     //         if (!referralEntry.firstname && referredUser.firstname) {
+    //     //           user.myReferrals[i].firstname = referredUser.firstname;
+    //     //           needsUpdate = true;
+    //     //         }
+
+    //     //         if (!referralEntry.lastname && referredUser.lastname) {
+    //     //           user.myReferrals[i].lastname = referredUser.lastname;
+    //     //           needsUpdate = true;
+    //     //         }
+
+    //     //         if (!referralEntry.email && referredUser.email) {
+    //     //           user.myReferrals[i].email = referredUser.email;
+    //     //           needsUpdate = true;
+    //     //         }
+
+    //     //         if ((!referralEntry.phonenumbers || referralEntry.phonenumbers.length === 0) && referredUser.phonenumbers?.length > 0) {
+    //     //           user.myReferrals[i].phonenumbers = referredUser.phonenumbers;
+    //     //           needsUpdate = true;
+    //     //         }
+
+    //     //         if (needsUpdate) {
+    //     //           user.myReferrals[i].signupDate = referredUser.createdAt || new Date();
+    //     //           isUpdated = true;
+    //     //         }
+    //     //       }
+    //     //     }
+
+    //     //     if (isUpdated) {
+    //     //       await user.save();
+    //     //     }
+    //     //   }
+    //     // } catch (syncErr) {
+    //     //   console.error("Referral sync failed:", syncErr.message);
+    //     // }
+
+    //     return res.json({
+    //       status: "success",
+    //       message: "Login successful",
+    //       data: {
+    //         token,
+    //         hasAccess,
+    //         isTrialActive,
+    //         isPremium: user.isPremium,
+    //         trialEndsAt: user.trialEnd,
+    //         registeredWith: user.signupMethod
+    //       }
+    //     });
+
+    //   } catch (err) {
+    //     return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
+    //   }
+    // }
+
     if ((email || phonenumber) && password && !googleToken && !appleToken) {
       try {
         const trimmedEmail = email?.trim()?.toLowerCase();
-        // const trimmedPhone = phonenumber?.trim();
-        const trimmedPhone = phonenumber?.trim();
-        const trimmedCountry = countryCode?.trim()?.replace(/^\+/, ""); // remove + if present
 
+        // raw inputs
+        const rawPhoneInput = phonenumber || "";
+        const rawCountryInput = countryCode || "";
+        // const apiType = apiType || "mobile";
 
-        // let normalizedPhone = trimmedPhone;
-        // if (normalizedPhone?.startsWith('+')) {
-        //   normalizedPhone = normalizedPhone.slice(1);
-        // }
+        // Normalize phone using helper (handles "917046658651", "+9170466...", separate cc+num, etc.)
+        const { countryCode: normCountry, number: normNumber } = normalizePhone({
+          phonenumber: rawPhoneInput,
+          countryCode: rawCountryInput,
+          apiType
+        });
 
+        // Build query conditions
         const queryConditions = [];
         if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
-        // if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
 
-        if (trimmedPhone && trimmedCountry) {
+        if (normNumber && normCountry) {
+          // we have both number and country
           queryConditions.push({
             phonenumbers: {
-              $elemMatch: { number: trimmedPhone, countryCode: trimmedCountry }
+              $elemMatch: { number: normNumber, countryCode: normCountry }
             }
           });
-        } else if (trimmedPhone) {
-          queryConditions.push({ "phonenumbers.number": trimmedPhone });
+        } else if (normNumber) {
+          // only number parsed — try to match by stored number or legacy string
+          queryConditions.push({
+            $or: [
+              { "phonenumbers.number": normNumber },
+              { phonenumbers: normNumber } // legacy array-of-strings case
+            ]
+          });
         }
 
         if (queryConditions.length === 0) {
@@ -831,57 +1357,29 @@ const unifiedLogin = async (req, res) => {
           return res.status(401).json({ status: "error", message: "User not found" });
         }
 
+        // If logging in by email, require email verification
         if (trimmedEmail && !user.isVerified) {
           return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
         }
 
-        // if (normalizedPhone && !user.isVerified) {
-        //   return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
-        // }
-
-        if ((trimmedPhone && trimmedCountry) && !user.isVerified) {
+        // If logging in by phone AND we have both country & number, require OTP verification completed
+        if (normNumber && normCountry && !user.isVerified) {
           return res.status(403).json({
             status: "error",
             message: "Please complete signup and verify OTP first"
           });
         }
 
-
-        // ✅ Prevent wrong login method
+        // Prevent wrong login method
         if (user.signupMethod === "google") {
-          return res.status(400).json({
-            status: "error",
-            message: "This user signed up with Google. Please use Google login."
-          });
+          return res.status(400).json({ status: "error", message: "This user signed up with Google. Please use Google login." });
         }
-
         if (user.signupMethod === "linkedin") {
-          return res.status(400).json({
-            status: "error",
-            message: "This user signed up with linkedin. Please use linkedin login."
-          });
+          return res.status(400).json({ status: "error", message: "This user signed up with linkedin. Please use linkedin login." });
         }
-
         if (user.signupMethod === "apple") {
-          return res.status(400).json({
-            status: "error",
-            message: "This user signed up with Apple. Please use Apple login."
-          });
+          return res.status(400).json({ status: "error", message: "This user signed up with Apple. Please use Apple login." });
         }
-
-        // if (user.signupMethod === "phoneNumber" && trimmedEmail) {
-        //   return res.status(400).json({
-        //     status: "error",
-        //     message: "This user signed up with phone number. Please login with phone number and password."
-        //   });
-        // }
-
-        // if (user.signupMethod === "email" && normalizedPhone) {
-        //   return res.status(400).json({
-        //     status: "error",
-        //     message: "This user signed up with email. Please login with email and password."
-        //   });
-        // }
 
         if (user.signupMethod === "phoneNumber" && trimmedEmail) {
           return res.status(400).json({
@@ -890,77 +1388,24 @@ const unifiedLogin = async (req, res) => {
           });
         }
 
-        if (user.signupMethod === "email" && (trimmedPhone && trimmedCountry)) {
+        if (user.signupMethod === "email" && (normNumber || rawPhoneInput)) {
           return res.status(400).json({
             status: "error",
             message: "This user signed up with email. Please login with email and password."
           });
         }
 
-
-
-        // const token = await User.matchPasswordAndGenerateToken({
-        //   email: trimmedEmail,
-        //   phonenumber: normalizedPhone,
-        //   password
-        // });
-
+        // Generate token (pass normalized phone fields)
         const token = await User.matchPasswordAndGenerateToken({
           email: trimmedEmail,
-          phonenumber: trimmedPhone,
-          countryCode: trimmedCountry,
+          phonenumber: normNumber,
+          countryCode: normCountry,
           password
         });
 
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         const hasAccess = user.isPremium || isTrialActive;
-
-        // try {
-        //   if (user.myReferrals?.length > 0) {
-        //     let isUpdated = false;
-
-        //     for (let i = 0; i < user.myReferrals.length; i++) {
-        //       const referralEntry = user.myReferrals[i];
-        //       const referredUser = await User.findById(referralEntry._id);
-
-        //       if (referredUser) {
-        //         let needsUpdate = false;
-
-        //         if (!referralEntry.firstname && referredUser.firstname) {
-        //           user.myReferrals[i].firstname = referredUser.firstname;
-        //           needsUpdate = true;
-        //         }
-
-        //         if (!referralEntry.lastname && referredUser.lastname) {
-        //           user.myReferrals[i].lastname = referredUser.lastname;
-        //           needsUpdate = true;
-        //         }
-
-        //         if (!referralEntry.email && referredUser.email) {
-        //           user.myReferrals[i].email = referredUser.email;
-        //           needsUpdate = true;
-        //         }
-
-        //         if ((!referralEntry.phonenumbers || referralEntry.phonenumbers.length === 0) && referredUser.phonenumbers?.length > 0) {
-        //           user.myReferrals[i].phonenumbers = referredUser.phonenumbers;
-        //           needsUpdate = true;
-        //         }
-
-        //         if (needsUpdate) {
-        //           user.myReferrals[i].signupDate = referredUser.createdAt || new Date();
-        //           isUpdated = true;
-        //         }
-        //       }
-        //     }
-
-        //     if (isUpdated) {
-        //       await user.save();
-        //     }
-        //   }
-        // } catch (syncErr) {
-        //   console.error("Referral sync failed:", syncErr.message);
-        // }
 
         return res.json({
           status: "success",
@@ -979,6 +1424,7 @@ const unifiedLogin = async (req, res) => {
         return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
       }
     }
+
 
     // === GOOGLE LOGIN ===
     if (googleToken && !email && !password && !appleToken && !phonenumber) {

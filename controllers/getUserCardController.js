@@ -72,6 +72,23 @@ exports.getUserInfo = async (req, res) => {
       formattedPhonenumbers = user.phonenumbers;
     }
 
+    const qrPayload = {
+      id: user._id,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+      email: user.email,
+      profileImageURL: user.profileImageURL,
+      instagram: user.instagram,
+      linkedin: user.linkedin,
+      telegram: user.telegram,
+      twitter: user.twitter,
+      facebook: user.facebook,
+      designation: user.designation,
+    };
+
+    const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
     const selectedData = {
       id: user._id,
       firstname: user.firstname,
@@ -81,10 +98,10 @@ exports.getUserInfo = async (req, res) => {
       profileImageURL: user.profileImageURL,
       linkedin: user.linkedin,
       designation: user.designation,
-      qrCode: user.qrcode,
       instagram: user.instagram,
       twitter: user.twitter,
       facebook: user.facebook,
+      qrCode: qrCodeDataURL,
       telegram: user.telegram,
       shareProfileCount: user.shareProfileCount,
     };
