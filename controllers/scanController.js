@@ -1,10 +1,13 @@
 const User = require("../models/userModel");
 const Contact = require("../models/contactModel"); // adjust the path as needed
 const { mongoose } = require("mongoose");
+// ADD this at the top with other imports
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
+
 
 exports.scanUser = async (req, res) => {
     // CHANGED: accept countryCode from body for unregistered scanner path
-    const { UserID, ScannerID, firstname, lastname, email, phonenumber, countryCode } = req.body;
+    const { UserID, ScannerID, firstname, lastname, email, phonenumber, countryCode, apiType = "web" } = req.body;
 
     try {
         // Get the user who is being scanned
@@ -13,6 +16,50 @@ exports.scanUser = async (req, res) => {
         if (!user) {
             return res.status(404).json({ status: "error", message: "Scanned user (UserID) not found" });
         }
+
+        // ✅ Normalize phone depending on apiType
+        let parsedPhone = null;
+
+        if (apiType === "mobile") {
+            // Mobile: separate fields already provided
+            if (phonenumber && countryCode) {
+                parsedPhone = {
+                    countryCode: String(countryCode).replace(/[^\d]/g, ""),
+                    number: String(phonenumber).replace(/[^\d]/g, ""),
+                };
+            }
+        }
+        else if (apiType === "web") {
+            if (phonenumber) {
+                let raw = String(phonenumber).replace(/\s+/g, ""); // remove spaces
+
+                // ✅ If it's digits like "917046658651"
+                if (/^\d+$/.test(raw)) {
+                    parsedPhone = {
+                        countryCode: raw.slice(0, raw.length - 10), // first digits as countryCode
+                        number: raw.slice(-10),                     // last 10 as local number
+                    };
+                } else {
+                    // fallback → use libphonenumber-js
+                    if (!raw.startsWith("+")) {
+                        raw = "+" + raw.replace(/[^\d]/g, "");
+                    }
+                    try {
+                        const phone = parsePhoneNumberFromString(raw);
+                        if (phone) {
+                            parsedPhone = {
+                                countryCode: phone.countryCallingCode,
+                                number: phone.nationalNumber,
+                            };
+                        }
+                    } catch (err) {
+                        console.error("Phone parse failed:", err);
+                    }
+                }
+            }
+        }
+
+
 
         if (!Array.isArray(user.scannedMe)) user.scannedMe = [];
 
@@ -98,10 +145,15 @@ exports.scanUser = async (req, res) => {
                         lastname: user.lastname || "",
                         emailaddresses: [user.email || ""],
                         // CHANGED: save the whole phone object (if exists)
-                        phonenumbers:
-                            Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                        // phonenumbers:
+                        //     Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                        //         ? [user.phonenumbers[0]]
+                        //         : [],
+                        phonenumbers: parsedPhone
+                            ? [parsedPhone]   // ✅ use normalized phone for web/mobile
+                            : (Array.isArray(user.phonenumbers) && user.phonenumbers[0]
                                 ? [user.phonenumbers[0]]
-                                : [],
+                                : []),
                         linkedin: user.linkedin || "",
                         instagram: user.instagram || "",
                         telegram: user.telegram || "",
@@ -241,19 +293,24 @@ exports.scanUser = async (req, res) => {
             // 🔹 Step 1: Try to match existing registered user with given email + phonenumber
             let matchedScanner = null;
 
-            if (email && phonenumber) {
+            if (email && parsedPhone) {
                 // 1️⃣ Try both email + phone match (CHANGED for phone schema)
-                matchedScanner = await User.findOne(
-                    countryCode
-                        ? {
-                            email: email,
-                            phonenumbers: { $elemMatch: { countryCode, number: phonenumber } },
-                        }
-                        : {
-                            email: email,
-                            "phonenumbers.number": phonenumber,
-                        }
-                );
+                // matchedScanner = await User.findOne(
+                //     countryCode
+                //         ? {
+                //             email: email,
+                //             phonenumbers: { $elemMatch: { countryCode, number: phonenumber } },
+                //         }
+                //         : {
+                //             email: email,
+                //             "phonenumbers.number": phonenumber,
+                //         }
+                // );
+
+                matchedScanner = await User.findOne({
+                    email: email,
+                    phonenumbers: { $elemMatch: parsedPhone },
+                });
 
                 // 2️⃣ If not found, try email only
                 if (!matchedScanner) {
@@ -263,9 +320,10 @@ exports.scanUser = async (req, res) => {
                 // 3️⃣ If still not found, try phone only
                 if (!matchedScanner) {
                     matchedScanner = await User.findOne(
-                        countryCode
-                            ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
-                            : { "phonenumbers.number": phonenumber }
+                        // countryCode
+                        //     ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
+                        //     : { "phonenumbers.number": phonenumber }
+                        { phonenumbers: { $elemMatch: parsedPhone } }
                     );
                 }
             } else if (email) {
@@ -273,9 +331,14 @@ exports.scanUser = async (req, res) => {
                 matchedScanner = await User.findOne({ email: email });
             } else if (phonenumber) {
                 // 5️⃣ Only phone provided (CHANGED for phone schema)
+                // matchedScanner = await User.findOne(
+                //     countryCode
+                //         ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
+                //         : { "phonenumbers.number": phonenumber }
+                // );
                 matchedScanner = await User.findOne(
-                    countryCode
-                        ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
+                    parsedPhone
+                        ? { phonenumbers: { $elemMatch: parsedPhone } }
                         : { "phonenumbers.number": phonenumber }
                 );
             }
@@ -305,8 +368,10 @@ exports.scanUser = async (req, res) => {
                         lastname: scanner.lastname || "",
                         email: scanner.email || "",
                         // CHANGED
-                        phonenumber: scanner.phonenumbers?.[0]?.number || "",
-                        countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                        // phonenumber: scanner.phonenumbers?.[0]?.number || "",
+                        // countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                        phonenumber: parsedPhone?.number || "",
+                        countryCode: parsedPhone?.countryCode || "",
                         linkedin: scanner.linkedin || "",
                         instagram: scanner.instagram || "",
                         telegram: scanner.telegram || "",
@@ -356,10 +421,15 @@ exports.scanUser = async (req, res) => {
                             lastname: scanner.lastname || "",
                             emailaddresses: [scanner.email || ""],
                             // CHANGED: save whole object
-                            phonenumbers:
-                                Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
+                            // phonenumbers:
+                            //     Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
+                            //         ? [scanner.phonenumbers[0]]
+                            //         : [],
+                            phonenumbers: parsedPhone
+                                ? [parsedPhone]
+                                : (Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
                                     ? [scanner.phonenumbers[0]]
-                                    : [],
+                                    : []),
                             linkedin: scanner.linkedin || "",
                             instagram: scanner.instagram || "",
                             telegram: scanner.telegram || "",
@@ -394,10 +464,15 @@ exports.scanUser = async (req, res) => {
                             firstname: user.firstname || "",
                             lastname: user.lastname || "",
                             emailaddresses: [user.email || ""],
-                            phonenumbers:
-                                Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                            // phonenumbers:
+                            //     Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                            //         ? [user.phonenumbers[0]]
+                            //         : [],
+                            phonenumbers: parsedPhone
+                                ? [parsedPhone]   // ✅ use normalized phone for web/mobile
+                                : (Array.isArray(user.phonenumbers) && user.phonenumbers[0]
                                     ? [user.phonenumbers[0]]
-                                    : [],
+                                    : []),
                             linkedin: user.linkedin || "",
                             instagram: user.instagram || "",
                             telegram: user.telegram || "",
@@ -430,8 +505,10 @@ exports.scanUser = async (req, res) => {
                         lastname: lastname || "",
                         email: email || "",
                         // CHANGED: store number + countryCode
-                        phonenumber: phonenumber || "",
-                        countryCode: countryCode || "",
+                        // phonenumber: phonenumber || "",
+                        // countryCode: countryCode || "",
+                        phonenumber: parsedPhone?.number || "",
+                        countryCode: parsedPhone?.countryCode || "",
                         createdAt: new Date(),
                     });
                     updated = true;
@@ -458,9 +535,14 @@ exports.scanUser = async (req, res) => {
                             lastname: lastname || "",
                             emailaddresses: [email || ""],
                             // CHANGED: save phone object from raw values
-                            phonenumbers: phonenumber
-                                ? [{ countryCode: countryCode || "", number: phonenumber }]
-                                : [],
+                            // phonenumbers: phonenumber
+                            //     ? [{ countryCode: countryCode || "", number: phonenumber }]
+                            //     : [],
+                            phonenumbers: parsedPhone
+                                ? [parsedPhone]
+                                : (phonenumber
+                                    ? [{ countryCode: countryCode || "", number: phonenumber }]
+                                    : []),
                             createdBy: user._id,
                         });
                         newContact.contact_id = newContact._id;

@@ -3,6 +3,7 @@ const User = require("../models/userModel");
 exports.getUserInfo = async (req, res) => {
   try {
     const profileId = req.params.profileId; // e.g., "ya sh02"
+    const { apiType = "web" } = req.body; // <-- STEP 1: add apiType from request body
 
     if (!profileId) {
       return res.status(400).json({
@@ -61,12 +62,22 @@ exports.getUserInfo = async (req, res) => {
 
     console.log(`${user.firstname} shareProfile count: ${user.shareProfileCount}`);
 
+    let formattedPhonenumbers = user.phonenumbers;
+    if (apiType === "web") {
+      formattedPhonenumbers = user.phonenumbers.map(
+        (p) => `${p.countryCode}${p.number}`.replace(/\s+/g, "")
+      );
+    } else if (apiType === "mobile") {
+      // keep as is (array of objects)
+      formattedPhonenumbers = user.phonenumbers;
+    }
+
     const selectedData = {
       id: user._id,
       firstname: user.firstname,
       lastname: user.lastname,
       email: user.email,
-      phonenumbers: user.phonenumbers,
+      phonenumbers: formattedPhonenumbers,
       profileImageURL: user.profileImageURL,
       linkedin: user.linkedin,
       designation: user.designation,

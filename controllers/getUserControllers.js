@@ -110,9 +110,7 @@ const getUserData = async (req, res) => {
         id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
-        // phonenumbers: user.phonenumbers,
-        phonenumbers: phonenumbersForResponse,
-        serialNumber: user.serialNumber,
+        phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
         email: user.email,
         profileImageURL: user.profileImageURL,
         instagram: user.instagram,
@@ -121,14 +119,6 @@ const getUserData = async (req, res) => {
         twitter: user.twitter,
         facebook: user.facebook,
         designation: user.designation,
-        signupMethod: user.signupMethod,
-        role: user.role,
-        referredBy: user.referredBy || null,
-        referralCode: user.referralCode || null,
-        trialStartDate: user.trialStart || null,
-        trialEndDate: user.trialEnd || null,
-        isPremium: user.isPremium || false,
-        referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       };
 
       // Step 1: Compress payload
@@ -245,30 +235,31 @@ const getUserData = async (req, res) => {
         emailTemplatePage * emailTemplateLimit
       );
 
-      const qrPayload = {
-        id: user._id,
-        firstname: user.firstname,
-        lastname: user.lastname,
-        // phonenumbers: user.phonenumbers,
-        phonenumbers: phonenumbersForResponse,
-        serialNumber: user.serialNumber,
-        email: user.email,
-        profileImageURL: user.profileImageURL,
-        instagram: user.instagram,
-        linkedin: user.linkedin,
-        telegram: user.telegram,
-        twitter: user.twitter,
-        facebook: user.facebook,
-        designation: user.designation,
-        signupMethod: user.signupMethod,
-        role: user.role,
-        referredBy: user.referredBy || null,
-        referralCode: user.referralCode || null,
-        trialStartDate: user.trialStart || null,
-        trialEndDate: user.trialEnd || null,
-        isPremium: user.isPremium || false,
-        referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
-      };
+      // const qrPayload = {
+      //   id: user._id,
+      //   firstname: user.firstname,
+      //   lastname: user.lastname,
+      //   // phonenumbers: user.phonenumbers,
+      //   // phonenumbers: phonenumbersForResponse,
+      //   phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+      //   // serialNumber: user.serialNumber,
+      //   email: user.email,
+      //   profileImageURL: user.profileImageURL,
+      //   instagram: user.instagram,
+      //   linkedin: user.linkedin,
+      //   telegram: user.telegram,
+      //   twitter: user.twitter,
+      //   facebook: user.facebook,
+      //   designation: user.designation,
+      //   // signupMethod: user.signupMethod,
+      //   // role: user.role,
+      //   // referredBy: user.referredBy || null,
+      //   // referralCode: user.referralCode || null,
+      //   // trialStartDate: user.trialStart || null,
+      //   // trialEndDate: user.trialEnd || null,
+      //   // isPremium: user.isPremium || false,
+      //   // referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+      // };
 
       // Generate QR code (as Base64 image)
       // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
@@ -279,6 +270,20 @@ const getUserData = async (req, res) => {
 
       // Step 2: Encode compressed string into QR
       // const qrCodeDataURL = await QRCode.toDataURL(qrPayload).toString("base64");
+      const qrPayload = {
+        id: user._id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+        email: user.email,
+        profileImageURL: user.profileImageURL,
+        instagram: user.instagram,
+        linkedin: user.linkedin,
+        telegram: user.telegram,
+        twitter: user.twitter,
+        facebook: user.facebook,
+        designation: user.designation,
+      };
       const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
 
@@ -481,27 +486,28 @@ const getUserData = async (req, res) => {
     };
 
 
-    const qrPayload = {
-      id: user._id,
-      firstname: user.firstname,
-      lastname: user.lastname,
-      // phonenumbers: user.phonenumbers,
-      phonenumbers: phonenumbersForResponse,
-      serialNumber: user.serialNumber,
-      email: user.email,
-      profileImageURL: user.profileImageURL,
-      instagram: user.instagram,
-      linkedin: user.linkedin,
-      telegram: user.telegram,
-      twitter: user.twitter,
-      facebook: user.facebook,
-      designation: user.designation,
-      signupMethod: user.signupMethod,
-      role: user.role,
-      referredBy: user.referredBy || null,
-      referralCode: user.referralCode || null,
-      referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
-    };
+    // const qrPayload = {
+    //   id: user._id,
+    //   firstname: user.firstname,
+    //   lastname: user.lastname,
+    //   // phonenumbers: user.phonenumbers,
+    //   // phonenumbers: phonenumbersForResponse,
+    //   phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+    //   // serialNumber: user.serialNumber,
+    //   email: user.email,
+    //   profileImageURL: user.profileImageURL,
+    //   instagram: user.instagram,
+    //   linkedin: user.linkedin,
+    //   telegram: user.telegram,
+    //   twitter: user.twitter,
+    //   facebook: user.facebook,
+    //   designation: user.designation,
+    //   // signupMethod: user.signupMethod,
+    //   // role: user.role,
+    //   // referredBy: user.referredBy || null,
+    //   // referralCode: user.referralCode || null,
+    //   // referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
+    // };
 
     // Generate QR code (as Base64 image)
     // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
@@ -513,6 +519,22 @@ const getUserData = async (req, res) => {
 
     // Step 2: Encode compressed string into QR
     // const qrCodeDataURL = await QRCode.toDataURL(qrPayload).toString("base64");
+
+    const qrPayload = {
+      id: user._id,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      phonenumbers: Array.isArray(user.phonenumbers) ? user.phonenumbers : [],
+      email: user.email,
+      profileImageURL: user.profileImageURL,
+      instagram: user.instagram,
+      linkedin: user.linkedin,
+      telegram: user.telegram,
+      twitter: user.twitter,
+      facebook: user.facebook,
+      designation: user.designation,
+    };
+
     const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
 
