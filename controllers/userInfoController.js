@@ -1,4 +1,6 @@
 const User = require("../models/userModel");
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
+
 
 exports.getDefaultOptions = (req, res) => {
   try {
@@ -158,7 +160,8 @@ exports.submitUserOnboarding = async (req, res) => {
       email = "",
       phonenumber = "",
       countryCode = "",
-      designation = ""
+      designation = "",
+      apiType = "web" // default mobile
     } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -194,16 +197,54 @@ exports.submitUserOnboarding = async (req, res) => {
     //   }
     // }
 
-    if (phonenumber && countryCode) {
-      const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
-      const cleanedCode = String(countryCode).replace(/^\+/, "");
+    // if (phonenumber && countryCode) {
+    //   const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+    //   const cleanedCode = String(countryCode).replace(/^\+/, "");
 
+    //   const existingPhoneUser = await User.findOne({
+    //     _id: { $ne: req.user._id },
+    //     phonenumbers: {
+    //       $elemMatch: {
+    //         countryCode: cleanedCode,
+    //         number: cleanedPhone,
+    //       },
+    //     },
+    //   });
+
+    //   if (existingPhoneUser) {
+    //     return res.status(400).json({
+    //       status: "error",
+    //       message: "Phone number is already used by another user",
+    //     });
+    //   }
+    // }
+
+    let finalCountryCode = "";
+    let finalPhoneNumber = "";
+
+    if (phonenumber) {
+      if (apiType === "mobile") {
+        // Mobile flow (use provided countryCode)
+        finalPhoneNumber = String(phonenumber).replace(/[^\d]/g, "");
+        finalCountryCode = String(countryCode || "").replace(/^\+/, "");
+      } else if (apiType === "web") {
+        // Web flow (parse phone number)
+        let inputPhone = phonenumber.startsWith("+") ? phonenumber : `+${phonenumber}`;
+        const parsed = parsePhoneNumberFromString(inputPhone);
+        if (!parsed) {
+          return res.status(400).json({ status: "error", message: "Invalid phone number format" });
+        }
+        finalPhoneNumber = parsed.nationalNumber;
+        finalCountryCode = parsed.countryCallingCode;
+      }
+
+      // ✅ Check for uniqueness in DB
       const existingPhoneUser = await User.findOne({
         _id: { $ne: req.user._id },
         phonenumbers: {
           $elemMatch: {
-            countryCode: cleanedCode,
-            number: cleanedPhone,
+            countryCode: finalCountryCode,
+            number: finalPhoneNumber,
           },
         },
       });
@@ -215,6 +256,7 @@ exports.submitUserOnboarding = async (req, res) => {
         });
       }
     }
+
 
 
     // ✅ If user signed up with phone number, but now also providing email, save it if not already saved
@@ -233,22 +275,35 @@ exports.submitUserOnboarding = async (req, res) => {
     //   }
     // }
 
-    if (phonenumber && countryCode) {
-      const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
-      const cleanedCode = String(countryCode).replace(/^\+/, "");
+    // if (phonenumber && countryCode) {
+    //   const cleanedPhone = String(phonenumber).replace(/[^\d]/g, "");
+    //   const cleanedCode = String(countryCode).replace(/^\+/, "");
 
-      if (cleanedPhone) {
-        if (!user.phonenumbers) user.phonenumbers = [];
+    //   if (cleanedPhone) {
+    //     if (!user.phonenumbers) user.phonenumbers = [];
 
-        const alreadyExists = user.phonenumbers.some(
-          p => p.countryCode === cleanedCode && p.number === cleanedPhone
-        );
+    //     const alreadyExists = user.phonenumbers.some(
+    //       p => p.countryCode === cleanedCode && p.number === cleanedPhone
+    //     );
 
-        if (!alreadyExists) {
-          user.phonenumbers.push({ countryCode: cleanedCode, number: cleanedPhone });
-        }
+    //     if (!alreadyExists) {
+    //       user.phonenumbers.push({ countryCode: cleanedCode, number: cleanedPhone });
+    //     }
+    //   }
+    // }
+
+    if (phonenumber) {
+      if (!user.phonenumbers) user.phonenumbers = [];
+
+      const alreadyExists = user.phonenumbers.some(
+        p => p.countryCode === finalCountryCode && p.number === finalPhoneNumber
+      );
+
+      if (!alreadyExists) {
+        user.phonenumbers.push({ countryCode: finalCountryCode, number: finalPhoneNumber });
       }
     }
+
 
 
     // ✅ Update other basic fields
