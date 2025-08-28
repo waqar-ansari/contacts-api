@@ -122,90 +122,44 @@ exports.scanUser = async (req, res) => {
                 updated = true;
 
                 // CHANGED: Contact duplicate check → use $elemMatch for phone object
-                const contactExistsForScanner = await Contact.findOne({
-                    createdBy: scanner._id,
-                    $or: [
-                        { emailaddresses: { $in: [user.email] } },
-                        user.phonenumbers?.[0]?.number
-                            ? {
-                                phonenumbers: {
-                                    $elemMatch: {
-                                        countryCode: user.phonenumbers?.[0]?.countryCode || "",
-                                        number: user.phonenumbers?.[0]?.number || "",
-                                    },
-                                },
-                            }
-                            : { _id: null }, // no phone to match
-                    ],
-                });
-
-                if (!contactExistsForScanner) {
-                    const newContact = new Contact({
-                        firstname: user.firstname || "",
-                        lastname: user.lastname || "",
-                        emailaddresses: [user.email || ""],
-                        // CHANGED: save the whole phone object (if exists)
-                        // phonenumbers:
-                        //     Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                        //         ? [user.phonenumbers[0]]
-                        //         : [],
-                        phonenumbers: parsedPhone
-                            ? [parsedPhone]   // ✅ use normalized phone for web/mobile
-                            : (Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                                ? [user.phonenumbers[0]]
-                                : []),
-                        linkedin: user.linkedin || "",
-                        instagram: user.instagram || "",
-                        telegram: user.telegram || "",
-                        twitter: user.twitter || "",
-                        facebook: user.facebook || "",
-                        createdBy: scanner._id,
-                    });
-                    newContact.contact_id = newContact._id; // ensure consistency
-                    newContact.activities.push({
-                        action: "created",
-                        type: "contact",
-                        title: "New Contact Added",
-                        description: `Contact ${user.firstname || ""} ${user.lastname || ""} was added via QR scan`,
-                    });
-                    await newContact.save();
-                }
-
-                // Second: Save contact in user's contacts (scanner info)
-                // CHANGED: duplicate check uses $elemMatch
-                // const contactExistsForUser = await Contact.findOne({
-                //     createdBy: user._id,
+                // const contactExistsForScanner = await Contact.findOne({
+                //     createdBy: scanner._id,
                 //     $or: [
-                //         { emailaddresses: { $in: [scanner.email] } },
-                //         scanner.phonenumbers?.[0]?.number
+                //         { emailaddresses: { $in: [user.email] } },
+                //         user.phonenumbers?.[0]?.number
                 //             ? {
                 //                 phonenumbers: {
                 //                     $elemMatch: {
-                //                         countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-                //                         number: scanner.phonenumbers?.[0]?.number || "",
+                //                         countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                //                         number: user.phonenumbers?.[0]?.number || "",
                 //                     },
                 //                 },
                 //             }
-                //             : { _id: null },
+                //             : { _id: null }, // no phone to match
                 //     ],
                 // });
 
-                // if (!contactExistsForUser) {
+                // if (!contactExistsForScanner) {
                 //     const newContact = new Contact({
-                //         firstname: scanner.firstname || "",
-                //         lastname: scanner.lastname || "",
-                //         emailaddresses: [scanner.email || ""],
-                //         // CHANGED: save whole object
-                //         phonenumbers:
-                //             Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                //                 ? [scanner.phonenumbers[0]]
-                //                 : [],
-                //         linkedin: scanner.linkedin || "",
-                //         instagram: scanner.instagram || "",
-                //         telegram: scanner.telegram || "",
-                //         twitter: scanner.twitter || "",
-                //         facebook: scanner.facebook || "",
-                //         createdBy: user._id,
+                //         firstname: user.firstname || "",
+                //         lastname: user.lastname || "",
+                //         emailaddresses: [user.email || ""],
+                //         // CHANGED: save the whole phone object (if exists)
+                //         // phonenumbers:
+                //         //     Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                //         //         ? [user.phonenumbers[0]]
+                //         //         : [],
+                //         phonenumbers: parsedPhone
+                //             ? [parsedPhone]   // ✅ use normalized phone for web/mobile
+                //             : (Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+                //                 ? [user.phonenumbers[0]]
+                //                 : []),
+                //         linkedin: user.linkedin || "",
+                //         instagram: user.instagram || "",
+                //         telegram: user.telegram || "",
+                //         twitter: user.twitter || "",
+                //         facebook: user.facebook || "",
+                //         createdBy: scanner._id,
                 //     });
                 //     newContact.contact_id = newContact._id; // ensure consistency
                 //     newContact.activities.push({
@@ -216,6 +170,52 @@ exports.scanUser = async (req, res) => {
                 //     });
                 //     await newContact.save();
                 // }
+
+                // Second: Save contact in user's contacts (scanner info)
+                // CHANGED: duplicate check uses $elemMatch
+                const contactExistsForUser = await Contact.findOne({
+                    createdBy: user._id,
+                    $or: [
+                        { emailaddresses: { $in: [scanner.email] } },
+                        scanner.phonenumbers?.[0]?.number
+                            ? {
+                                phonenumbers: {
+                                    $elemMatch: {
+                                        countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                                        number: scanner.phonenumbers?.[0]?.number || "",
+                                    },
+                                },
+                            }
+                            : { _id: null },
+                    ],
+                });
+
+                if (!contactExistsForUser) {
+                    const newContact = new Contact({
+                        firstname: scanner.firstname || "",
+                        lastname: scanner.lastname || "",
+                        emailaddresses: [scanner.email || ""],
+                        // CHANGED: save whole object
+                        phonenumbers:
+                            Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
+                                ? [scanner.phonenumbers[0]]
+                                : [],
+                        linkedin: scanner.linkedin || "",
+                        instagram: scanner.instagram || "",
+                        telegram: scanner.telegram || "",
+                        twitter: scanner.twitter || "",
+                        facebook: scanner.facebook || "",
+                        createdBy: user._id,
+                    });
+                    newContact.contact_id = newContact._id; // ensure consistency
+                    newContact.activities.push({
+                        action: "created",
+                        type: "contact",
+                        title: "New Contact Added",
+                        description: `Contact ${user.firstname || ""} ${user.lastname || ""} was added via QR scan`,
+                    });
+                    await newContact.save();
+                }
             }
 
             // Add User full info into scanner's iScanned
