@@ -123,12 +123,18 @@ const getMyReferrals = async (req, res) => {
             let changed = false;
 
             if (refUser) {
+                console.log(refUser);
+                
                 if (!updatedEntry.firstname && refUser.firstname) {
                     updatedEntry.firstname = refUser.firstname;
                     changed = true;
                 }
                 if (!updatedEntry.lastname && refUser.lastname) {
                     updatedEntry.lastname = refUser.lastname;
+                    changed = true;
+                }
+                  if (!updatedEntry.signupMethod && refUser.signupMethod) {
+                    updatedEntry.signupMethod = refUser.signupMethod;
                     changed = true;
                 }
                 if ((!updatedEntry.email || updatedEntry.email === "") && refUser.email) {
