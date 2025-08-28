@@ -63,12 +63,19 @@ exports.getScanData = async (req, res) => {
                 path: "iScanned",
                 select: "firstname lastname email profileImageURL phonenumbers linkedin instagram telegram twitter facebook createdAt",
             })
+            // CHANGE: add '+' to force include hidden fields
+            // .populate({
+            //     path: "iScanned",
+            //     select: "firstname lastname email profileImageURL linkedin instagram telegram twitter facebook createdAt +phonenumbers +phonenumbers.number +phonenumbers.countryCode",
+            //     // (optional, but good to be explicit)
+            //     // model: "User",
+            // })
             .lean(); // make it easier to manipulate data
 
         if (!user) {
             return res.status(404).json({ status: "error", message: "User not found" });
         }
-
+        console.log("user.iScanned:", user.iScanned);
         // STEP 1: Process iScanned
         // const iScannedUsers = (user.iScanned || []).map(scannedUser => ({
 
@@ -108,19 +115,36 @@ exports.getScanData = async (req, res) => {
                 // new: find by email or phone(s)
                 const contact = await findContactByEmailOrPhone(userId, scannedUser.email, scannedUser.phonenumbers);
                 console.log("Found contact:", contact);
+                console.log("scannedUser.phonenumbers:", scannedUser.phonenumbers);
 
                 return {
                     id: scannedUser._id || null,
                     firstname: scannedUser.firstname || '',
                     lastname: scannedUser.lastname || '',
                     email: scannedUser.email || '',
+                    // phonenumbers: Array.isArray(scannedUser.phonenumbers)
+                    //     ? scannedUser.phonenumbers.map(p =>
+                    //         apiType === "web"
+                    //             ? `${(p.countryCode || "").replace(/^\+/, "")}${p.number || ""}`
+                    //             : { countryCode: p.countryCode || "", number: p.number || "" }
+                    //     )
+                    //     : [],
                     phonenumbers: Array.isArray(scannedUser.phonenumbers)
                         ? scannedUser.phonenumbers.map(p =>
                             apiType === "web"
                                 ? `${(p.countryCode || "").replace(/^\+/, "")}${p.number || ""}`
                                 : { countryCode: p.countryCode || "", number: p.number || "" }
                         )
-                        : [],
+                        : (scannedUser.phonenumber
+                            ? [
+                                apiType === "web"
+                                    ? `${(scannedUser.countryCode || "").replace(/^\+/, "")}${scannedUser.phonenumber.replace(/^\+/, "")}`
+                                    : {
+                                        countryCode: (scannedUser.countryCode || "").replace(/^\+/, ""),
+                                        number: scannedUser.phonenumber.replace(/^\+/, "")
+                                    }
+                            ]
+                            : []),
                     profileImageURL: scannedUser.profileImageURL || '',
                     linkedin: scannedUser.linkedin || '',
                     instagram: scannedUser.instagram || '',
