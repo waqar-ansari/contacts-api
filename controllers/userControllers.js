@@ -22,6 +22,122 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_LOGIN_URI // e.g. https://yourapi.com/auth/google/callback
 );
 
+// Requires: User and ReferralLog models in scope.
+// Put this near top of your controller file:
+async function addOrUpdateReferral(referrerId, referredUser) {
+  if (!referrerId || !referredUser || !referredUser._id) return null;
+
+  // Fetch fresh referrer doc
+  const referrer = await User.findById(referrerId);
+  if (!referrer) return null;
+
+  // Normalize phone objects from referredUser
+  const phoneObjs = Array.isArray(referredUser.phonenumbers)
+    ? referredUser.phonenumbers.map(p => ({
+      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+      number: (p.number || "").toString().replace(/^\+/, "")
+    }))
+    : [];
+
+  const referredIdStr = referredUser._id.toString();
+
+  // Find existing entry index (works if myReferrals contains objects or just ids)
+  const index = (referrer.myReferrals || []).findIndex(item => {
+    if (!item) return false;
+    if (typeof item === 'object' && item._id) return item._id.toString() === referredIdStr;
+    // if stored as raw id string
+    try { return item.toString() === referredIdStr; } catch (e) { return false; }
+  });
+
+  let now = new Date();
+  let needSaveReferrer = false;
+
+  if (index !== -1) {
+    // Update missing fields on existing entry
+    const entry = referrer.myReferrals[index];
+    if (!entry.firstname && referredUser.firstname) { entry.firstname = referredUser.firstname; needSaveReferrer = true; }
+    if (!entry.lastname && referredUser.lastname) { entry.lastname = referredUser.lastname; needSaveReferrer = true; }
+    if ((!entry.email || entry.email === "") && referredUser.email) { entry.email = referredUser.email; needSaveReferrer = true; }
+
+    if ((!Array.isArray(entry.phonenumbers) || entry.phonenumbers.length === 0) && phoneObjs.length) {
+      entry.phonenumbers = phoneObjs;
+      needSaveReferrer = true;
+    }
+    if (!entry.signupDate && referredUser.createdAt) { entry.signupDate = referredUser.createdAt; needSaveReferrer = true; }
+
+    // markModified if subdoc changed
+    if (needSaveReferrer) referrer.markModified('myReferrals');
+  } else {
+    // Push new consistent object
+    const newEntry = {
+      _id: referredUser._id,
+      firstname: referredUser.firstname || "",
+      lastname: referredUser.lastname || "",
+      email: referredUser.email || "",
+      phonenumbers: phoneObjs,
+      signupDate: referredUser.createdAt || now
+    };
+    referrer.myReferrals = referrer.myReferrals || [];
+    referrer.myReferrals.push(newEntry);
+    needSaveReferrer = true;
+  }
+
+  if (needSaveReferrer) {
+    // increment referrer credits and save
+    referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+    await referrer.save();
+  }
+
+  // Also add credit to referredUser if not already applied
+  try {
+    // (Don't overwrite existing credited value — only add if < 10)
+    if (!referredUser.creditBalance || referredUser.creditBalance < 10) {
+      referredUser.creditBalance = (referredUser.creditBalance || 0) + 10;
+      // If referredUser is a mongoose doc in calling scope, caller should save; else save here.
+      if (typeof referredUser.save === 'function') {
+        await referredUser.save();
+      } else {
+        await User.updateOne({ _id: referredUser._id }, { $set: { creditBalance: referredUser.creditBalance } });
+      }
+    }
+  } catch (err) {
+    // safe to continue even if credit update fails
+    console.error("Failed to credit referred user:", err.message);
+  }
+
+  // Create ReferralLog if not exists (by email or phone)
+  try {
+    const orQueries = [];
+    if (referredUser.email) orQueries.push({ email: referredUser.email });
+    if (phoneObjs.length) {
+      // use elemMatch to find same phone
+      orQueries.push({
+        phonenumbers: {
+          $elemMatch: { countryCode: phoneObjs[0].countryCode, number: phoneObjs[0].number }
+        }
+      });
+    }
+    if (orQueries.length) {
+      const existingLog = await ReferralLog.findOne({ $or: orQueries });
+      if (!existingLog) {
+        const log = {
+          referredBy: referrer._id,
+          referredUserId: referredUser._id,
+          signupDate: referredUser.createdAt || now
+        };
+        if (referredUser.email) log.email = referredUser.email;
+        if (phoneObjs.length) log.phonenumbers = phoneObjs;
+        await ReferralLog.create(log);
+      }
+    }
+  } catch (err) {
+    console.error("ReferralLog create error:", err.message);
+  }
+
+  return true;
+}
+
+
 const signupWithEmail = async (req, res) => {
   try {
     const {
@@ -288,22 +404,41 @@ const signupWithEmail = async (req, res) => {
         referredBy: referredBy,
         referredUserId: newUser._id,
       });
+      // if (referrer) {
+      //   referrer.myReferrals.push({
+      //     _id: newUser._id,
+      //     firstname: newUser.firstname,
+      //     lastname: newUser.lastname,
+      //     email: newUser.email,
+      //     phonenumbers: newUser.phonenumbers,
+      //     signupDate: new Date(),
+      //   });
+
+      //   referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+
+      //   await referrer.save();
+      // }
       if (referrer) {
-        referrer.myReferrals.push({
-          _id: newUser._id,
-          firstname: newUser.firstname,
-          lastname: newUser.lastname,
-          email: newUser.email,
-          phonenumbers: newUser.phonenumbers,
-          signupDate: new Date(),
-        });
+        // referrer.myReferrals.push({
+        //   _id: newUser._id,
+        //   firstname: newUser.firstname || "",
+        //   lastname: newUser.lastname || "",
+        //   email: newUser.email || "",
+        //   phonenumbers: Array.isArray(newUser.phonenumbers)
+        //     ? newUser.phonenumbers.map(p => ({
+        //       countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        //       number: (p.number || "").toString().replace(/^\+/, "")
+        //     }))
+        //     : [],
+        //   signupDate: new Date(),
+        // });
 
-        referrer.creditBalance = (referrer.creditBalance || 0) + 10;
-
-        await referrer.save();
+        // referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+        // await referrer.save();
+        await addOrUpdateReferral(referredBy, newUser);
       }
-      newUser.creditBalance = (newUser.creditBalance || 0) + 10;
-      await newUser.save(); // ✅ THIS LINE IS REQUIRED
+      // newUser.creditBalance = (newUser.creditBalance || 0) + 10;
+      // await newUser.save(); // ✅ THIS LINE IS REQUIRED
     }
 
     console.log(newUser.creditBalance);
@@ -345,420 +480,6 @@ const signupWithEmail = async (req, res) => {
   }
 };
 
-// const signupWithPhoneNumber = async (req, res) => {
-//   try {
-//     const { countryCode, phonenumber, password, otp, firstname, lastname, resendOtp = false, apiType = "mobile" } = req.body;
-//     const referralCodeParam = req.body.referralCode || req.query.ref || "";
-//     // const tenantId = req.query.tenantId || req.body.tenantId || "";
-
-//     // if (!phonenumber || !password) {
-//     //   return res.status(400).json({
-//     //     status: "error",
-//     //     message: "Phone number and password are required",
-//     //   });
-//     // }
-
-//     // const sanitizedPhone = phonenumber.replace(/[^0-9]/g, "");
-
-//     if (!countryCode || !phonenumber || !password) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "Country code, phone number, and password are required",
-//       });
-//     }
-
-//     // Remove + from countryCode and sanitize number
-//     const sanitizedCountryCode = countryCode.replace("+", "");
-//     const sanitizedNumber = phonenumber.replace(/[^0-9]/g, "");
-
-
-//     const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-//     // let user = await User.findOne({ phonenumbers: { $in: [sanitizedPhone] } });
-
-//     let user = await User.findOne({
-//       phonenumbers: {
-//         $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
-//       }
-//     });
-
-
-//     // === Step 1: If No OTP in Request → Generate and Send OTP ===
-//     // if (!otp) {
-
-//     //   if (phonenumber && phonenumber.trim() !== "") {
-//     //     const phoneExists = await User.findOne({
-//     //       phonenumbers: { $in: [phonenumber] },
-//     //     });
-//     //     if (phoneExists) {
-//     //       return res.status(409).json({
-//     //         status: "error",
-//     //         message: "User with this phone number already exists",
-//     //       });
-//     //     }
-//     //   }
-
-//     //   const generatedOtp = generateOtp();
-//     //   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
-//     //   const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
-
-//     //   user = await User.findOneAndUpdate(
-//     //     { phonenumbers: { $in: [sanitizedPhone] } },
-//     //     {
-//     //       $setOnInsert: { serialNumber: tempSerialNumber },
-//     //       $set: {
-//     //         otp: generatedOtp,
-//     //         otpExpiresAt,
-//     //         firstname,
-//     //         lastname,
-//     //         signupMethod: "phoneNumber",
-//     //         phonenumbers: [sanitizedPhone], // ✅ Always set as array
-//     //       },
-//     //     },
-//     //     { upsert: true, new: true, setDefaultsOnInsert: true }
-//     //   );
-
-//     //   try {
-//     //     const phoneForWhatsAppApi = `+${sanitizedPhone}`;
-//     //     await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
-//     //   } catch (error) {
-//     //     console.error("OTP Send Failed ❌", error.response?.data || error.message);
-//     //     return res.status(500).json({
-//     //       status: "error",
-//     //       message: "Failed to send WhatsApp OTP",
-//     //       error: error.response?.data || error.message,
-//     //     });
-//     //   }
-
-//     //   return res.status(200).json({
-//     //     status: "pending",
-//     //     message: "OTP sent to your WhatsApp number",
-//     //   });
-//     // }
-
-//     if (!otp || resendOtp) {
-//       // ✅ Check if user already exists and is verified
-//       if (user && user.isVerified && !resendOtp) {
-//         return res.status(409).json({
-//           status: "error",
-//           message: "User with this phone number already exists. Please login.",
-//         });
-//       }
-
-//       const generatedOtp = generateOtp();
-//       const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP expiry: 10 mins
-//       const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
-
-//       user = await User.findOneAndUpdate(
-//         // { phonenumbers: { $in: [sanitizedPhone] } },
-//         {
-//           phonenumbers: {
-//             $elemMatch: {
-//               countryCode: sanitizedCountryCode,
-//               number: sanitizedNumber
-//             }
-//           }
-//         },
-//         {
-//           $setOnInsert: { serialNumber: tempSerialNumber },
-//           $set: {
-//             otp: generatedOtp,
-//             otpExpiresAt,
-//             firstname,
-//             lastname,
-//             signupMethod: "phoneNumber",
-//             // phonenumbers: [sanitizedPhone],
-//             phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
-//           },
-//         },
-//         { upsert: true, new: true, setDefaultsOnInsert: true }
-//       );
-
-//       try {
-//         // const phoneForWhatsAppApi = `+${sanitizedPhone}`;
-//         const phoneForWhatsAppApi = `+${sanitizedCountryCode}${sanitizedNumber}`;
-//         await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
-//       } catch (error) {
-//         console.error("OTP Send Failed ❌", error.response?.data || error.message);
-//         return res.status(500).json({
-//           status: "error",
-//           message: "Failed to send WhatsApp OTP",
-//           error: error.response?.data || error.message,
-//         });
-//       }
-
-//       return res.status(200).json({
-//         status: "pending",
-//         message: resendOtp ? "OTP resent to your WhatsApp number" : "OTP sent to your WhatsApp number",
-//       });
-//     }
-
-
-//     // === Step 2: If OTP present → Verify OTP and Create User ===
-
-//     if (!user) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "No signup request found for this phone number. Please request a new OTP.",
-//       });
-//     }
-
-//     if (user.isVerified) {
-//       return res.status(409).json({
-//         status: "error",
-//         message: "User with this phone number already verified. Please login.",
-//       });
-//     }
-
-//     if (user.otp !== otp) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "Invalid OTP",
-//       });
-//     }
-
-//     if (user.otpExpiresAt < new Date()) {
-//       return res.status(400).json({
-//         status: "error",
-//         message: "OTP has expired. Please request a new OTP.",
-//       });
-//     }
-
-//     // ✅ OTP Verified → Finalize Signup
-
-//     const serialNumber = await User.getNextSerialNumber();
-
-//     // const { qrCode } = await generateUserQRCode(firstname || "user", serialNumber, {
-//     //   firstname,
-//     //   lastname,
-//     //   phonenumbers: [sanitizedPhone],
-//     //   provider: "local",
-//     // });
-
-//     let userDetails = user.toObject();
-
-//     // Remove sensitive fields
-//     delete userDetails.password;
-//     delete userDetails.otp;
-//     delete userDetails.otpExpiresAt;
-//     delete userDetails.emailVerificationToken;
-//     delete userDetails.resetPasswordToken;
-//     delete userDetails.resetPasswordExpires;
-
-//     // Add/override fields before generating QR code
-//     userDetails.serialNumber = serialNumber;
-//     userDetails.firstname = firstname;
-//     userDetails.lastname = lastname;
-//     // userDetails.phonenumbers = [sanitizedPhone];
-//     userDetails.phonenumbers = [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }];
-//     userDetails.signupMethod = "phoneNumber";
-//     userDetails.provider = "local";
-
-//     // // Generate QR code with full safe details
-//     // const { qrCode } = await generateUserQRCode(
-//     //   firstname || "user",
-//     //   serialNumber,
-//     //   userDetails
-//     // );
-
-//     user.serialNumber = serialNumber;
-//     user.isVerified = true;
-//     // user.qrCode = qrCode;
-//     user.signupMethod = "phoneNumber";
-//     user.role = "user"; // Default role for new users
-//     user.password = password;
-//     user.firstname = firstname;
-//     user.lastname = lastname;
-
-
-
-//     // ✅ Clear OTP fields
-//     user.otp = undefined;
-//     user.otpExpiresAt = undefined;
-
-//     const matchConditions = [];
-
-//     if (user.email) matchConditions.push({ email: user.email });
-//     // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
-//     if (user.phonenumbers?.[0]) {
-//       matchConditions.push({
-//         phonenumbers: {
-//           $elemMatch: {
-//             countryCode: user.phonenumbers[0].countryCode,
-//             number: user.phonenumbers[0].number,
-//           },
-//         },
-//       });
-//     }
-
-
-//     if (matchConditions.length > 0) {
-//       const matchingUsers = await User.find({
-//         scannedMe: { $elemMatch: { $or: matchConditions } },
-//       });
-
-//       for (const scanner of matchingUsers) {
-//         let updated = false;
-
-//         scanner.scannedMe = scanner.scannedMe.map(entry => {
-//           if (
-//             typeof entry === "object" &&
-//             (
-//               (entry.email && entry.email === user.email) ||
-//               // (entry.phonenumber && entry.phonenumber === user.phonenumbers[0])
-//               (entry.phonenumber &&
-//                 entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
-//             )
-//           ) {
-//             updated = true;
-//             return user._id;
-//           }
-//           return entry;
-//         });
-
-//         if (updated) await scanner.save();
-
-//         if (!Array.isArray(user.iScanned)) user.iScanned = [];
-
-//         const alreadyAdded = user.iScanned.some(entry => {
-//           if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
-//           return entry.toString() === scanner._id.toString();
-//         });
-
-//         if (!alreadyAdded) {
-//           user.iScanned.push({
-//             _id: scanner._id,
-//             firstname: scanner.firstname || "",
-//             lastname: scanner.lastname || "",
-//             email: scanner.email || "",
-//             phonenumbers: scanner.phonenumbers || [],
-//             profileImageURL: scanner.profileImageURL || "",
-//           });
-//         }
-//       }
-//     }
-//     // ✅ iScanned / scannedMe logic ends here.
-
-//     const now = new Date();
-//     user.trialStart = now;
-//     user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days later
-//     user.isPremium = false;
-
-//     // 🔥 Generate and assign user’s unique referral code
-//     // const referralCodeRaw = sanitizedPhone + Date.now();
-//     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
-//     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
-
-//     // 🔥 Handle referredBy logic if referralCode was used
-//     // if (tenantId) {
-//     //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
-
-//     //   if (referringAdmin) {
-//     //     referredByAdmin = referringAdmin._id;
-//     //     user.referredByAdmin = referredByAdmin;
-//     //   } else {
-//     //     return res.status(400).json({
-//     //       status: "error",
-//     //       message: "Invalid tenant ID",
-//     //     });
-//     //   }
-//     // } else 
-//     if (referralCodeParam) {
-//       const referringUser = await User.findOne({ referralCode: referralCodeParam });
-
-//       // if (referringUser) {
-//       // const previouslyReferred = await User.findOne({
-//       //   myReferrals: { $elemMatch: { phonenumbers: { $in: [sanitizedPhone] } } },
-//       //   // phonenumbers: { $in: [sanitizedPhone] },
-//       //   $or: [
-//       //     { referredBy: referringUser._id },
-//       //     { referralCode: referralCodeParam }
-//       //   ]
-//       // });
-
-//       // if (previouslyReferred && previouslyReferred._id.toString() !== user._id.toString()) {
-//       //   return res.status(400).json({
-//       //     status: "error",
-//       //     message: "This referral link has already been used with this phone number. Please sign up manually.",
-//       //   });
-//       // }
-
-//       // const previouslyReferred = await ReferralLog.findOne({
-//       //   phonenumber: sanitizedPhone,
-//       // });
-
-//       // const previouslyReferred = await ReferralLog.findOne({
-//       //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
-//       // });
-
-//       const previouslyReferred = await ReferralLog.findOne({
-//         phonenumbers: {
-//           $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
-//         }
-//       });
-
-//       if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
-//         return res.status(400).json({
-//           status: "error",
-//           message: "This referral link has already been used with this phone number. Please sign up manually.",
-//         });
-//       }
-
-//       user.referredBy = referringUser._id;
-//       // 🔥 Push referral entry in referring user's `myReferrals`
-//       referringUser.myReferrals.push({
-//         _id: user._id,
-//         firstname: user.firstname,
-//         lastname: user.lastname,
-//         email: user.email,
-//         phonenumbers: user.phonenumbers,
-//         signupDate: new Date(),
-//       });
-
-//       referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
-//       user.creditBalance = (user.creditBalance || 0) + 10;
-//       await referringUser.save();
-//       // await ReferralLog.create({
-//       //   // phonenumber: sanitizedPhone,
-//       //   phonenumber: `${sanitizedCountryCode}${sanitizedNumber}`,
-//       //   referredBy: referringUser._id,
-//       //   referredUserId: user._id,
-//       // });
-//       await ReferralLog.create({
-//         phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
-//         referredBy: referringUser._id,
-//         referredUserId: user._id,
-//       });
-
-//       // }
-//     }
-
-
-//     await user.save();
-
-//     const token = createTokenforUser(user);
-//     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
-
-//     return res.status(201).json({
-//       status: "success",
-//       message: "Phone signup completed successfully",
-//       data: {
-//         _id: user._id,
-//         token,
-//         registeredWith: user.signupMethod,
-//         referUrl
-//       },
-//     });
-
-//   } catch (error) {
-//     console.error("Signup Error ❌", error);
-//     return res.status(500).json({
-//       status: "error",
-//       message: "Server error during signup",
-//       error: error.message,
-//     });
-//   }
-// };
 
 const signupWithPhoneNumber = async (req, res) => {
   try {
@@ -1018,20 +739,49 @@ const signupWithPhoneNumber = async (req, res) => {
         });
       }
 
-      if (referringUser) {
-        user.referredBy = referringUser._id;
-        referringUser.myReferrals.push({
-          _id: user._id,
-          firstname: user.firstname,
-          lastname: user.lastname,
-          email: user.email,
-          phonenumbers: user.phonenumbers,
-          signupDate: new Date(),
-        });
+      // if (referringUser) {
+      //   user.referredBy = referringUser._id;
+      //   referringUser.myReferrals.push({
+      //     _id: user._id,
+      //     firstname: user.firstname,
+      //     lastname: user.lastname,
+      //     email: user.email,
+      //     phonenumbers: user.phonenumbers,
+      //     signupDate: new Date(),
+      //   });
 
-        referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
-        user.creditBalance = (user.creditBalance || 0) + 10;
-        await referringUser.save();
+      //   referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
+      //   user.creditBalance = (user.creditBalance || 0) + 10;
+      //   await referringUser.save();
+
+      //   await ReferralLog.create({
+      //     phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+      //     referredBy: referringUser._id,
+      //     referredUserId: user._id,
+      //   });
+      // }
+
+      if (referringUser) {
+        // user.referredBy = referringUser._id;
+
+        // referringUser.myReferrals.push({
+        //   _id: user._id,
+        //   firstname: user.firstname || "",
+        //   lastname: user.lastname || "",
+        //   email: user.email || "",
+        //   phonenumbers: Array.isArray(user.phonenumbers)
+        //     ? user.phonenumbers.map(p => ({
+        //       countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        //       number: (p.number || "").toString().replace(/^\+/, "")
+        //     }))
+        //     : [],
+        //   signupDate: new Date(),
+        // });
+
+        // referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
+        // user.creditBalance = (user.creditBalance || 0) + 10;
+        // await referringUser.save();
+        await addOrUpdateReferral(referringUser._id, user);
 
         await ReferralLog.create({
           phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
@@ -1039,6 +789,7 @@ const signupWithPhoneNumber = async (req, res) => {
           referredUserId: user._id,
         });
       }
+
     }
 
     await user.save();
@@ -1875,28 +1626,35 @@ const googleCallback = async (req, res) => {
         // referredByAdmin: referredByAdmin
       });
 
+      // if (referredBy) {
+      //   const referrer = await User.findById(referredBy);
+      //   if (referrer) {
+      //     referrer.myReferrals.push({
+      //       _id: user._id,
+      //       firstname: user.firstname,
+      //       lastname: user.lastname,
+      //       email: user.email,
+      //       phonenumbers: user.phonenumbers || [],
+      //       signupDate: new Date(),
+      //     });
+      //     referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+      //     await referrer.save();
+      //   }
+      //   user.creditBalance = (user.creditBalance || 0) + 10;
+      //   await user.save();
+      //   await ReferralLog.create({
+      //     email: user.email,
+      //     referredBy: referrer._id,
+      //     referredUserId: user._id,
+      //   });
+      // }
+
       if (referredBy) {
-        const referrer = await User.findById(referredBy);
-        if (referrer) {
-          referrer.myReferrals.push({
-            _id: user._id,
-            firstname: user.firstname,
-            lastname: user.lastname,
-            email: user.email,
-            phonenumbers: user.phonenumbers || [],
-            signupDate: new Date(),
-          });
-          referrer.creditBalance = (referrer.creditBalance || 0) + 10;
-          await referrer.save();
-        }
-        user.creditBalance = (user.creditBalance || 0) + 10;
-        await user.save();
-        await ReferralLog.create({
-          email: user.email,
-          referredBy: referrer._id,
-          referredUserId: user._id,
-        });
+        // use helper to add/update referral + log + credits
+        await addOrUpdateReferral(referredBy, user);
       }
+
+
     }
 
     // ✅ Sync referral data (in case user was referred but referrer has missing details)
@@ -2267,28 +2025,33 @@ const linkedinCallback = async (req, res) => {
         referredBy: referredBy
       });
 
+      // if (referredBy) {
+      //   const referrer = await User.findById(referredBy);
+      //   if (referrer) {
+      //     referrer.myReferrals.push({
+      //       _id: user._id,
+      //       firstname: user.firstname,
+      //       lastname: user.lastname,
+      //       email: user.email,
+      //       phonenumbers: user.phonenumbers || [],
+      //       signupDate: new Date(),
+      //     });
+      //     referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+      //     await referrer.save();
+      //   }
+      //   user.creditBalance = (user.creditBalance || 0) + 10;
+      //   await user.save();
+      //   await ReferralLog.create({
+      //     email: user.email,
+      //     referredBy: referredBy,
+      //     referredUserId: user._id,
+      //   });
+      // }
+
       if (referredBy) {
-        const referrer = await User.findById(referredBy);
-        if (referrer) {
-          referrer.myReferrals.push({
-            _id: user._id,
-            firstname: user.firstname,
-            lastname: user.lastname,
-            email: user.email,
-            phonenumbers: user.phonenumbers || [],
-            signupDate: new Date(),
-          });
-          referrer.creditBalance = (referrer.creditBalance || 0) + 10;
-          await referrer.save();
-        }
-        user.creditBalance = (user.creditBalance || 0) + 10;
-        await user.save();
-        await ReferralLog.create({
-          email: user.email,
-          referredBy: referredBy,
-          referredUserId: user._id,
-        });
+        await addOrUpdateReferral(referredBy, user);
       }
+
     }
 
     // // ✅ Sync referral data if this user was referred

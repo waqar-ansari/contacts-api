@@ -25,7 +25,80 @@ const getMyReferrals = async (req, res) => {
 
 
 
-        const referralIds = user.myReferrals.map(entry => entry._id.toString());
+        // const referralIds = user.myReferrals.map(entry => entry._id.toString());
+
+        // const referredUsers = await User.find({ _id: { $in: referralIds } }).lean();
+
+        // // Build a map for quick lookup
+        // const referredMap = {};
+        // referredUsers.forEach(ref => {
+        //     referredMap[ref._id.toString()] = ref;
+        // });
+
+        // let needsUpdate = false;
+        // const updatedReferrals = user.myReferrals.map(entry => {
+        //     const refUser = referredMap[entry._id.toString()];
+        //     if (!refUser) return entry; // Skip if user not found
+
+        //     const updatedEntry = { ...entry };
+        //     let changed = false;
+
+        //     if (!entry.firstname && refUser.firstname) {
+        //         updatedEntry.firstname = refUser.firstname;
+        //         changed = true;
+        //     }
+
+        //     if (!entry.lastname && refUser.lastname) {
+        //         updatedEntry.lastname = refUser.lastname;
+        //         changed = true;
+        //     }
+
+        //     if ((!entry.email || entry.email === "") && refUser.email) {
+        //         updatedEntry.email = refUser.email;
+        //         changed = true;
+        //     }
+
+        //     // if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
+        //     //     updatedEntry.phonenumbers = refUser.phonenumbers;
+        //     //     changed = true;
+        //     // }
+
+        //     if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
+        //         // Ensure phonenumbers follow new structure
+        //         updatedEntry.phonenumbers = refUser.phonenumbers.map(p => ({
+        //             countryCode: p.countryCode?.replace(/^\+/, "") || "",
+        //             number: p.number?.replace(/^\+/, "") || ""
+        //         }));
+        //         changed = true;
+        //     }
+
+
+        //     if (!entry.signupDate && refUser.createdAt) {
+        //         updatedEntry.signupDate = refUser.createdAt;
+        //         changed = true;
+        //     }
+
+        //     if (changed) {
+        //         needsUpdate = true;
+        //     }
+
+        //     return updatedEntry;
+        // });
+
+        // // Only update in DB if there's a change
+        // if (needsUpdate) {
+        //     await User.updateOne(
+        //         { _id: currentUserId },
+        //         { $set: { myReferrals: updatedReferrals } }
+        //     );
+        // }
+
+        const referralIds = (user.myReferrals || []).map(entry => {
+            // entry may be an object or an ObjectId/string; normalize to string id
+            if (!entry) return null;
+            if (typeof entry === 'object' && entry._id) return entry._id.toString();
+            return entry.toString();
+        }).filter(Boolean);
 
         const referredUsers = await User.find({ _id: { $in: referralIds } }).lean();
 
@@ -36,56 +109,53 @@ const getMyReferrals = async (req, res) => {
         });
 
         let needsUpdate = false;
-        const updatedReferrals = user.myReferrals.map(entry => {
-            const refUser = referredMap[entry._id.toString()];
-            if (!refUser) return entry; // Skip if user not found
+        const updatedReferrals = (user.myReferrals || []).map(entry => {
+            // normalize entryId and create a mutable object
+            const entryId = (typeof entry === 'object' && entry._id) ? entry._id.toString() : (entry ? entry.toString() : null);
+            // If entryId is missing, return entry as-is
+            if (!entryId) return entry;
 
-            const updatedEntry = { ...entry };
+            const refUser = referredMap[entryId];
+
+            // create a base object (if entry was just an id string, create object shell)
+            const updatedEntry = (typeof entry === 'object') ? { ...entry } : { _id: entryId, firstname: "", lastname: "", email: "", phonenumbers: [], signupDate: null };
+
             let changed = false;
 
-            if (!entry.firstname && refUser.firstname) {
-                updatedEntry.firstname = refUser.firstname;
-                changed = true;
+            if (refUser) {
+                if (!updatedEntry.firstname && refUser.firstname) {
+                    updatedEntry.firstname = refUser.firstname;
+                    changed = true;
+                }
+                if (!updatedEntry.lastname && refUser.lastname) {
+                    updatedEntry.lastname = refUser.lastname;
+                    changed = true;
+                }
+                if ((!updatedEntry.email || updatedEntry.email === "") && refUser.email) {
+                    updatedEntry.email = refUser.email;
+                    changed = true;
+                }
+
+                // Convert refUser.phonenumbers (top-level user format) -> myReferrals.phone object array
+                if ((!Array.isArray(updatedEntry.phonenumbers) || updatedEntry.phonenumbers.length === 0) && Array.isArray(refUser.phonenumbers) && refUser.phonenumbers.length) {
+                    updatedEntry.phonenumbers = refUser.phonenumbers.map(p => ({
+                        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+                        number: (p.number || "").toString().replace(/^\+/, "")
+                    }));
+                    changed = true;
+                }
+
+                if (!updatedEntry.signupDate && refUser.createdAt) {
+                    updatedEntry.signupDate = refUser.createdAt;
+                    changed = true;
+                }
             }
 
-            if (!entry.lastname && refUser.lastname) {
-                updatedEntry.lastname = refUser.lastname;
-                changed = true;
-            }
-
-            if ((!entry.email || entry.email === "") && refUser.email) {
-                updatedEntry.email = refUser.email;
-                changed = true;
-            }
-
-            // if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
-            //     updatedEntry.phonenumbers = refUser.phonenumbers;
-            //     changed = true;
-            // }
-
-            if ((!entry.phonenumbers || entry.phonenumbers.length === 0) && refUser.phonenumbers?.length) {
-                // Ensure phonenumbers follow new structure
-                updatedEntry.phonenumbers = refUser.phonenumbers.map(p => ({
-                    countryCode: p.countryCode?.replace(/^\+/, "") || "",
-                    number: p.number?.replace(/^\+/, "") || ""
-                }));
-                changed = true;
-            }
-
-
-            if (!entry.signupDate && refUser.createdAt) {
-                updatedEntry.signupDate = refUser.createdAt;
-                changed = true;
-            }
-
-            if (changed) {
-                needsUpdate = true;
-            }
-
+            if (changed) needsUpdate = true;
             return updatedEntry;
         });
 
-        // Only update in DB if there's a change
+        // Only update DB if something changed
         if (needsUpdate) {
             await User.updateOne(
                 { _id: currentUserId },

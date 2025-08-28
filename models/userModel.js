@@ -417,20 +417,46 @@ const userSchema = new Schema(
       default: 0, // every user starts with $0 credit
     },
 
+    // myReferrals: {
+    //   type: [
+    //     {
+    //       _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    //       firstname: String,
+    //       lastname: String,
+    //       email: String,
+    //       phonenumbers: [
+    //         {
+    //           countryCode: { type: String, default: "" },
+    //           number: { type: String, default: "" },
+    //           _id: false
+    //         }
+    //       ],
+    //       signupDate: Date,
+    //     }
+    //   ],
+    //   default: [],
+    // },
+
+    // replace existing myReferrals block with this:
     myReferrals: {
       type: [
-        {
+        new mongoose.Schema({
           _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-          firstname: String,
-          lastname: String,
-          email: String,
-          phonenumbers: [String],
-          signupDate: Date,
-        }
+          firstname: { type: String, default: "" },
+          lastname: { type: String, default: "" },
+          email: { type: String, default: "" },
+          phonenumbers: [
+            {
+              countryCode: { type: String, default: "" },
+              number: { type: String, default: "" },
+              _id: false
+            }
+          ],
+          signupDate: { type: Date, default: null }
+        }, { _id: false }) // avoid auto subdoc _id (we keep the _id field for referred user)
       ],
-      default: [],
+      default: []
     },
-
 
 
     resetPasswordToken: { type: String },

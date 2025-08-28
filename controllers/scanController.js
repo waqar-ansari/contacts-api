@@ -438,6 +438,12 @@ exports.scanUser = async (req, res) => {
                             createdBy: user._id,
                         });
                         newContact.contact_id = newContact._id;
+                        newContact.activities.push({
+                            action: "created",
+                            type: "contact",
+                            title: "New Contact Added (Unregistered)",
+                            description: `Temporary contact ${firstname || ""} ${lastname || ""} added via QR scan`,
+                        });
                         await newContact.save();
                     }
 
