@@ -79,6 +79,7 @@ const PORT = process.env.PORT;
 const adminLoginRoutes = require("./routes/admin/adminLoginRoute");
 const getAllUsers = require("./routes/admin/getAllUsersRoutes");
 const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
+const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 
 console.log("Setting up Express app...");
 
@@ -191,6 +192,7 @@ app.use("/fetch-zoho-contacts", (req, res, next) => {
 app.use("/admin/getAllUsers", checkForAuthentication(), checkRole(['superadmin']), getAllUsers);
 app.use("/admin/login", adminLoginRoutes);
 app.use("/admin/addEditPlan", checkForAuthentication(), checkRole(['superadmin']), addEditPlanRoutes);
+app.use("/admin", checkForAuthentication(), checkRole(['superadmin']), getAdminDetailsRoutes);
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
