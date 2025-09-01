@@ -156,13 +156,108 @@ const editProfile = async (req, res) => {
 
       if (keys.includes('firstname')) user.firstname = firstname;
       if (keys.includes('lastname')) user.lastname = lastname;
-      if (keys.includes('email')) user.email = email;
+      // if (keys.includes('email')) user.email = email;
       if (keys.includes('linkedin')) user.linkedin = linkedin;
       if (keys.includes('instagram')) user.instagram = instagram;
       if (keys.includes('telegram')) user.telegram = telegram;
       if (keys.includes('twitter')) user.twitter = twitter;
       if (keys.includes('facebook')) user.facebook = facebook;
       if (keys.includes('designation')) user.designation = designation;
+
+      if (keys.includes('email') && email) {
+        const trimmedEmail = email.trim().toLowerCase();
+
+        // Case 1: signupMethod = email|google|linkedin → disallow
+        if (["email", "google", "linkedin"].includes(user.signupMethod)) {
+          return res.status(400).json({
+            status: "error",
+            message: "You cannot change email for this account."
+          });
+        }
+
+        // Case 2: signupMethod != email|google|linkedin (ex: phoneNumber) → check for duplicates
+        const existingUser = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
+        if (existingUser) {
+          return res.status(400).json({
+            status: "error",
+            message: "This email is already used."
+          });
+        }
+
+        user.email = trimmedEmail;
+      }
+
+      // =========================
+      // 🔒 PHONE UPDATE CHECKS
+      // =========================
+      if (apiType === "mobile") {
+        if (req.body.countryCode && req.body.phonenumber) {
+          if (user.signupMethod === "phoneNumber") {
+            return res.status(400).json({
+              status: "error",
+              message: "You cannot change phone number for this account."
+            });
+          }
+
+          const newNumberObj = {
+            countryCode: String(req.body.countryCode).replace(/\D/g, ""),
+            number: String(req.body.phonenumber).replace(/\D/g, "")
+          };
+
+          // Check if this phone already exists
+          const existingPhoneUser = await User.findOne({
+            phonenumbers: { $elemMatch: newNumberObj },
+            _id: { $ne: user._id }
+          });
+
+          if (existingPhoneUser) {
+            return res.status(400).json({
+              status: "error",
+              message: "This phone number is already used."
+            });
+          }
+
+          user.phonenumbers = [newNumberObj];
+        }
+      } else if (apiType === "web") {
+        if (req.body.phonenumber) {
+          if (user.signupMethod === "phoneNumber") {
+            return res.status(400).json({
+              status: "error",
+              message: "You cannot change phone number for this account."
+            });
+          }
+
+          let rawNumber = req.body.phonenumber.trim();
+          if (!rawNumber.startsWith("+")) rawNumber = "+" + rawNumber;
+
+          const phoneObj = parsePhoneNumberFromString(rawNumber);
+          if (!phoneObj || !phoneObj.isValid()) {
+            return res.status(400).json({ status: "error", message: "Invalid phone number format" });
+          }
+
+          const newNumberObj = {
+            countryCode: phoneObj.countryCallingCode,
+            number: phoneObj.nationalNumber
+          };
+
+          // Check if already exists
+          const existingPhoneUser = await User.findOne({
+            phonenumbers: { $elemMatch: newNumberObj },
+            _id: { $ne: user._id }
+          });
+
+          if (existingPhoneUser) {
+            return res.status(400).json({
+              status: "error",
+              message: "This phone number is already used."
+            });
+          }
+
+          user.phonenumbers = [newNumberObj];
+        }
+      }
+
       // if (keys.includes('phonenumbers')) {
       //   let parsedPhones;
 
@@ -214,43 +309,43 @@ const editProfile = async (req, res) => {
       // }
 
       // === Phone Numbers ===
-      if (apiType === "mobile") {
-        // 📱 Case 1: Mobile - user gives separate countryCode & phonenumber
-        if (req.body.countryCode && req.body.phonenumber) {
-          user.phonenumbers = [
-            {
-              countryCode: String(req.body.countryCode).replace(/\D/g, ""),
-              number: String(req.body.phonenumber).replace(/\D/g, "")
-            }
-          ];
-        }
-      } else if (apiType === "web") {
-        // 💻 Case 2: Web - user gives full number (with or without '+')
-        if (req.body.phonenumber) {
-          let rawNumber = req.body.phonenumber.trim();
+      // if (apiType === "mobile") {
+      //   // 📱 Case 1: Mobile - user gives separate countryCode & phonenumber
+      //   if (req.body.countryCode && req.body.phonenumber) {
+      //     user.phonenumbers = [
+      //       {
+      //         countryCode: String(req.body.countryCode).replace(/\D/g, ""),
+      //         number: String(req.body.phonenumber).replace(/\D/g, "")
+      //       }
+      //     ];
+      //   }
+      // } else if (apiType === "web") {
+      //   // 💻 Case 2: Web - user gives full number (with or without '+')
+      //   if (req.body.phonenumber) {
+      //     let rawNumber = req.body.phonenumber.trim();
 
-          // Ensure number starts with '+'
-          if (!rawNumber.startsWith("+")) {
-            rawNumber = "+" + rawNumber;
-          }
+      //     // Ensure number starts with '+'
+      //     if (!rawNumber.startsWith("+")) {
+      //       rawNumber = "+" + rawNumber;
+      //     }
 
-          const phoneObj = parsePhoneNumberFromString(rawNumber);
+      //     const phoneObj = parsePhoneNumberFromString(rawNumber);
 
-          if (phoneObj && phoneObj.isValid()) {
-            user.phonenumbers = [
-              {
-                countryCode: phoneObj.countryCallingCode,  // e.g. "91"
-                number: phoneObj.nationalNumber            // e.g. "7046658651"
-              }
-            ];
-          } else {
-            return res.status(400).json({
-              status: "error",
-              message: "Invalid phone number format"
-            });
-          }
-        }
-      }
+      //     if (phoneObj && phoneObj.isValid()) {
+      //       user.phonenumbers = [
+      //         {
+      //           countryCode: phoneObj.countryCallingCode,  // e.g. "91"
+      //           number: phoneObj.nationalNumber            // e.g. "7046658651"
+      //         }
+      //       ];
+      //     } else {
+      //       return res.status(400).json({
+      //         status: "error",
+      //         message: "Invalid phone number format"
+      //       });
+      //     }
+      //   }
+      // }
 
 
       //       if (keys.includes("email")) {
