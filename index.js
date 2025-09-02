@@ -37,7 +37,7 @@ const { checkForAuthentication } = require("./middlewares/authentication");
 const scanRoutes = require("./routes/scanRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const { error } = require("console");
-// const PORT = process.env.PORT;
+const PORT = process.env.PORT;
 
 app.use(cors());
 
@@ -51,8 +51,12 @@ app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 // Serve static files (for accessing uploaded images)
 // app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
-app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
-  editProfileRoutes);
+app.use(
+  "/editProfile",
+  checkForAuthentication(),
+  upload.single("profileImage"),
+  editProfileRoutes
+);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
 app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
@@ -70,7 +74,6 @@ app.use(
   contactRoutes
 );
 app.use("/assignedContactTag", checkForAuthentication(), assignedContactTag);
-
 
 app.use("/sign", checkForAuthentication(), signRoutes);
 app.use("/api", authRoutes);
@@ -90,9 +93,9 @@ app.use("/", (req, res) => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Connected to Database");
-    // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (err) {
     console.error("Database connection failed:", err);
   }
 })();
-module.exports.handler = serverless(app);
+// module.exports.handler = serverless(app);

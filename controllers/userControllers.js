@@ -1,10 +1,11 @@
-
 const User = require("../models/userModel");
 const { OAuth2Client } = require("google-auth-library");
 const appleSignin = require("apple-signin-auth");
 const { createTokenforUser } = require("../services/authentication");
 
-const googleClient = new OAuth2Client("308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com");
+const googleClient = new OAuth2Client(
+  "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com"
+);
 
 const saveSignupData = async (req, res) => {
   try {
@@ -13,25 +14,35 @@ const saveSignupData = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         status: "error",
-        message: "email and password is required"
+        message: "email and password is required",
       });
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ status: "error", message: "User already registered" });
+      return res
+        .status(409)
+        .json({ status: "error", message: "User already registered" });
     }
 
     const newUser = await User.create({ email, password, firstname, lastname });
 
     if (!newUser) {
-      return res.status(500).json({ status: "error", message: "User registration failed" });
+      return res
+        .status(500)
+        .json({ status: "error", message: "User registration failed" });
     }
 
-    return res.status(201).json({ status: "success", message: "User registered successfully" });
-
+    return res
+      .status(201)
+      .json({ status: "success", message: "User registered successfully" });
   } catch (error) {
-    return res.status(500).json({ status: "error", message: "Something went wrong during registration"});
+    return res
+      .status(500)
+      .json({
+        status: "error",
+        message: "Something went wrong during registration",
+      });
   }
 };
 
@@ -42,11 +53,17 @@ const unifiedLogin = async (req, res) => {
     // 🔐 Email & Password Login
     if (email && password && !googleToken && !appleToken) {
       try {
-        const token = await User.matchPasswordAndGenerateToken(email, password);
+        const { token, user } = await User.matchPasswordAndGenerateToken(
+          email,
+          password
+        );
         return res.json({
           status: "success",
           message: "Login successful",
-          data: { token }
+          data: {
+            token,
+            user, // Include user data with role
+          },
         });
       } catch (error) {
         return res.status(401).json({
@@ -61,21 +78,31 @@ const unifiedLogin = async (req, res) => {
       try {
         const ticket = await googleClient.verifyIdToken({
           idToken: googleToken,
-          audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
+          audience:
+            "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
         });
 
         const { email, name } = ticket.getPayload();
 
         let user = await User.findOne({ email });
         if (!user) {
-          user = await User.create({ email, firstname: name, provider: "google" });
+          user = await User.create({
+            email,
+            firstname: name,
+            provider: "google",
+          });
         }
 
         const token = createTokenforUser(user);
-        return res.json({ status: "success", message: "Google login successful", data: { token } });
-
+        return res.json({
+          status: "success",
+          message: "Google login successful",
+          data: { token },
+        });
       } catch (error) {
-        return res.status(500).json({ status: "error", message: "Google login failed" });
+        return res
+          .status(500)
+          .json({ status: "error", message: "Google login failed" });
       }
     }
 
@@ -85,9 +112,11 @@ const unifiedLogin = async (req, res) => {
         let id_token = appleToken;
 
         if (!id_token.includes(".")) {
-          const decoded = Buffer.from(id_token, 'base64').toString('utf8');
+          const decoded = Buffer.from(id_token, "base64").toString("utf8");
           if (!decoded.includes(".")) {
-            return res.status(400).json({ message: "Invalid Apple token format" });
+            return res
+              .status(400)
+              .json({ message: "Invalid Apple token format" });
           }
           id_token = decoded;
         }
@@ -109,15 +138,21 @@ const unifiedLogin = async (req, res) => {
         }
 
         const token = createTokenforUser(user);
-        return res.json({ status: "success", message: "Apple login successful", data: { token } });
-
+        return res.json({
+          status: "success",
+          message: "Apple login successful",
+          data: { token },
+        });
       } catch (error) {
-        return res.status(500).json({ status: "error", message: "Apple login failed" });
+        return res
+          .status(500)
+          .json({ status: "error", message: "Apple login failed" });
       }
     }
 
-    return res.status(400).json({ status: "error", message: "Invalid login request" });
-
+    return res
+      .status(400)
+      .json({ status: "error", message: "Invalid login request" });
   } catch (err) {
     return res.status(500).json({ status: "error", message: "Login failed" });
   }

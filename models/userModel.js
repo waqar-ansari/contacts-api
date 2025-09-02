@@ -22,8 +22,12 @@ const reminderSchema = new Schema(
 
 const userSchema = new Schema(
   {
-
     reminders: [reminderSchema],
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
 
     firstname: {
       type: String,
@@ -128,7 +132,6 @@ userSchema.pre("save", function (next) {
   this.password = hashPassword;
   next();
 });
-
 userSchema.static(
   "matchPasswordAndGenerateToken",
   async function (email, password) {
@@ -142,8 +145,21 @@ userSchema.static(
       .digest("hex");
     if (hashedPassword !== userProvidedHash)
       throw new Error("Password not matched");
+
     const token = createTokenforUser(user);
-    return token;
+
+    // Return both token and user data (including role)
+    return {
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role || "user", // Default to 'user' if not set
+        firstname: user.firstname,
+        lastname: user.lastname,
+        profileImageURL: user.profileImageURL,
+      },
+    };
   }
 );
 

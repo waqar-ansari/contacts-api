@@ -28,4 +28,22 @@ const checkForAuthentication = () => {
   };
 };
 
-module.exports = { checkForAuthentication };
+const checkForAdmin = () => {
+  return (req, res, next) => {
+    // First check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized: No user found" });
+    }
+
+    // Check if role exists and is 'admin'
+    if (!req.user.role || req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: Admin access required" });
+    }
+
+    next();
+  };
+};
+
+module.exports = { checkForAuthentication, checkForAdmin };
