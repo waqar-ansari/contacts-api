@@ -7,12 +7,15 @@ const path = require("path");
 const { createGoogleMeetEvent } = require("../utils/googleCalendar");
 const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
+const Plan = require("../models/planModel"); // <-- Add this at the top
 
 
 
 const addEditContact = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).populate("plan");
+    console.log(user);
+
     if (!user) {
       return res.status(401).json({ status: "error", message: "Unauthorized: User not found" });
     }
@@ -666,6 +669,22 @@ const addEditContact = async (req, res) => {
 
     let contactData;
     if (isCreating) {
+
+      const planName = user.plan?.name?.toLowerCase() || "Starter";
+      let contactLimit = 1000; // default for Free
+      if (planName === "pro") {
+        contactLimit = Infinity; // unlimited
+      }
+      const currentContactCount = await Contact.countDocuments({ createdBy: user._id });
+      if (currentContactCount >= contactLimit) {
+        return res.status(403).json({
+          status: "error",
+          message: planName === "pro"
+            ? "You have reached your contact limit. Please contact support."
+            : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
+        });
+      }
+
       if (taskProvided && task_id) {
         return res.status(400).json({
           status: "error",

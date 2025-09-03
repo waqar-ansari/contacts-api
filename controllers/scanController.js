@@ -66,9 +66,26 @@ exports.scanUser = async (req, res) => {
         let updated = false;
 
         if (ScannerID) {
-            const scanner = await User.findById(ScannerID);
+            const scanner = await User.findById(ScannerID).populate("plan");
             if (!scanner) {
                 return res.status(404).json({ status: "error", message: "Scanner (ScannerID) not found" });
+            }
+
+            // ---- PLAN LIMIT CHECK FOR REGISTERED SCANNER ----
+            const planName = scanner.plan?.name?.toLowerCase() || "starter";
+            let scanLimit = 50; // default for Free
+            if (planName === "pro") scanLimit = Infinity;
+
+            // Count how many contacts this scanner has created (i.e., how many times they've scanned)
+            const scanCount = await Contact.countDocuments({ createdBy: scanner._id });
+
+            if (scanCount >= scanLimit) {
+                return res.status(403).json({
+                    status: "error",
+                    message: planName === "pro"
+                        ? "You have reached your scan limit. Please contact support."
+                        : "You have reached the maximum number of scans allowed for your plan. Upgrade to Pro for unlimited scans.",
+                });
             }
 
             if (!Array.isArray(scanner.iScanned)) scanner.iScanned = [];
@@ -348,6 +365,23 @@ exports.scanUser = async (req, res) => {
                 // ✅ Treat as registered scanner
                 const scanner = matchedScanner;
 
+                // PLAN LIMIT CHECK FOR REGISTERED (matched) SCANNER
+                await matchedScanner.populate("plan");
+                const planName = matchedScanner.plan?.name?.toLowerCase() || "starter";
+                let scanLimit = 50;
+                if (planName === "pro") scanLimit = Infinity;
+
+                const scanCount = await Contact.countDocuments({ createdBy: matchedScanner._id });
+
+                if (scanCount >= scanLimit) {
+                    return res.status(403).json({
+                        status: "error",
+                        message: planName === "pro"
+                            ? "You have reached your scan limit. Please contact support."
+                            : "You have reached the maximum number of scans allowed for your plan. Upgrade to Pro for unlimited scans.",
+                    });
+                }
+
                 if (!Array.isArray(scanner.iScanned)) scanner.iScanned = [];
                 if (!Array.isArray(scanner.scannedMe)) scanner.scannedMe = [];
                 if (!Array.isArray(user.iScanned)) user.iScanned = [];
@@ -494,6 +528,22 @@ exports.scanUser = async (req, res) => {
                     updated = true;
                 }
             } else {
+
+                // PLAN LIMIT CHECK FOR UNREGISTERED (TEMP) SCANNER
+                // Limit by how many times this temp user (by email/phone) is in user.scannedMe
+                const tempScans = user.scannedMe.filter(
+                    entry =>
+                        (email && entry.email === email) ||
+                        (phonenumber && entry.phonenumber === phonenumber && (!countryCode || entry.countryCode === countryCode))
+                ).length;
+
+                if (tempScans >= 50) {
+                    return res.status(403).json({
+                        status: "error",
+                        message: "You have reached the maximum number of scans allowed for unregistered users on the Free plan. Please register or upgrade.",
+                    });
+                }
+
                 // 🔹 No registered user match → unregistered scanner logic
                 // CHANGED: duplicate check now compares number + countryCode when provided
                 const alreadyExists = user.scannedMe.some(

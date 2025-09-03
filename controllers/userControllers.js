@@ -1167,7 +1167,8 @@ const unifiedLogin = async (req, res) => {
             isTrialActive,
             isPremium: user.isPremium,
             trialEndsAt: user.trialEnd,
-            registeredWith: user.signupMethod
+            registeredWith: user.signupMethod,
+            role: user.role || "user"
           }
         });
 
