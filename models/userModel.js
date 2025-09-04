@@ -240,7 +240,10 @@ const userSchema = new Schema(
       default: null
     },
     planActivatedAt: { type: Date, default: null },
-    // isActive: { type: Boolean, default: true },
+    isActive: {
+      type: Boolean,
+      default: false, // user is inactive until login
+    },
 
 
     tags: {

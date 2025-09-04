@@ -1,4 +1,5 @@
 const { Router } = require("express");
+const { checkForAuthentication } = require("../middlewares/authentication");
 const {
   signupWithEmail,
   unifiedLogin,
@@ -7,7 +8,8 @@ const {
   startGoogleLogin,
   googleCallback,
   startLinkedInLogin,
-  linkedinCallback
+  linkedinCallback,
+  logoutUser
 } = require("../controllers/userControllers");
 
 const router = Router();
@@ -105,5 +107,7 @@ router.get("/google/callback", googleCallback);
 router.get("/linkedin/login", startLinkedInLogin);
 
 router.get("/linkedin/callback", linkedinCallback);
+
+router.post("/logout", checkForAuthentication(), logoutUser);
 
 module.exports = router;

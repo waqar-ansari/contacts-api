@@ -137,7 +137,6 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   return true;
 }
 
-
 const signupWithEmail = async (req, res) => {
   try {
     const {
@@ -459,6 +458,8 @@ const signupWithEmail = async (req, res) => {
 
     console.log("Verification Link:", verificationLink);
 
+    newUser.isActive = true; // mark as active
+
     return res.status(201).json({
       status: "success",
       message: "Signup started. Please verify your email to activate your account.",
@@ -479,7 +480,6 @@ const signupWithEmail = async (req, res) => {
     });
   }
 };
-
 
 const signupWithPhoneNumber = async (req, res) => {
   try {
@@ -797,6 +797,8 @@ const signupWithPhoneNumber = async (req, res) => {
     const token = createTokenforUser(user);
     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
+    user.isActive = true; // mark as active
+
     return res.status(201).json({
       status: "success",
       message: "Phone signup completed successfully",
@@ -817,7 +819,6 @@ const signupWithPhoneNumber = async (req, res) => {
     });
   }
 };
-
 
 const resendVerificationLink = async (req, res) => {
   try {
@@ -1157,7 +1158,7 @@ const unifiedLogin = async (req, res) => {
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         const hasAccess = user.isPremium || isTrialActive;
-
+        user.isActive = true; // mark as active
         return res.json({
           status: "success",
           message: "Login successful",
@@ -1712,7 +1713,7 @@ const googleCallback = async (req, res) => {
     //   message: 'Google login successful',
 
     // });
-
+    user.isActive = true; // mark as active
     const resultData = {
       status: 'success',
       message: 'Google Login successfully',
@@ -2104,6 +2105,7 @@ const linkedinCallback = async (req, res) => {
     const now = new Date();
     const isTrialActive = user.trialEnd && now < user.trialEnd;
     const hasAccess = user.isPremium || isTrialActive;
+    user.isActive = true; // mark as active
     const resultData = {
       status: 'success',
       message: 'LinkedIn Login successfully',
@@ -2168,6 +2170,25 @@ const linkedinCallback = async (req, res) => {
   }
 };
 
+const logoutUser = async (req, res) => {
+  try {
+    console.log("hello");
+    
+    const userId = req.user._id; // requires auth middleware
+    const user = await User.findById(userId);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.isActive = false; // mark as inactive
+    await user.save();
+
+    res.json({ message: "Logout successful" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
 module.exports = {
   signupWithEmail,
   unifiedLogin,
@@ -2176,5 +2197,6 @@ module.exports = {
   startGoogleLogin,
   googleCallback,
   startLinkedInLogin,
-  linkedinCallback
+  linkedinCallback,
+  logoutUser
 };
