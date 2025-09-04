@@ -22,7 +22,6 @@ const serverless = require("serverless-http");
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocs = require("./swaggerConfig");
 
-
 console.log("Connecting to MongoDB...");
 
 const userRoutes = require("./routes/userRoutes");
@@ -75,15 +74,13 @@ const planRoutes = require("./routes/planRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
-
 //for admin routes
 const adminLoginRoutes = require("./routes/admin/adminLoginRoute");
-const getAllUsers = require("./routes/admin/getAllUsersRoutes");
+const adminUserRoutes = require("./routes/admin/adminUserRoutes");
 const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
 const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 
 console.log("Setting up Express app...");
-
 
 app.use(cors());
 
@@ -97,14 +94,16 @@ app.use(express.static(path.resolve("./public")));
 app.use("/user", userRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-
 console.log("Setting up routes...");
-
 
 // Serve static files (for accessing uploaded images)
 // app.use("/editProfile", checkForAuthentication(), editProfileRoutes);
-app.use("/editProfile", checkForAuthentication(), upload.single("profileImage"),
-  editProfileRoutes);
+app.use(
+  "/editProfile",
+  checkForAuthentication(),
+  upload.single("profileImage"),
+  editProfileRoutes
+);
 app.use("/deleteContact", deleteContactRoutes);
 app.use("/deleteUser", checkForAuthentication(), deleteUserRoutes);
 app.use("/deleteTask", checkForAuthentication(), deleteTaskRoutes);
@@ -122,13 +121,17 @@ app.use("/getContactEmail", checkForAuthentication(), getContactEmailRoutes);
 app.use("/getProfileEvent", checkForAuthentication(), getProfileEventRoutes);
 // app.use("/googleConnect", checkForAuthentication(), googleConnect);
 app.use("/my-referrals", checkForAuthentication(), myReferralsRoutes);
-app.use("/connect", (req, res, next) => {
-  const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
-  if (skipAuthPaths.includes(req.path)) {
-    return next(); // No token required for callback
-  }
-  return checkForAuthentication()(req, res, next);
-}, accountConnect);
+app.use(
+  "/connect",
+  (req, res, next) => {
+    const skipAuthPaths = ["/google-callback", "/microsoft-callback"];
+    if (skipAuthPaths.includes(req.path)) {
+      return next(); // No token required for callback
+    }
+    return checkForAuthentication()(req, res, next);
+  },
+  accountConnect
+);
 
 app.use(
   "/addEditContact",
@@ -148,53 +151,106 @@ app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
-app.use("/check-duplicate-user", checkForAuthentication(), checkEmailPhoneDuplicate);
-app.use("/save-bulk-contacts", checkForAuthentication(), saveBulkContactsRoutes);
+app.use(
+  "/check-duplicate-user",
+  checkForAuthentication(),
+  checkEmailPhoneDuplicate
+);
+app.use(
+  "/save-bulk-contacts",
+  checkForAuthentication(),
+  saveBulkContactsRoutes
+);
 app.use("/getContactById", checkForAuthentication(), getContactByIdRoutes);
 app.use("/getAllContact", checkForAuthentication(), getAllContactRoutes);
-app.use("/getContactActivities", checkForAuthentication(), getContactActivitiesRoutes);
+app.use(
+  "/getContactActivities",
+  checkForAuthentication(),
+  getContactActivitiesRoutes
+);
 app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
-app.use("/whatsapp-email-activity", checkForAuthentication(), whatsappEmailActivityRoutes);
-app.use("/help-support", checkForAuthentication(), upload.single("helpAndSupportAttachments"), helpSupportRoutes);
+app.use(
+  "/whatsapp-email-activity",
+  checkForAuthentication(),
+  whatsappEmailActivityRoutes
+);
+app.use(
+  "/help-support",
+  checkForAuthentication(),
+  upload.single("helpAndSupportAttachments"),
+  helpSupportRoutes
+);
 app.use("/plans", checkForAuthentication(), planRoutes);
-app.use("/fetch-google-contacts", (req, res, next) => {
-  const skipAuthPaths = ["/google/callback"];
-  if (skipAuthPaths.includes(req.path)) {
-    return next(); // No token required for callback
-  }
-  return checkForAuthentication()(req, res, next);
-}, fetchGoogleContacts);
+app.use(
+  "/fetch-google-contacts",
+  (req, res, next) => {
+    const skipAuthPaths = ["/google/callback"];
+    if (skipAuthPaths.includes(req.path)) {
+      return next(); // No token required for callback
+    }
+    return checkForAuthentication()(req, res, next);
+  },
+  fetchGoogleContacts
+);
 
-app.use("/fetch-linkedin-contacts", (req, res, next) => {
-  const skipAuthPaths = ["/linkedin/callback"];
-  if (skipAuthPaths.includes(req.path)) {
-    return next(); // No token required for callback
-  }
-  return checkForAuthentication()(req, res, next);
-}, fetchLinkedInContacts);
+app.use(
+  "/fetch-linkedin-contacts",
+  (req, res, next) => {
+    const skipAuthPaths = ["/linkedin/callback"];
+    if (skipAuthPaths.includes(req.path)) {
+      return next(); // No token required for callback
+    }
+    return checkForAuthentication()(req, res, next);
+  },
+  fetchLinkedInContacts
+);
 
-app.use("/fetch-hubspot-contacts", (req, res, next) => {
-  const skipAuthPaths = ["/hubspot/callback"];
-  if (skipAuthPaths.includes(req.path)) {
-    return next(); // No token required for callback
-  }
-  return checkForAuthentication()(req, res, next);
-}, hubSpotContactFetchRoutes);
+app.use(
+  "/fetch-hubspot-contacts",
+  (req, res, next) => {
+    const skipAuthPaths = ["/hubspot/callback"];
+    if (skipAuthPaths.includes(req.path)) {
+      return next(); // No token required for callback
+    }
+    return checkForAuthentication()(req, res, next);
+  },
+  hubSpotContactFetchRoutes
+);
 
-app.use("/fetch-zoho-contacts", (req, res, next) => {
-  const skipAuthPaths = ['/zoho/callback'];
-  if (skipAuthPaths.includes(req.path)) {
-    return next(); // No token required for callback
-  }
-  return checkForAuthentication()(req, res, next);
-}, zohoContactFetchRoutes);
+app.use(
+  "/fetch-zoho-contacts",
+  (req, res, next) => {
+    const skipAuthPaths = ["/zoho/callback"];
+    if (skipAuthPaths.includes(req.path)) {
+      return next(); // No token required for callback
+    }
+    return checkForAuthentication()(req, res, next);
+  },
+  zohoContactFetchRoutes
+);
 
 //for admin routes
-app.use("/admin/getAllUsers", checkForAuthentication(), checkRole(['superadmin']), getAllUsers);
+app.use(
+  "/admin/users",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  adminUserRoutes
+);
+
 app.use("/admin/login", adminLoginRoutes);
-app.use("/admin/addEditPlan", checkForAuthentication(), checkRole(['superadmin']), addEditPlanRoutes);
-app.use("/admin", checkForAuthentication(), checkRole(['superadmin']), getAdminDetailsRoutes);
+app.use(
+  "/admin/addEditPlan",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  addEditPlanRoutes
+);
+app.use(
+  "/admin",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  getAdminDetailsRoutes
+);
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
@@ -211,9 +267,7 @@ console.log("Setting up error handling...");
   console.log("Connecting to MongoDB...");
 
   try {
-
     console.log("MongoDB URL log:", process.env.MONGO_URL);
-
 
     await mongoose.connect(process.env.MONGO_URL);
     console.log("MongoDB connected successfully");
