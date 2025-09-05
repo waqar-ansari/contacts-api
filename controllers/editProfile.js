@@ -4,10 +4,6 @@ const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../utils/s3");
-// const { generateUserQRCode } = require("../utils/qrUtils");
-// const crypto = require("crypto"); // ✅ for randomBytes, createHmac, etc.
-// const { sendVerificationEmail } = require("../utils/emailUtils");
-
 
 const uploadImageToS3 = async (file) => {
   const ext = path.extname(file.originalname);
