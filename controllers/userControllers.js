@@ -2173,13 +2173,14 @@ const linkedinCallback = async (req, res) => {
 const logoutUser = async (req, res) => {
   try {
     console.log("hello");
-    
+
     const userId = req.user._id; // requires auth middleware
     const user = await User.findById(userId);
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
     user.isActive = false; // mark as inactive
+    user.lastSeen = new Date();
     await user.save();
 
     res.json({ message: "Logout successful" });
