@@ -539,7 +539,7 @@ const getUserData = async (req, res) => {
 
 
 
-    console.log("Generated QR Code Data URL:", qrCodeDataURL);
+    // console.log("Generated QR Code Data URL:", qrCodeDataURL);
 
 
     data.qrCode = qrCodeDataURL;
