@@ -1,117 +1,165 @@
+// socket/socketHandler.js
 const User = require("../models/userModel");
-console.log("[socketHandler] module loaded");
 
-const onlineUsers = new Map(); // socket.id -> userId
-console.log("[socketHandler] onlineUsers map initialized");
+// In-memory storage for active users (only user IDs)
+let activeUserIds = new Set();
 
-// helper to emit counts (only users with role: "user")
-const emitUserCounts = async (io) => {
-  try {
-    const activeCount = await User.countDocuments({ role: "user", isActive: true });
-    const inactiveCount = await User.countDocuments({ role: "user", isActive: false });
-    const total = activeCount + inactiveCount;
+const socketHandler = (io) => {
+  console.log("🔌 Socket.IO server initialized");
 
-    const counts = { activeCount, inactiveCount, total };
-    console.log("[socketHandler] broadcasting user counts:", counts);
+  io.on("connection", async (socket) => {
+    console.log(`Socket connected: ${socket.id}`);
 
-    io.emit("user_counts", counts);
-  } catch (err) {
-    console.error("[socketHandler] error while counting users:", err);
-  }
-};
+    try {
+      const { userId } = socket.handshake.query;
 
-module.exports = (io) => {
-  console.log("[socketHandler] attaching to io");
-
-  io.on("connection", (socket) => {
-    console.log(`[socketHandler] New socket connected: ${socket.id}`);
-
-    // user online
-    socket.on("user_online", async (userId) => {
-      console.log("[socketHandler] user_online event received:", userId);
-      try {
-        onlineUsers.set(socket.id, userId);
-
-        if (userId && userId.toString().length === 24) {
-          const user = await User.findOneAndUpdate(
-            { _id: userId, role: "user" }, // ✅ only update if role=user
-            { isActive: true },
-            { new: true }
-          );
-
-          if (user) {
-            console.log(`[socketHandler] DB: isActive=true for ${userId}`);
-            io.emit("update_user_status", { userId, isActive: true });
-          } else {
-            console.log(`[socketHandler] skipped: user ${userId} not found or not role=user`);
-          }
-        }
-
-        // ✅ also broadcast counts
-        await emitUserCounts(io);
-      } catch (err) {
-        console.error("[socketHandler] error in user_online:", err);
+      if (!userId) {
+        console.log("No userId provided in socket connection");
+        return;
       }
-    });
 
-    // user logout
-    socket.on("user_logout", async (userId) => {
-      console.log("[socketHandler] user_logout event received:", userId);
-      try {
-        if (userId && userId.toString().length === 24) {
-          const user = await User.findOneAndUpdate(
-            { _id: userId, role: "user" }, // ✅ only update if role=user
-            { isActive: false, lastSeen: new Date() },
-            { new: true }
-          );
-
-          if (user) {
-            console.log(`[socketHandler] DB: isActive=false for ${userId}`);
-            io.emit("update_user_status", { userId, isActive: false });
-          } else {
-            console.log(`[socketHandler] skipped: user ${userId} not found or not role=user`);
-          }
-        }
-
-        // ✅ also broadcast counts
-        await emitUserCounts(io);
-      } catch (err) {
-        console.error("[socketHandler] error in user_logout:", err);
+      // Fetch user from database
+      const user = await User.findById(userId);
+      if (!user) {
+        console.log(`User not found: ${userId}`);
+        socket.disconnect(true);
+        return;
       }
-    });
 
-    // disconnect
-    socket.on("disconnect", async (reason) => {
-      console.log(`[socketHandler] disconnect: ${socket.id} reason: ${reason}`);
-      const userId = onlineUsers.get(socket.id);
+      console.log(
+        `User connected: ${user.firstname} ${user.lastname} (${user.role})`
+      );
 
-      if (userId) {
-        onlineUsers.delete(socket.id);
-        try {
-          if (userId && userId.toString().length === 24) {
-            const user = await User.findOneAndUpdate(
-              { _id: userId, role: "user" }, // ✅ only update if role=user
-              { isActive: false, lastSeen: new Date() },
-              { new: true }
+      if (user.role === "user") {
+        // Add user to active users set
+        const wasEmpty = activeUserIds.size === 0;
+        activeUserIds.add(userId);
+
+        // Store userId in socket for cleanup
+        socket.userId = userId;
+
+        console.log(`Active users count: ${activeUserIds.size}`);
+
+        // Emit updated count to all connected admins
+        emitUserCountChanged(io);
+      } else if (user.role === "superadmin") {
+        // Admin connected - send current count immediately
+        socket.emit("user_count_changed", {
+          count: activeUserIds.size,
+          timestamp: new Date(),
+        });
+
+        console.log(
+          `Admin connected, sent current count: ${activeUserIds.size}`
+        );
+      }
+
+      // Handle socket disconnection
+      socket.on("disconnect", async () => {
+        console.log(`Socket disconnected: ${socket.id}`);
+
+        if (socket.userId) {
+          try {
+            // Fetch user again to verify role (in case of role changes)
+            const user = await User.findById(socket.userId);
+
+            if (
+              user &&
+              user.role === "user" &&
+              activeUserIds.has(socket.userId)
+            ) {
+              activeUserIds.delete(socket.userId);
+              console.log(
+                `User ${socket.userId} removed from active users. Count: ${activeUserIds.size}`
+              );
+
+              // Emit updated count to all connected admins
+              emitUserCountChanged(io);
+            }
+          } catch (error) {
+            console.error(
+              `Error handling disconnect for user ${socket.userId}:`,
+              error
             );
-
-            if (user) {
-              console.log(`[socketHandler] DB: isActive=false for ${userId} on disconnect`);
-              io.emit("update_user_status", { userId, isActive: false });
-            } else {
-              console.log(`[socketHandler] skipped: user ${userId} not found or not role=user`);
+            // Still try to remove from active users
+            if (activeUserIds.has(socket.userId)) {
+              activeUserIds.delete(socket.userId);
+              emitUserCountChanged(io);
             }
           }
-
-          // ✅ also broadcast counts
-          await emitUserCounts(io);
-        } catch (err) {
-          console.error("[socketHandler] error on disconnect:", err);
         }
+      });
+    } catch (error) {
+      console.error("Error in socket connection handler:", error);
+      socket.disconnect(true);
+    }
+  });
+
+  // Cleanup inactive users every 10 minutes
+  // This is a safety net in case some disconnections weren't handled properly
+  setInterval(async () => {
+    await cleanupInactiveUsers(io);
+  }, 10 * 60 * 1000); // 10 minutes
+};
+
+// Helper function to emit user count changes to all admins
+function emitUserCountChanged(io) {
+  const data = {
+    count: activeUserIds.size,
+    timestamp: new Date(),
+  };
+
+  io.emit("user_count_changed", data);
+  console.log(`📊 Emitted user_count_changed: ${data.count}`);
+}
+
+// Safety cleanup function - verify users still exist in database
+async function cleanupInactiveUsers(io) {
+  try {
+    const userIdsArray = Array.from(activeUserIds);
+    if (userIdsArray.length === 0) return;
+
+    // Check which users still exist and have role "user"
+    const existingUsers = await User.find({
+      _id: { $in: userIdsArray },
+      role: "user",
+    }).select("_id");
+
+    const existingUserIds = new Set(
+      existingUsers.map((user) => user._id.toString())
+    );
+    const initialCount = activeUserIds.size;
+
+    // Remove users that no longer exist or don't have "user" role
+    activeUserIds.forEach((userId) => {
+      if (!existingUserIds.has(userId)) {
+        activeUserIds.delete(userId);
       }
     });
 
-    // ✅ send counts immediately when a new socket connects
-    emitUserCounts(io);
-  });
-};
+    const removedCount = initialCount - activeUserIds.size;
+
+    if (removedCount > 0) {
+      console.log(
+        `🧹 Cleanup: Removed ${removedCount} inactive/invalid users. Active count: ${activeUserIds.size}`
+      );
+      emitUserCountChanged(io);
+    }
+  } catch (error) {
+    console.error("Error in cleanup inactive users:", error);
+  }
+}
+
+// Export function to get current active users count
+function getActiveUsersCount() {
+  return activeUserIds.size;
+}
+
+// Export function to get active user IDs (for debugging/monitoring)
+function getActiveUserIds() {
+  return Array.from(activeUserIds);
+}
+
+module.exports = socketHandler;
+module.exports.getActiveUsersCount = getActiveUsersCount;
+module.exports.getActiveUserIds = getActiveUserIds;
