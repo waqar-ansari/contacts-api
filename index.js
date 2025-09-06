@@ -77,6 +77,7 @@ const PORT = process.env.PORT;
 //for admin routes
 const adminLoginRoutes = require("./routes/admin/adminLoginRoute");
 const adminUserRoutes = require("./routes/admin/adminUserRoutes");
+const adminPlansRoutes = require("./routes/admin/adminPlansRoutes");
 const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
 const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 
@@ -181,7 +182,7 @@ app.use(
   upload.single("helpAndSupportAttachments"),
   helpSupportRoutes
 );
-app.use("/plans", checkForAuthentication(), planRoutes);
+// app.use("/plans", checkForAuthentication(), planRoutes);
 app.use(
   "/fetch-google-contacts",
   (req, res, next) => {
@@ -237,6 +238,12 @@ app.use(
   checkRole(["superadmin"]),
   adminUserRoutes
 );
+app.use(
+  "/admin/plans",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  adminPlansRoutes
+);
 
 app.use("/admin/login", adminLoginRoutes);
 app.use(
@@ -245,12 +252,12 @@ app.use(
   checkRole(["superadmin"]),
   addEditPlanRoutes
 );
-app.use(
-  "/admin",
-  checkForAuthentication(),
-  checkRole(["superadmin"]),
-  getAdminDetailsRoutes
-);
+// app.use(
+//   "/admin",
+//   checkForAuthentication(),
+//   checkRole(["superadmin"]),
+//   getAdminDetailsRoutes
+// );
 
 app.use("/check", (req, res) => {
   res.json({ message: "API checkPage" });
