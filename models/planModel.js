@@ -7,7 +7,6 @@ const planSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      enum: ["Starter", "Pro", "Business", "Enterprise"],
     },
     price: {
       ////in cents/fils
