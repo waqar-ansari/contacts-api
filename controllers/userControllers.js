@@ -398,7 +398,7 @@ const signupWithEmail = async (req, res) => {
       plan: proPlan._id,     // 🔥 Assign Pro plan
       planActivatedAt: now,
       planExpiresAt: trialEnds,
-      // isActive: true,
+      isActive: true,
       // referredByAdmin,
       referredBy
     });
@@ -465,7 +465,7 @@ const signupWithEmail = async (req, res) => {
 
     console.log("Verification Link:", verificationLink);
 
-    newUser.isActive = true; // mark as active
+    // newUser.isActive = true; // mark as active
 
     return res.status(201).json({
       status: "success",
@@ -805,13 +805,13 @@ const signupWithPhoneNumber = async (req, res) => {
       }
 
     }
+    user.isActive = true; // mark as active
 
     await user.save();
 
     const token = createTokenforUser(user);
     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
-    user.isActive = true; // mark as active
 
     return res.status(201).json({
       status: "success",
@@ -1643,7 +1643,7 @@ const googleCallback = async (req, res) => {
         plan: proPlan._id,     // 🔥 Assign Pro plan
         planActivatedAt: now,
         planExpiresAt: trialEnds,
-        // isActive: true,
+        isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
 
@@ -1735,7 +1735,6 @@ const googleCallback = async (req, res) => {
     //   message: 'Google login successful',
 
     // });
-    user.isActive = true; // mark as active
     const resultData = {
       status: 'success',
       message: 'Google Login successfully',
@@ -2053,7 +2052,7 @@ const linkedinCallback = async (req, res) => {
         plan: proPlan._id,     // 🔥 Assign Pro plan
         planActivatedAt: now,
         planExpiresAt: trialEnds,
-        // isActive: true
+        isActive: true
       });
 
       // if (referredBy) {
@@ -2134,7 +2133,7 @@ const linkedinCallback = async (req, res) => {
     const now = new Date();
     const isTrialActive = user.trialEnd && now < user.trialEnd;
     const hasAccess = user.isPremium || isTrialActive;
-    user.isActive = true; // mark as active
+    // user.isActive = true; // mark as active
     const resultData = {
       status: 'success',
       message: 'LinkedIn Login successfully',
