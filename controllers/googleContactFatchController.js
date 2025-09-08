@@ -4,6 +4,8 @@ const Contact = require('../models/contactModel'); // ✅ Adjust path as needed
 const mongoose = require("mongoose"); // ⬅️ Make sure this is imported at the top
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const { title } = require('process');
+const User = require("../models/userModel"); // make sure to import
+const Plan = require("../models/planModel"); // if you have plan details here
 
 
 const oauth2Client = new google.auth.OAuth2(
@@ -58,6 +60,21 @@ const handleGoogleCallback = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ status: 'error', message: 'Missing user ID in state parameter' });
     }
+
+    // ✅ Fetch user & plan details
+    const user = await User.findById(userId).populate("plan");
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    const userPlan = user.plan ? user.plan.name.toLowerCase() : "free"; // default free
+    const currentContactCount = await Contact.countDocuments({ createdBy: userId });
+
+    let maxLimit = Infinity;
+    if (userPlan === "free") {
+      maxLimit = 1000; // free users limited to 1000
+    }
+
 
     const connections = response.data.connections || [];
 
@@ -166,21 +183,47 @@ const handleGoogleCallback = async (req, res) => {
       });
     }
 
-    let savedContacts = [];
-    if (contactsToInsert.length > 0) {
-      savedContacts = await Contact.insertMany(contactsToInsert);
+    // let savedContacts = [];
+    // if (contactsToInsert.length > 0) {
+    //   savedContacts = await Contact.insertMany(contactsToInsert);
+    // }
+
+    // ✅ Apply plan rules before saving
+    let allowedContacts = contactsToInsert;
+
+    if (currentContactCount >= maxLimit) {
+      allowedContacts = []; // already at max
+    } else if (currentContactCount + contactsToInsert.length > maxLimit) {
+      const remainingSlots = maxLimit - currentContactCount;
+      allowedContacts = contactsToInsert.slice(0, remainingSlots); // trim
     }
+
+    let savedContacts = [];
+    if (allowedContacts.length > 0) {
+      savedContacts = await Contact.insertMany(allowedContacts);
+    }
+
 
     // return res.json({
     //   status: 'success',
     //   contacts: savedContacts, // ✅ only imported contacts
     // });
 
+    // const resultData = {
+    //   status: 'success',
+    //   message: 'Google Contacts imported successfully',
+    //   contacts: savedContacts, // ✅ only imported contacts
+    // };
+
     const resultData = {
-      status: 'success',
-      message: 'Google Contacts imported successfully',
-      contacts: savedContacts, // ✅ only imported contacts
+      status: "success",
+      message: "Google Contacts imported successfully",
+      imported: savedContacts.length,
+      skipped: contactsToInsert.length - savedContacts.length,
+      totalContacts: currentContactCount + savedContacts.length,
+      contacts: savedContacts,
     };
+
 
     // return res.send(`
     //     <script>

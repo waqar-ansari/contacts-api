@@ -14,6 +14,7 @@ const querystring = require('querystring');
 const axios = require('axios');
 const ReferralLog = require("../models/referralLogModel");
 const { normalizePhone } = require('../utils/phoneUtils');
+const Plan = require("../models/planModel");
 
 
 const oauth2Client = new google.auth.OAuth2(
@@ -370,7 +371,9 @@ const signupWithEmail = async (req, res) => {
       // }
     }
 
-
+    // Fetch Pro plan
+    const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+    if (!proPlan) throw new Error("Pro plan not found in DB");
 
     const now = new Date();
     const trialEnds = new Date(now);
@@ -388,10 +391,14 @@ const signupWithEmail = async (req, res) => {
       signupMethod: "email",
       role: "user",
       emailVerificationToken,
-      isPremium: false,
+      isPremium: true,
       trialStart: now,
       trialEnd: trialEnds,
       referralCode,  // 🔥 store user’s unique referral code
+      plan: proPlan._id,     // 🔥 Assign Pro plan
+      planActivatedAt: now,
+      planExpiresAt: trialEnds,
+      // isActive: true,
       // referredByAdmin,
       referredBy
     });
@@ -714,11 +721,18 @@ const signupWithPhoneNumber = async (req, res) => {
       }
     }
 
+    const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+    if (!proPlan) throw new Error("Pro plan not found in DB");
+
+    user.plan = proPlan._id;
+    user.planActivatedAt = new Date();
+    user.planExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14-day trial
+    // user.isActive = true;
     // trial, referral, etc.
     const now = new Date();
     user.trialStart = now;
     user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    user.isPremium = false;
+    user.isPremium = true;
 
     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
     user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
@@ -1603,6 +1617,9 @@ const googleCallback = async (req, res) => {
       //   provider: "google"
       // });
 
+      const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+      if (!proPlan) throw new Error("Pro plan not found in DB");
+
       const now = new Date();
       const trialEnds = new Date(now);
       trialEnds.setDate(trialEnds.getDate() + 14); // 14-day trial
@@ -1620,11 +1637,16 @@ const googleCallback = async (req, res) => {
         signupMethod: "google",
         role: "user", // Default role for new users
         isVerified: true,
-        isPremium: false,
+        isPremium: true,
         trialStart: now,
         trialEnd: trialEnds,
+        plan: proPlan._id,     // 🔥 Assign Pro plan
+        planActivatedAt: now,
+        planExpiresAt: trialEnds,
+        // isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
+
         // referredByAdmin: referredByAdmin
       });
 
@@ -2003,6 +2025,9 @@ const linkedinCallback = async (req, res) => {
       //   provider: "linkedin"
       // });
 
+      const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+      if (!proPlan) throw new Error("Pro plan not found in DB");
+
       const now = new Date();
       const trialEnds = new Date(now);
       trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
@@ -2020,11 +2045,15 @@ const linkedinCallback = async (req, res) => {
         signupMethod: "linkedin",
         role: "user", // Default role for new users
         isVerified: true,
-        isPremium: false,
+        isPremium: true,
         trialStart: now,
         trialEnd: trialEnds,
         referralCode: userReferralCode,
-        referredBy: referredBy
+        referredBy: referredBy,
+        plan: proPlan._id,     // 🔥 Assign Pro plan
+        planActivatedAt: now,
+        planExpiresAt: trialEnds,
+        // isActive: true
       });
 
       // if (referredBy) {

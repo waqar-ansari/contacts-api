@@ -160,70 +160,130 @@ const editProfile = async (req, res) => {
       if (keys.includes('facebook')) user.facebook = facebook;
       if (keys.includes('designation')) user.designation = designation;
 
+      // if (keys.includes('email') && email) {
+      //   const trimmedEmail = email.trim().toLowerCase();
+
+      //   // Case 1: signupMethod = email|google|linkedin → disallow
+      //   if (["email", "google", "linkedin"].includes(user.signupMethod)) {
+      //     return res.status(400).json({
+      //       status: "error",
+      //       message: "You cannot change email for this account."
+      //     });
+      //   }
+
+      //   // Case 2: signupMethod != email|google|linkedin (ex: phoneNumber) → check for duplicates
+      //   const existingUser = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
+      //   if (existingUser) {
+      //     return res.status(400).json({
+      //       status: "error",
+      //       message: "This email is already used."
+      //     });
+      //   }
+
+      //   user.email = trimmedEmail;
+      // }
+
       if (keys.includes('email') && email) {
         const trimmedEmail = email.trim().toLowerCase();
 
-        // Case 1: signupMethod = email|google|linkedin → disallow
         if (["email", "google", "linkedin"].includes(user.signupMethod)) {
-          return res.status(400).json({
-            status: "error",
-            message: "You cannot change email for this account."
-          });
+          // ✅ If same email, allow silently
+          if (trimmedEmail === user.email) {
+            // no change, continue
+          } else {
+            return res.status(400).json({
+              status: "error",
+              message: "You cannot change email for this account."
+            });
+          }
+        } else {
+          // Only check duplicates if signupMethod != email|google|linkedin
+          const existingUser = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
+          if (existingUser) {
+            return res.status(400).json({
+              status: "error",
+              message: "This email is already used."
+            });
+          }
+          user.email = trimmedEmail;
         }
-
-        // Case 2: signupMethod != email|google|linkedin (ex: phoneNumber) → check for duplicates
-        const existingUser = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
-        if (existingUser) {
-          return res.status(400).json({
-            status: "error",
-            message: "This email is already used."
-          });
-        }
-
-        user.email = trimmedEmail;
       }
+
 
       // =========================
       // 🔒 PHONE UPDATE CHECKS
       // =========================
+      // if (apiType === "mobile") {
+      //   if (req.body.countryCode && req.body.phonenumber) {
+      //     if (user.signupMethod === "phoneNumber") {
+      //       return res.status(400).json({
+      //         status: "error",
+      //         message: "You cannot change phone number for this account."
+      //       });
+      //     }
+
+      //     const newNumberObj = {
+      //       countryCode: String(req.body.countryCode).replace(/\D/g, ""),
+      //       number: String(req.body.phonenumber).replace(/\D/g, "")
+      //     };
+
+      //     // Check if this phone already exists
+      //     const existingPhoneUser = await User.findOne({
+      //       phonenumbers: { $elemMatch: newNumberObj },
+      //       _id: { $ne: user._id }
+      //     });
+
+      //     if (existingPhoneUser) {
+      //       return res.status(400).json({
+      //         status: "error",
+      //         message: "This phone number is already used."
+      //       });
+      //     }
+
+      //     user.phonenumbers = [newNumberObj];
+      //   }
+      // } 
       if (apiType === "mobile") {
         if (req.body.countryCode && req.body.phonenumber) {
-          if (user.signupMethod === "phoneNumber") {
-            return res.status(400).json({
-              status: "error",
-              message: "You cannot change phone number for this account."
-            });
-          }
-
           const newNumberObj = {
             countryCode: String(req.body.countryCode).replace(/\D/g, ""),
             number: String(req.body.phonenumber).replace(/\D/g, "")
           };
 
-          // Check if this phone already exists
-          const existingPhoneUser = await User.findOne({
-            phonenumbers: { $elemMatch: newNumberObj },
-            _id: { $ne: user._id }
-          });
-
-          if (existingPhoneUser) {
-            return res.status(400).json({
-              status: "error",
-              message: "This phone number is already used."
+          if (user.signupMethod === "phoneNumber") {
+            // ✅ If same number, allow silently
+            const currentPhone = user.phonenumbers?.[0];
+            if (
+              currentPhone &&
+              currentPhone.countryCode === newNumberObj.countryCode &&
+              currentPhone.number === newNumberObj.number
+            ) {
+              // same number, continue
+            } else {
+              return res.status(400).json({
+                status: "error",
+                message: "You cannot change phone number for this account."
+              });
+            }
+          } else {
+            // check duplicates for other signup methods
+            const existingPhoneUser = await User.findOne({
+              phonenumbers: { $elemMatch: newNumberObj },
+              _id: { $ne: user._id }
             });
-          }
 
-          user.phonenumbers = [newNumberObj];
+            if (existingPhoneUser) {
+              return res.status(400).json({
+                status: "error",
+                message: "This phone number is already used."
+              });
+            }
+
+            user.phonenumbers = [newNumberObj];
+          }
         }
       } else if (apiType === "web") {
         if (req.body.phonenumber) {
-          if (user.signupMethod === "phoneNumber") {
-            return res.status(400).json({
-              status: "error",
-              message: "You cannot change phone number for this account."
-            });
-          }
-
           let rawNumber = req.body.phonenumber.trim();
           if (!rawNumber.startsWith("+")) rawNumber = "+" + rawNumber;
 
@@ -237,22 +297,78 @@ const editProfile = async (req, res) => {
             number: phoneObj.nationalNumber
           };
 
-          // Check if already exists
-          const existingPhoneUser = await User.findOne({
-            phonenumbers: { $elemMatch: newNumberObj },
-            _id: { $ne: user._id }
-          });
-
-          if (existingPhoneUser) {
-            return res.status(400).json({
-              status: "error",
-              message: "This phone number is already used."
+          if (user.signupMethod === "phoneNumber") {
+            // ✅ If same number, allow silently
+            const currentPhone = user.phonenumbers?.[0];
+            if (
+              currentPhone &&
+              currentPhone.countryCode === newNumberObj.countryCode &&
+              currentPhone.number === newNumberObj.number
+            ) {
+              // same number, continue
+            } else {
+              return res.status(400).json({
+                status: "error",
+                message: "You cannot change phone number for this account."
+              });
+            }
+          } else {
+            // ✅ Duplicate check for other signup methods
+            const existingPhoneUser = await User.findOne({
+              phonenumbers: { $elemMatch: newNumberObj },
+              _id: { $ne: user._id }
             });
-          }
 
-          user.phonenumbers = [newNumberObj];
+            if (existingPhoneUser) {
+              return res.status(400).json({
+                status: "error",
+                message: "This phone number is already used."
+              });
+            }
+
+            user.phonenumbers = [newNumberObj];
+          }
         }
       }
+      // }
+      // else if (apiType === "web") {
+      //   if (req.body.phonenumber) {
+      //     if (user.signupMethod === "phoneNumber") {
+      //       return res.status(400).json({
+      //         status: "error",
+      //         message: "You cannot change phone number for this account."
+      //       });
+      //     }
+
+      //     let rawNumber = req.body.phonenumber.trim();
+      //     if (!rawNumber.startsWith("+")) rawNumber = "+" + rawNumber;
+
+      //     const phoneObj = parsePhoneNumberFromString(rawNumber);
+      //     if (!phoneObj || !phoneObj.isValid()) {
+      //       return res.status(400).json({ status: "error", message: "Invalid phone number format" });
+      //     }
+
+      //     const newNumberObj = {
+      //       countryCode: phoneObj.countryCallingCode,
+      //       number: phoneObj.nationalNumber
+      //     };
+
+      //     // Check if already exists
+      //     const existingPhoneUser = await User.findOne({
+      //       phonenumbers: { $elemMatch: newNumberObj },
+      //       _id: { $ne: user._id }
+      //     });
+
+      //     if (existingPhoneUser) {
+      //       return res.status(400).json({
+      //         status: "error",
+      //         message: "This phone number is already used."
+      //       });
+      //     }
+
+      //     user.phonenumbers = [newNumberObj];
+      //   }
+      // }
 
       // if (keys.includes('phonenumbers')) {
       //   let parsedPhones;
