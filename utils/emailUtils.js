@@ -1,24 +1,24 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-    service: "smtp", // Use your SMTP service
-    host: "smtp.titan.email", // SMTP server address
-    port: 465, // Port for secure connection
-    secure: true, // Use SSL/TLS
-    auth: {
-        user: "noreply@contacts.management",
-        pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-        // user: "makvanayash12@gmail.com",
-        // pass: "fybb lnri tmrq otmg", // App Password, not normal password
-    },
+  service: "smtp", // Use your SMTP service
+  host: "smtp.titan.email", // SMTP server address
+  port: 465, // Port for secure connection
+  secure: true, // Use SSL/TLS
+  auth: {
+    user: "noreply@contacts.management",
+    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+    // user: "makvanayash12@gmail.com",
+    // pass: "fybb lnri tmrq otmg", // App Password, not normal password
+  },
 });
 
 const sendVerificationEmail = async (email, link) => {
-    const mailOptions = {
-        from: '"Contacts Management" <noreply@contacts.management>',
-        to: email,
-        subject: "Contacts.Management : Verify Your E-mail",
-        html: `<html lang="en">
+  const mailOptions = {
+    from: '"Contacts Management" <noreply@contacts.management>',
+    to: email,
+    subject: "Contacts.Management : Verify Your E-mail",
+    html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -162,9 +162,123 @@ const sendVerificationEmail = async (email, link) => {
 </body>
 
 </html>`,
-    };
+  };
 
-    await transporter.sendMail(mailOptions);
+  await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendVerificationEmail };
+const sendHelpSupportReply = async (
+  userEmail,
+  userName,
+  originalMessage,
+  adminReply,
+  subject
+) => {
+  const mailOptions = {
+    from: '"Contacts Management Support" <noreply@contacts.management>',
+    to: userEmail,
+    subject: `Re: ${subject || "Your Support Request"}`,
+    html: `<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Support Response - Contacts Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ffffff;
+            color: #2d313a;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .response-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .original-message {
+            background-color: #e9ecef;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 30px;
+        }
+
+        .footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <center>
+            <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png"
+                alt="Contacts Management Logo" style="width:200px; display:block;">
+        </center>
+        
+        <p><strong>Hello ${userName || "Valued Customer"},</strong></p>
+        
+        <p>Thank you for contacting Contacts Management support. We have reviewed your inquiry and are pleased to provide you with the following response:</p>
+
+        <div class="response-box">
+            <h3 style="color: #007bff; margin-top: 0;">Support Response:</h3>
+            <p style="white-space: pre-wrap;">${adminReply}</p>
+        </div>
+
+        <div class="original-message">
+            <h4 style="margin-top: 0;">Your Original Message:</h4>
+            <p style="white-space: pre-wrap;">${originalMessage}</p>
+        </div>
+
+        <p>If you have any additional questions or concerns, please don't hesitate to reach out to us again. We're here to help!</p>
+
+        <p>Best regards,<br>Contacts Management Support Team</p>
+
+        <div style="width:100%; overflow:hidden; margin-top: 30px;">
+            <div style="float:left; width:110px; margin-right:10px;">
+                <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logo.png"
+                    alt="Contacts Management Logo" style="width:100px; display:block;">
+            </div>
+            <div style="overflow:hidden;">
+                <span style="color:rgb(45,49,58); font-size:14px; letter-spacing:0.25px;">Be Extraordinary,</span><br>
+                <span>
+                    <b>Contacts Management Support Team</b><br>
+                    <a href="https://contacts.management" target="_blank" style="color:#007BFF; text-decoration:none;">
+                        https://contacts.management
+                    </a>
+                </span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Need additional help? Contact us at <a href="mailto:support@contacts.management">support@contacts.management</a></p>
+            <p>Sent with ❤️ from Contacts Management</p>
+            <p><a href="#" target="_blank">Privacy Policy</a></p>
+        </div>
+    </div>
+</body>
+
+</html>`,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendVerificationEmail, sendHelpSupportReply };
