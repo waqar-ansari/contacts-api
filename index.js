@@ -81,6 +81,7 @@ const adminPlansRoutes = require("./routes/admin/adminPlansRoutes");
 const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
 const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
+const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
 
 console.log("Setting up Express app...");
 
@@ -258,6 +259,12 @@ app.use(
   checkForAuthentication(),
   checkRole(["superadmin"]),
   adminHelpSupportRoutes
+);
+app.use(
+  "/admin/coupons",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  adminCouponsRoutes
 );
 // app.use(
 //   "/admin",
