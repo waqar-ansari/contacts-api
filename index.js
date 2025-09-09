@@ -82,6 +82,8 @@ const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
 const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
 const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
+const planExpiryCheckRoutes = require("./routes/admin/planExpiryCheckRoutes");
+const testRoutes = require("./routes/testRoutes");
 
 console.log("Setting up Express app...");
 
@@ -266,6 +268,13 @@ app.use(
   checkRole(["superadmin"]),
   adminCouponsRoutes
 );
+app.use(
+  "/admin",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  planExpiryCheckRoutes
+);
+app.use("/test", testRoutes);
 // app.use(
 //   "/admin",
 //   checkForAuthentication(),
@@ -304,11 +313,16 @@ const connectToDatabase = async () => {
 const http = require("http");
 const { Server } = require("socket.io");
 const socketHandler = require("./socket/socketHandler");
+const { startPlanExpiryScheduler } = require("./utils/planScheduler");
 
 // ------------------- START APP -------------------
 (async () => {
   try {
     await connectToDatabase();
+
+    // Start the plan expiry scheduler
+    // startPlanExpiryScheduler();
+    /// will see if needed
 
     // ✅ Local/dev mode: Start HTTP + Socket.IO
     if (process.env.NODE_ENV !== "serverless") {

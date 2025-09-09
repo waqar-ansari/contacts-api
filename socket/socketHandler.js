@@ -61,11 +61,11 @@ const socketHandler = (io) => {
         if (socket.userId) {
           try {
             // Fetch user again to verify role (in case of role changes)
-            const user = await User.findById(socket.userId);
+            // const user = await User.findById(socket.userId);
 
             if (
-              user &&
-              user.role === "user" &&
+              // user &&
+              // user.role === "user" &&
               activeUserIds.has(socket.userId)
             ) {
               activeUserIds.delete(socket.userId);

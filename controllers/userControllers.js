@@ -6,16 +6,18 @@ const { getNextSerialNumber } = require("../utils/serialUtils");
 // const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
-const googleClient = new OAuth2Client("401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com");
-const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp');
-require('dotenv').config();
-const { google } = require('googleapis');
-const querystring = require('querystring');
-const axios = require('axios');
+const googleClient = new OAuth2Client(
+  "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com"
+);
+const sendWhatsAppOtp = require("../utils/sendWhatsAppOtp");
+require("dotenv").config();
+const { google } = require("googleapis");
+const querystring = require("querystring");
+const axios = require("axios");
 const ReferralLog = require("../models/referralLogModel");
-const { normalizePhone } = require('../utils/phoneUtils');
+const { normalizePhone } = require("../utils/phoneUtils");
 const Plan = require("../models/planModel");
-
+const { setupInitialPlan } = require("../utils/planUtils");
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -34,20 +36,25 @@ async function addOrUpdateReferral(referrerId, referredUser) {
 
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
-    ? referredUser.phonenumbers.map(p => ({
-      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-      number: (p.number || "").toString().replace(/^\+/, "")
-    }))
+    ? referredUser.phonenumbers.map((p) => ({
+        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        number: (p.number || "").toString().replace(/^\+/, ""),
+      }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
 
   // Find existing entry index (works if myReferrals contains objects or just ids)
-  const index = (referrer.myReferrals || []).findIndex(item => {
+  const index = (referrer.myReferrals || []).findIndex((item) => {
     if (!item) return false;
-    if (typeof item === 'object' && item._id) return item._id.toString() === referredIdStr;
+    if (typeof item === "object" && item._id)
+      return item._id.toString() === referredIdStr;
     // if stored as raw id string
-    try { return item.toString() === referredIdStr; } catch (e) { return false; }
+    try {
+      return item.toString() === referredIdStr;
+    } catch (e) {
+      return false;
+    }
   });
 
   let now = new Date();
@@ -56,18 +63,33 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   if (index !== -1) {
     // Update missing fields on existing entry
     const entry = referrer.myReferrals[index];
-    if (!entry.firstname && referredUser.firstname) { entry.firstname = referredUser.firstname; needSaveReferrer = true; }
-    if (!entry.lastname && referredUser.lastname) { entry.lastname = referredUser.lastname; needSaveReferrer = true; }
-    if ((!entry.email || entry.email === "") && referredUser.email) { entry.email = referredUser.email; needSaveReferrer = true; }
+    if (!entry.firstname && referredUser.firstname) {
+      entry.firstname = referredUser.firstname;
+      needSaveReferrer = true;
+    }
+    if (!entry.lastname && referredUser.lastname) {
+      entry.lastname = referredUser.lastname;
+      needSaveReferrer = true;
+    }
+    if ((!entry.email || entry.email === "") && referredUser.email) {
+      entry.email = referredUser.email;
+      needSaveReferrer = true;
+    }
 
-    if ((!Array.isArray(entry.phonenumbers) || entry.phonenumbers.length === 0) && phoneObjs.length) {
+    if (
+      (!Array.isArray(entry.phonenumbers) || entry.phonenumbers.length === 0) &&
+      phoneObjs.length
+    ) {
       entry.phonenumbers = phoneObjs;
       needSaveReferrer = true;
     }
-    if (!entry.signupDate && referredUser.createdAt) { entry.signupDate = referredUser.createdAt; needSaveReferrer = true; }
+    if (!entry.signupDate && referredUser.createdAt) {
+      entry.signupDate = referredUser.createdAt;
+      needSaveReferrer = true;
+    }
 
     // markModified if subdoc changed
-    if (needSaveReferrer) referrer.markModified('myReferrals');
+    if (needSaveReferrer) referrer.markModified("myReferrals");
   } else {
     // Push new consistent object
     const newEntry = {
@@ -76,7 +98,7 @@ async function addOrUpdateReferral(referrerId, referredUser) {
       lastname: referredUser.lastname || "",
       email: referredUser.email || "",
       phonenumbers: phoneObjs,
-      signupDate: referredUser.createdAt || now
+      signupDate: referredUser.createdAt || now,
     };
     referrer.myReferrals = referrer.myReferrals || [];
     referrer.myReferrals.push(newEntry);
@@ -95,10 +117,13 @@ async function addOrUpdateReferral(referrerId, referredUser) {
     if (!referredUser.creditBalance || referredUser.creditBalance < 10) {
       referredUser.creditBalance = (referredUser.creditBalance || 0) + 10;
       // If referredUser is a mongoose doc in calling scope, caller should save; else save here.
-      if (typeof referredUser.save === 'function') {
+      if (typeof referredUser.save === "function") {
         await referredUser.save();
       } else {
-        await User.updateOne({ _id: referredUser._id }, { $set: { creditBalance: referredUser.creditBalance } });
+        await User.updateOne(
+          { _id: referredUser._id },
+          { $set: { creditBalance: referredUser.creditBalance } }
+        );
       }
     }
   } catch (err) {
@@ -114,8 +139,11 @@ async function addOrUpdateReferral(referrerId, referredUser) {
       // use elemMatch to find same phone
       orQueries.push({
         phonenumbers: {
-          $elemMatch: { countryCode: phoneObjs[0].countryCode, number: phoneObjs[0].number }
-        }
+          $elemMatch: {
+            countryCode: phoneObjs[0].countryCode,
+            number: phoneObjs[0].number,
+          },
+        },
       });
     }
     if (orQueries.length) {
@@ -124,7 +152,7 @@ async function addOrUpdateReferral(referrerId, referredUser) {
         const log = {
           referredBy: referrer._id,
           referredUserId: referredUser._id,
-          signupDate: referredUser.createdAt || now
+          signupDate: referredUser.createdAt || now,
         };
         if (referredUser.email) log.email = referredUser.email;
         if (phoneObjs.length) log.phonenumbers = phoneObjs;
@@ -165,11 +193,33 @@ const signupWithEmail = async (req, res) => {
       user.isVerified = true;
       user.emailVerificationToken = undefined;
 
-
-
       if (!user.signupMethod) {
         user.signupMethod = "email";
       }
+
+      // Setup initial plan after email verification
+      if (!user.plan) {
+        const planData = await setupInitialPlan();
+        console.log("planData:", planData);
+
+        user.plan = planData.plan;
+        user.planActivatedAt = planData.planActivatedAt;
+        user.planExpiresAt = planData.planExpiresAt;
+        user.isPremium = planData.isPremium;
+        user.trialStart = planData.trialStart;
+        user.trialEnd = planData.trialEnd;
+
+        // Mark Pro trial as used if Pro plan was assigned
+        if (planData.plan) {
+          const assignedPlan = await Plan.findById(planData.plan);
+          if (assignedPlan && assignedPlan.name === "Pro") {
+            user.hasUsedProTrial = true;
+          }
+        }
+      }
+
+      // Activate user after email verification
+      user.isActive = true;
 
       // if (!user.qrCode) {
       //   // const { qrCode } = await generateUserQRCode(user.firstname || "user", user.serialNumber, {
@@ -227,33 +277,35 @@ const signupWithEmail = async (req, res) => {
         }
       }
 
-
-
-      const matchingUsers = matchConditions.length > 0
-        ? await User.find({
-          scannedMe: {
-            $elemMatch: {
-              $or: matchConditions
-            }
-          }
-        })
-        : [];
+      const matchingUsers =
+        matchConditions.length > 0
+          ? await User.find({
+              scannedMe: {
+                $elemMatch: {
+                  $or: matchConditions,
+                },
+              },
+            })
+          : [];
 
       for (const scanner of matchingUsers) {
         let updated = false;
-        scanner.scannedMe = scanner.scannedMe.map(entry => {
-          if (typeof entry === "object" && (
-            (entry.email && entry.email === user.email) ||
-            // (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
-            // (entry.phonenumber &&
-            //   entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
-            (entry.phonenumber &&
-              user.phonenumbers &&
-              user.phonenumbers.length > 0 &&
-              user.phonenumbers[0].countryCode &&
-              user.phonenumbers[0].number &&
-              entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
-          )) {
+        scanner.scannedMe = scanner.scannedMe.map((entry) => {
+          if (
+            typeof entry === "object" &&
+            ((entry.email && entry.email === user.email) ||
+              // (entry.phonenumber && entry.phonenumber === user.phonenumbers?.[0])
+              // (entry.phonenumber &&
+              //   entry.phonenumber === user.phonenumbers[0].countryCode + user.phonenumbers[0].number)
+              (entry.phonenumber &&
+                user.phonenumbers &&
+                user.phonenumbers.length > 0 &&
+                user.phonenumbers[0].countryCode &&
+                user.phonenumbers[0].number &&
+                entry.phonenumber ===
+                  user.phonenumbers[0].countryCode +
+                    user.phonenumbers[0].number))
+          ) {
             updated = true;
             return user._id;
           }
@@ -264,17 +316,20 @@ const signupWithEmail = async (req, res) => {
 
         if (!Array.isArray(user.iScanned)) user.iScanned = [];
 
-        if (!user.iScanned.some(entry => {
-          if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
-          return entry.toString() === scanner._id.toString();
-        })) {
+        if (
+          !user.iScanned.some((entry) => {
+            if (typeof entry === "object" && entry._id)
+              return entry._id.toString() === scanner._id.toString();
+            return entry.toString() === scanner._id.toString();
+          })
+        ) {
           user.iScanned.push({
             _id: scanner._id,
             firstname: scanner.firstname || "",
             lastname: scanner.lastname || "",
             email: scanner.email || "",
             phonenumbers: scanner.phonenumbers || [],
-            profileImageURL: scanner.profileImageURL || ""
+            profileImageURL: scanner.profileImageURL || "",
           });
         }
       }
@@ -289,7 +344,7 @@ const signupWithEmail = async (req, res) => {
         data: {
           token,
           registeredWith: user.signupMethod,
-        }
+        },
       });
     }
 
@@ -319,11 +374,14 @@ const signupWithEmail = async (req, res) => {
     const emailVerificationToken = crypto.randomBytes(32).toString("hex");
 
     const referralCodeRaw = email + Date.now();
-    const referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+    const referralCode = crypto
+      .createHash("sha256")
+      .update(referralCodeRaw)
+      .digest("hex")
+      .slice(0, 16);
 
     let referredBy = null;
     // let referredByAdmin = null;
-
 
     // if (tenantId) {
     //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
@@ -336,9 +394,11 @@ const signupWithEmail = async (req, res) => {
     //       message: "Invalid tenant ID",
     //     });
     //   }
-    // } else 
+    // } else
     if (referralCodeParam) {
-      const referringUser = await User.findOne({ referralCode: referralCodeParam });
+      const referringUser = await User.findOne({
+        referralCode: referralCodeParam,
+      });
       console.log(referringUser);
 
       // if (referringUser) {
@@ -358,12 +418,15 @@ const signupWithEmail = async (req, res) => {
       //   });
       // }
 
-      const previouslyReferred = await ReferralLog.findOne({ email: trimmedEmail });
+      const previouslyReferred = await ReferralLog.findOne({
+        email: trimmedEmail,
+      });
 
       if (previouslyReferred) {
         return res.status(400).json({
           status: "error",
-          message: "This referral link has already been used with this email. Please sign up manually.",
+          message:
+            "This referral link has already been used with this email. Please sign up manually.",
         });
       }
 
@@ -371,16 +434,7 @@ const signupWithEmail = async (req, res) => {
       // }
     }
 
-    // Fetch Pro plan
-    const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
-    if (!proPlan) throw new Error("Pro plan not found in DB");
-
-    const now = new Date();
-    const trialEnds = new Date(now);
-    trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
-
-
-    // Create new user
+    // Create new user without plan (plan will be assigned after email verification)
     const newUser = await User.create({
       email: trimmedEmail,
       password,
@@ -391,17 +445,13 @@ const signupWithEmail = async (req, res) => {
       signupMethod: "email",
       role: "user",
       emailVerificationToken,
-      isPremium: true,
-      trialStart: now,
-      trialEnd: trialEnds,
-      referralCode,  // 🔥 store user’s unique referral code
-      plan: proPlan._id,     // 🔥 Assign Pro plan
-      planActivatedAt: now,
-      planExpiresAt: trialEnds,
-      isActive: true,
+      referralCode, // 🔥 store user’s unique referral code
+      isActive: true, // User is not active until email verification
       // referredByAdmin,
-      referredBy
+      referredBy,
     });
+
+    // No plan assignment here - will be done after email verification
 
     if (referredBy) {
       const referrer = await User.findById(referredBy);
@@ -469,15 +519,15 @@ const signupWithEmail = async (req, res) => {
 
     return res.status(201).json({
       status: "success",
-      message: "Signup started. Please verify your email to activate your account.",
+      message:
+        "Signup started. Please verify your email to activate your account.",
       data: {
         _id: newUser._id,
         email: newUser.email,
         registeredWith: newUser.signupMethod,
-        referUrl
+        referUrl,
       },
     });
-
   } catch (error) {
     console.error("Signup error:", error);
     return res.status(500).json({
@@ -498,7 +548,7 @@ const signupWithPhoneNumber = async (req, res) => {
       firstname,
       lastname,
       resendOtp = false,
-      apiType = "mobile"
+      apiType = "mobile",
     } = req.body;
 
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
@@ -519,18 +569,23 @@ const signupWithPhoneNumber = async (req, res) => {
     if (!sanitizedNumber) {
       return res.status(400).json({
         status: "error",
-        message: "Unable to parse phone number. Please include country code or send valid phone.",
+        message:
+          "Unable to parse phone number. Please include country code or send valid phone.",
       });
     }
 
     // ---------- find existing user by structured phonenumbers ----------
     let user = await User.findOne({
       phonenumbers: {
-        $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
-      }
+        $elemMatch: {
+          countryCode: sanitizedCountryCode,
+          number: sanitizedNumber,
+        },
+      },
     });
 
-    const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+    const generateOtp = () =>
+      Math.floor(100000 + Math.random() * 900000).toString();
 
     // === Step 1: No OTP or resendOtp -> generate/send OTP ===
     if (!otp || resendOtp) {
@@ -550,9 +605,9 @@ const signupWithPhoneNumber = async (req, res) => {
           phonenumbers: {
             $elemMatch: {
               countryCode: sanitizedCountryCode,
-              number: sanitizedNumber
-            }
-          }
+              number: sanitizedNumber,
+            },
+          },
         },
         {
           $setOnInsert: { serialNumber: tempSerialNumber },
@@ -562,7 +617,9 @@ const signupWithPhoneNumber = async (req, res) => {
             firstname,
             lastname,
             signupMethod: "phoneNumber",
-            phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+            phonenumbers: [
+              { countryCode: sanitizedCountryCode, number: sanitizedNumber },
+            ],
           },
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -572,7 +629,10 @@ const signupWithPhoneNumber = async (req, res) => {
         const phoneForWhatsAppApi = `+${sanitizedCountryCode}${sanitizedNumber}`;
         await sendWhatsAppOtp(phoneForWhatsAppApi, generatedOtp);
       } catch (error) {
-        console.error("OTP Send Failed ❌", error.response?.data || error.message);
+        console.error(
+          "OTP Send Failed ❌",
+          error.response?.data || error.message
+        );
         return res.status(500).json({
           status: "error",
           message: "Failed to send WhatsApp OTP",
@@ -582,7 +642,9 @@ const signupWithPhoneNumber = async (req, res) => {
 
       return res.status(200).json({
         status: "pending",
-        message: resendOtp ? "OTP resent to your WhatsApp number" : "OTP sent to your WhatsApp number",
+        message: resendOtp
+          ? "OTP resent to your WhatsApp number"
+          : "OTP sent to your WhatsApp number",
       });
     }
 
@@ -590,7 +652,8 @@ const signupWithPhoneNumber = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         status: "error",
-        message: "No signup request found for this phone number. Please request a new OTP.",
+        message:
+          "No signup request found for this phone number. Please request a new OTP.",
       });
     }
 
@@ -631,7 +694,9 @@ const signupWithPhoneNumber = async (req, res) => {
     userDetails.serialNumber = serialNumber;
     userDetails.firstname = firstname;
     userDetails.lastname = lastname;
-    userDetails.phonenumbers = [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }];
+    userDetails.phonenumbers = [
+      { countryCode: sanitizedCountryCode, number: sanitizedNumber },
+    ];
     userDetails.signupMethod = "phoneNumber";
     userDetails.provider = "local";
 
@@ -657,8 +722,8 @@ const signupWithPhoneNumber = async (req, res) => {
           $elemMatch: {
             countryCode: user.phonenumbers[0].countryCode,
             number: user.phonenumbers[0].number,
-          }
-        }
+          },
+        },
       });
     }
 
@@ -671,13 +736,20 @@ const signupWithPhoneNumber = async (req, res) => {
       const equalPhone = (entryPhone, userPhoneObj) => {
         if (!entryPhone) return false;
         // entryPhone can be string or object
-        if (typeof entryPhone === 'string') {
-          const raw = entryPhone.replace(/\D/g, '');
+        if (typeof entryPhone === "string") {
+          const raw = entryPhone.replace(/\D/g, "");
           const u = `${userPhoneObj.countryCode}${userPhoneObj.number}`;
           return raw === u || raw === userPhoneObj.number || raw === `+${u}`;
         }
-        if (typeof entryPhone === 'object' && entryPhone.countryCode && entryPhone.number) {
-          return entryPhone.countryCode === userPhoneObj.countryCode && entryPhone.number === userPhoneObj.number;
+        if (
+          typeof entryPhone === "object" &&
+          entryPhone.countryCode &&
+          entryPhone.number
+        ) {
+          return (
+            entryPhone.countryCode === userPhoneObj.countryCode &&
+            entryPhone.number === userPhoneObj.number
+          );
         }
         return false;
       };
@@ -685,13 +757,12 @@ const signupWithPhoneNumber = async (req, res) => {
       for (const scanner of matchingUsers) {
         let updated = false;
 
-        scanner.scannedMe = scanner.scannedMe.map(entry => {
+        scanner.scannedMe = scanner.scannedMe.map((entry) => {
           if (
             typeof entry === "object" &&
-            (
-              (entry.email && entry.email === user.email) ||
-              (entry.phonenumber && equalPhone(entry.phonenumber, user.phonenumbers[0]))
-            )
+            ((entry.email && entry.email === user.email) ||
+              (entry.phonenumber &&
+                equalPhone(entry.phonenumber, user.phonenumbers[0])))
           ) {
             updated = true;
             return user._id;
@@ -703,8 +774,9 @@ const signupWithPhoneNumber = async (req, res) => {
 
         if (!Array.isArray(user.iScanned)) user.iScanned = [];
 
-        const alreadyAdded = user.iScanned.some(entry => {
-          if (typeof entry === "object" && entry._id) return entry._id.toString() === scanner._id.toString();
+        const alreadyAdded = user.iScanned.some((entry) => {
+          if (typeof entry === "object" && entry._id)
+            return entry._id.toString() === scanner._id.toString();
           return entry.toString() === scanner._id.toString();
         });
 
@@ -721,35 +793,45 @@ const signupWithPhoneNumber = async (req, res) => {
       }
     }
 
-    const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
-    if (!proPlan) throw new Error("Pro plan not found in DB");
+    // Setup initial plan using utility
+    const planData = await setupInitialPlan(null);
 
-    user.plan = proPlan._id;
-    user.planActivatedAt = new Date();
-    user.planExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14-day trial
-    // user.isActive = true;
-    // trial, referral, etc.
-    const now = new Date();
-    user.trialStart = now;
-    user.trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    user.isPremium = true;
+    user.plan = planData.plan;
+    user.planActivatedAt = planData.planActivatedAt;
+    user.planExpiresAt = planData.planExpiresAt;
+    user.trialStart = planData.trialStart;
+    user.trialEnd = planData.trialEnd;
+    user.isPremium = planData.isPremium;
 
     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
-    user.referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+    user.referralCode = crypto
+      .createHash("sha256")
+      .update(referralCodeRaw)
+      .digest("hex")
+      .slice(0, 16);
 
     if (referralCodeParam) {
-      const referringUser = await User.findOne({ referralCode: referralCodeParam });
+      const referringUser = await User.findOne({
+        referralCode: referralCodeParam,
+      });
 
       const previouslyReferred = await ReferralLog.findOne({
         phonenumbers: {
-          $elemMatch: { countryCode: sanitizedCountryCode, number: sanitizedNumber }
-        }
+          $elemMatch: {
+            countryCode: sanitizedCountryCode,
+            number: sanitizedNumber,
+          },
+        },
       });
 
-      if (previouslyReferred && previouslyReferred.referredUserId?.toString() !== user._id.toString()) {
+      if (
+        previouslyReferred &&
+        previouslyReferred.referredUserId?.toString() !== user._id.toString()
+      ) {
         return res.status(400).json({
           status: "error",
-          message: "This referral link has already been used with this phone number. Please sign up manually.",
+          message:
+            "This referral link has already been used with this phone number. Please sign up manually.",
         });
       }
 
@@ -798,20 +880,28 @@ const signupWithPhoneNumber = async (req, res) => {
         await addOrUpdateReferral(referringUser._id, user);
 
         await ReferralLog.create({
-          phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
+          phonenumbers: [
+            { countryCode: sanitizedCountryCode, number: sanitizedNumber },
+          ],
           referredBy: referringUser._id,
           referredUserId: user._id,
         });
       }
-
     }
     user.isActive = true; // mark as active
+
+    // Mark Pro trial as used if Pro plan was assigned
+    if (planData.plan) {
+      const assignedPlan = await Plan.findById(planData.plan);
+      if (assignedPlan && assignedPlan.name === "Pro") {
+        user.hasUsedProTrial = true;
+      }
+    }
 
     await user.save();
 
     const token = createTokenforUser(user);
     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
-
 
     return res.status(201).json({
       status: "success",
@@ -820,10 +910,9 @@ const signupWithPhoneNumber = async (req, res) => {
         _id: user._id,
         token,
         registeredWith: user.signupMethod,
-        referUrl
+        referUrl,
       },
     });
-
   } catch (error) {
     console.error("Signup Error ❌", error);
     return res.status(500).json({
@@ -874,7 +963,6 @@ const resendVerificationLink = async (req, res) => {
       message: "Verification email resent successfully",
       verificationLink,
     });
-
   } catch (error) {
     console.error("Resend verification error:", error);
     return res.status(500).json({
@@ -887,7 +975,15 @@ const resendVerificationLink = async (req, res) => {
 
 const unifiedLogin = async (req, res) => {
   try {
-    const { email = "", phonenumber = "", countryCode = "", password = "", googleToken, appleToken, apiType = "mobile" } = req.body;
+    const {
+      email = "",
+      phonenumber = "",
+      countryCode = "",
+      password = "",
+      googleToken,
+      appleToken,
+      apiType = "mobile",
+    } = req.body;
 
     //email and phoneNumber Login
     // if ((email || phonenumber) && password && !googleToken && !appleToken) {
@@ -896,7 +992,6 @@ const unifiedLogin = async (req, res) => {
     //     // const trimmedPhone = phonenumber?.trim();
     //     const trimmedPhone = phonenumber?.trim();
     //     const trimmedCountry = countryCode?.trim()?.replace(/^\+/, ""); // remove + if present
-
 
     //     // let normalizedPhone = trimmedPhone;
     //     // if (normalizedPhone?.startsWith('+')) {
@@ -941,7 +1036,6 @@ const unifiedLogin = async (req, res) => {
     //         message: "Please complete signup and verify OTP first"
     //       });
     //     }
-
 
     //     // ✅ Prevent wrong login method
     //     if (user.signupMethod === "google") {
@@ -992,8 +1086,6 @@ const unifiedLogin = async (req, res) => {
     //         message: "This user signed up with email. Please login with email and password."
     //       });
     //     }
-
-
 
     //     // const token = await User.matchPasswordAndGenerateToken({
     //     //   email: trimmedEmail,
@@ -1086,11 +1178,13 @@ const unifiedLogin = async (req, res) => {
         // const apiType = apiType || "mobile";
 
         // Normalize phone using helper (handles "917046658651", "+9170466...", separate cc+num, etc.)
-        const { countryCode: normCountry, number: normNumber } = normalizePhone({
-          phonenumber: rawPhoneInput,
-          countryCode: rawCountryInput,
-          apiType
-        });
+        const { countryCode: normCountry, number: normNumber } = normalizePhone(
+          {
+            phonenumber: rawPhoneInput,
+            countryCode: rawCountryInput,
+            apiType,
+          }
+        );
 
         // Build query conditions
         const queryConditions = [];
@@ -1100,64 +1194,85 @@ const unifiedLogin = async (req, res) => {
           // we have both number and country
           queryConditions.push({
             phonenumbers: {
-              $elemMatch: { number: normNumber, countryCode: normCountry }
-            }
+              $elemMatch: { number: normNumber, countryCode: normCountry },
+            },
           });
         } else if (normNumber) {
           // only number parsed — try to match by stored number or legacy string
           queryConditions.push({
             $or: [
               { "phonenumbers.number": normNumber },
-              { phonenumbers: normNumber } // legacy array-of-strings case
-            ]
+              { phonenumbers: normNumber }, // legacy array-of-strings case
+            ],
           });
         }
 
         if (queryConditions.length === 0) {
-          return res.status(400).json({ status: "error", message: "Email or phone number is required" });
+          return res.status(400).json({
+            status: "error",
+            message: "Email or phone number is required",
+          });
         }
 
         const user = await User.findOne({ $or: queryConditions });
 
         if (!user) {
-          return res.status(401).json({ status: "error", message: "User not found" });
+          return res
+            .status(401)
+            .json({ status: "error", message: "User not found" });
         }
 
         // If logging in by email, require email verification
         if (trimmedEmail && !user.isVerified) {
-          return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
+          return res.status(403).json({
+            status: "error",
+            message: "Please verify your email before logging in",
+          });
         }
 
         // If logging in by phone AND we have both country & number, require OTP verification completed
         if (normNumber && normCountry && !user.isVerified) {
           return res.status(403).json({
             status: "error",
-            message: "Please complete signup and verify OTP first"
+            message: "Please complete signup and verify OTP first",
           });
         }
 
         // Prevent wrong login method
         if (user.signupMethod === "google") {
-          return res.status(400).json({ status: "error", message: "This user signed up with Google. Please use Google login." });
+          return res.status(400).json({
+            status: "error",
+            message:
+              "This user signed up with Google. Please use Google login.",
+          });
         }
         if (user.signupMethod === "linkedin") {
-          return res.status(400).json({ status: "error", message: "This user signed up with linkedin. Please use linkedin login." });
+          return res.status(400).json({
+            status: "error",
+            message:
+              "This user signed up with linkedin. Please use linkedin login.",
+          });
         }
         if (user.signupMethod === "apple") {
-          return res.status(400).json({ status: "error", message: "This user signed up with Apple. Please use Apple login." });
+          return res.status(400).json({
+            status: "error",
+            message: "This user signed up with Apple. Please use Apple login.",
+          });
         }
 
         if (user.signupMethod === "phoneNumber" && trimmedEmail) {
           return res.status(400).json({
             status: "error",
-            message: "This user signed up with phone number. Please login with phone number and password."
+            message:
+              "This user signed up with phone number. Please login with phone number and password.",
           });
         }
 
         if (user.signupMethod === "email" && (normNumber || rawPhoneInput)) {
           return res.status(400).json({
             status: "error",
-            message: "This user signed up with email. Please login with email and password."
+            message:
+              "This user signed up with email. Please login with email and password.",
           });
         }
 
@@ -1166,7 +1281,7 @@ const unifiedLogin = async (req, res) => {
           email: trimmedEmail,
           phonenumber: normNumber,
           countryCode: normCountry,
-          password
+          password,
         });
 
         const now = new Date();
@@ -1183,15 +1298,16 @@ const unifiedLogin = async (req, res) => {
             isPremium: user.isPremium,
             trialEndsAt: user.trialEnd,
             registeredWith: user.signupMethod,
-            role: user.role || "user"
-          }
+            role: user.role || "user",
+          },
         });
-
       } catch (err) {
-        return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
+        return res.status(401).json({
+          status: "error",
+          message: err.message || "Invalid credentials",
+        });
       }
     }
-
 
     // === GOOGLE LOGIN ===
     if (googleToken && !email && !password && !appleToken && !phonenumber) {
@@ -1199,22 +1315,25 @@ const unifiedLogin = async (req, res) => {
         const ticket = await googleClient.verifyIdToken({
           idToken: googleToken,
           // audience: "308171825690-9tdne4lk5cof1rcmosck65i5iij46bvh.apps.googleusercontent.com",
-          audience: "308171825690-ukpu99fsh0jsojolv0j4vrhidait4s5b.apps.googleusercontent.com",
+          audience:
+            "308171825690-ukpu99fsh0jsojolv0j4vrhidait4s5b.apps.googleusercontent.com",
         });
 
         const { email } = ticket.getPayload();
         let user = await User.findOne({ email });
         let isFirstTime = false;
 
-
         if (!user) {
           isFirstTime = true;
 
-          const referralCodeParam = req.body.referralCode || req.query.ref || "";
+          const referralCodeParam =
+            req.body.referralCode || req.query.ref || "";
           let referredBy = null;
 
           if (referralCodeParam) {
-            const referringUser = await User.findOne({ referralCode: referralCodeParam });
+            const referringUser = await User.findOne({
+              referralCode: referralCodeParam,
+            });
 
             if (!referringUser) {
               return res.status(400).json({
@@ -1227,14 +1346,15 @@ const unifiedLogin = async (req, res) => {
               email,
               $or: [
                 { referredBy: referringUser._id },
-                { referralCode: referralCodeParam }
-              ]
+                { referralCode: referralCodeParam },
+              ],
             });
 
             if (previouslyReferred) {
               return res.status(400).json({
                 status: "error",
-                message: "This referral link has already been used with this email. Please sign up manually.",
+                message:
+                  "This referral link has already been used with this email. Please sign up manually.",
               });
             }
 
@@ -1256,7 +1376,11 @@ const unifiedLogin = async (req, res) => {
           trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
 
           const referralCodeRaw = email + Date.now();
-          const referralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+          const referralCode = crypto
+            .createHash("sha256")
+            .update(referralCodeRaw)
+            .digest("hex")
+            .slice(0, 16);
 
           user = await User.create({
             email,
@@ -1270,8 +1394,8 @@ const unifiedLogin = async (req, res) => {
             isPremium: false,
             trialStart: now,
             trialEnd: trialEnds,
-            referralCode,  // ✅ Store generated referral code
-            referredBy     // ✅ Store who referred this user
+            referralCode, // ✅ Store generated referral code
+            referredBy, // ✅ Store who referred this user
           });
 
           // ✅ Add new user to referring user’s myReferrals
@@ -1299,20 +1423,23 @@ const unifiedLogin = async (req, res) => {
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         const hasAccess = user.isPremium || isTrialActive;
         return res.json({
-          status: "success", message: "Google login successful",
+          status: "success",
+          message: "Google login successful",
           data: {
-            "token": token,
-            "registeredWith": user.signupMethod,
-            "isFirstTime": isFirstTime,
+            token: token,
+            registeredWith: user.signupMethod,
+            isFirstTime: isFirstTime,
             hasAccess,
             isTrialActive,
             isPremium: user.isPremium,
-            trialEndsAt: user.trialEnd
-          }
+            trialEndsAt: user.trialEnd,
+          },
         });
       } catch (err) {
         console.log(err);
-        return res.status(500).json({ status: "error", message: "Google login failed" });
+        return res
+          .status(500)
+          .json({ status: "error", message: "Google login failed" });
       }
     }
 
@@ -1324,7 +1451,9 @@ const unifiedLogin = async (req, res) => {
         if (!id_token.includes(".")) {
           const decoded = Buffer.from(id_token, "base64").toString("utf8");
           if (!decoded.includes(".")) {
-            return res.status(400).json({ message: "Invalid Apple token format" });
+            return res
+              .status(400)
+              .json({ message: "Invalid Apple token format" });
           }
           id_token = decoded;
         }
@@ -1392,44 +1521,50 @@ const unifiedLogin = async (req, res) => {
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         const hasAccess = user.isPremium || isTrialActive;
         return res.json({
-          status: "success", message: "Apple login successful", data: {
-            token, hasAccess,
+          status: "success",
+          message: "Apple login successful",
+          data: {
+            token,
+            hasAccess,
             isTrialActive,
             isPremium: user.isPremium,
-            trialEndsAt: user.trialEnd
-          }
+            trialEndsAt: user.trialEnd,
+          },
         });
       } catch (err) {
-        return res.status(500).json({ status: "error", message: "Apple login failed" });
+        return res
+          .status(500)
+          .json({ status: "error", message: "Apple login failed" });
       }
     }
 
-    return res.status(400).json({ status: "error", message: "Invalid login request" });
+    return res
+      .status(400)
+      .json({ status: "error", message: "Invalid login request" });
   } catch (err) {
     return res.status(500).json({ status: "error", message: "Login failed" });
   }
 };
 
 const startGoogleLogin = (req, res) => {
-
   const { ref = "" } = req.query;
 
   const scopes = [
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
   ];
 
   const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
+    access_type: "offline",
+    prompt: "consent",
     scope: scopes,
-    state: JSON.stringify({ ref })  // Pass referral code in state
+    state: JSON.stringify({ ref }), // Pass referral code in state
   });
 
   return res.json({
     status: "success",
     message: "Google OAuth URL generated",
-    url: url
+    url: url,
   });
 };
 
@@ -1447,9 +1582,10 @@ const googleCallback = async (req, res) => {
     referralCode = "";
   }
 
-
   if (!code) {
-    return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+    return res
+      .status(400)
+      .json({ status: "error", message: "Missing authorization code" });
   }
 
   try {
@@ -1458,7 +1594,7 @@ const googleCallback = async (req, res) => {
 
     const oauth2 = google.oauth2({
       auth: oauth2Client,
-      version: 'v2'
+      version: "v2",
     });
 
     const { data } = await oauth2.userinfo.get();
@@ -1541,7 +1677,7 @@ const googleCallback = async (req, res) => {
     //     await referral.save();
     //   }
     // }
-    let referralUrl = '';
+    let referralUrl = "";
     if (!user) {
       isFirstTime = true;
       let referredBy = null;
@@ -1558,9 +1694,11 @@ const googleCallback = async (req, res) => {
       // `);
       //   }
       //   referredByAdmin = referringAdmin._id;
-      // } else 
+      // } else
       if (referralCode) {
-        const referringUser = await User.findOne({ referralCode: referralCode });
+        const referringUser = await User.findOne({
+          referralCode: referralCode,
+        });
 
         if (!referringUser) {
           return res.send(`
@@ -1590,7 +1728,7 @@ const googleCallback = async (req, res) => {
         //   }
 
         const previouslyReferred = await ReferralLog.findOne({
-          email: email
+          email: email,
         });
 
         if (previouslyReferred) {
@@ -1601,7 +1739,6 @@ const googleCallback = async (req, res) => {
     </script>
   `);
         }
-
 
         referredBy = referringUser._id;
       }
@@ -1617,15 +1754,15 @@ const googleCallback = async (req, res) => {
       //   provider: "google"
       // });
 
-      const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
-      if (!proPlan) throw new Error("Pro plan not found in DB");
-
-      const now = new Date();
-      const trialEnds = new Date(now);
-      trialEnds.setDate(trialEnds.getDate() + 14); // 14-day trial
+      // Setup initial plan using utility
+      const planData = await setupInitialPlan();
 
       const referralCodeRaw = email + Date.now();
-      const userReferralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+      const userReferralCode = crypto
+        .createHash("sha256")
+        .update(referralCodeRaw)
+        .digest("hex")
+        .slice(0, 16);
       referralUrl = `https://app.contacts.management/register?ref=${userReferralCode}`;
       user = await User.create({
         email,
@@ -1637,18 +1774,22 @@ const googleCallback = async (req, res) => {
         signupMethod: "google",
         role: "user", // Default role for new users
         isVerified: true,
-        isPremium: true,
-        trialStart: now,
-        trialEnd: trialEnds,
-        plan: proPlan._id,     // 🔥 Assign Pro plan
-        planActivatedAt: now,
-        planExpiresAt: trialEnds,
         isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
+        ...planData, // Spread plan data
 
         // referredByAdmin: referredByAdmin
       });
+
+      // Mark Pro trial as used if Pro plan was assigned
+      if (planData.plan) {
+        const assignedPlan = await Plan.findById(planData.plan);
+        if (assignedPlan && assignedPlan.name === "Pro") {
+          user.hasUsedProTrial = true;
+          await user.save();
+        }
+      }
 
       // if (referredBy) {
       //   const referrer = await User.findById(referredBy);
@@ -1677,8 +1818,6 @@ const googleCallback = async (req, res) => {
         // use helper to add/update referral + log + credits
         await addOrUpdateReferral(referredBy, user);
       }
-
-
     }
 
     // ✅ Sync referral data (in case user was referred but referrer has missing details)
@@ -1726,7 +1865,6 @@ const googleCallback = async (req, res) => {
     //   console.error("Failed to sync referral data in Google login:", err.message);
     // }
 
-
     const token = createTokenforUser(user);
 
     // ✅ Redirect based on whether it's first time
@@ -1736,14 +1874,14 @@ const googleCallback = async (req, res) => {
 
     // });
     const resultData = {
-      status: 'success',
-      message: 'Google Login successfully',
+      status: "success",
+      message: "Google Login successfully",
       data: {
         token: token,
         isFirstTime: isFirstTime,
         referralUrl: referralUrl || "",
         registeredWith: user.signupMethod,
-      }
+      },
     };
 
     // Detect if request is from mobile (simple detection by user-agent or query flag)
@@ -1805,7 +1943,6 @@ const googleCallback = async (req, res) => {
     //   : `https://app.contacts.management/dashboard?token=${token}&isFirstTime=false`;
 
     // return res.redirect(redirectUrl);
-
   } catch (error) {
     console.log("Google Callback Error:", error);
 
@@ -1825,23 +1962,24 @@ const googleCallback = async (req, res) => {
 const startLinkedInLogin = (req, res) => {
   const { ref = "" } = req.query;
 
-  const scope = ['openid', 'profile', 'email'].join(' ');
-  const authUrl = 'https://www.linkedin.com/oauth/v2/authorization?' + querystring.stringify({
-    response_type: 'code',
-    client_id: process.env.LINKEDIN_CLIENT_ID,
-    redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-    scope: scope,
-    // state: 'linkedin_login_' + Date.now()
-    state: JSON.stringify({ ref, ts: Date.now() }) // store ref in state
-  });
+  const scope = ["openid", "profile", "email"].join(" ");
+  const authUrl =
+    "https://www.linkedin.com/oauth/v2/authorization?" +
+    querystring.stringify({
+      response_type: "code",
+      client_id: process.env.LINKEDIN_CLIENT_ID,
+      redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+      scope: scope,
+      // state: 'linkedin_login_' + Date.now()
+      state: JSON.stringify({ ref, ts: Date.now() }), // store ref in state
+    });
 
   console.log(process.env.LINKEDIN_CLIENT_ID);
-
 
   return res.json({
     status: "success",
     message: "LinkedIn OAuth URL generated",
-    url: authUrl
+    url: authUrl,
   });
 };
 
@@ -1857,39 +1995,47 @@ const linkedinCallback = async (req, res) => {
     referralCode = "";
   }
 
-
   console.log("LinkedIn Callback Code:", code);
 
   if (!code) {
-    return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+    return res
+      .status(400)
+      .json({ status: "error", message: "Missing authorization code" });
   }
 
   try {
     // 1. Exchange code for access token
-    const tokenRes = await axios.post('https://www.linkedin.com/oauth/v2/accessToken', querystring.stringify({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-      client_id: process.env.LINKEDIN_CLIENT_ID,
-      client_secret: process.env.LINKEDIN_CLIENT_SECRET
-    }), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
+    const tokenRes = await axios.post(
+      "https://www.linkedin.com/oauth/v2/accessToken",
+      querystring.stringify({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+      }),
+      {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      }
+    );
 
     const accessToken = tokenRes.data.access_token;
 
     // 2. Get user profile (name)
-    const userInfoRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const userInfoRes = await axios.get(
+      "https://api.linkedin.com/v2/userinfo",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
 
     // const firstname = userInfoRes.data.given_name || 'LinkedIn';
     // const lastname = userInfoRes.data.family_name || 'User';
     // const email = userInfoRes.data.email || 'unknown@example.com';
 
-    const firstname = userInfoRes.data.given_name || 'LinkedIn';
-    const lastname = userInfoRes.data.family_name || 'User';
-    const email = userInfoRes.data.email || 'unknown@example.com';
+    const firstname = userInfoRes.data.given_name || "LinkedIn";
+    const lastname = userInfoRes.data.family_name || "User";
+    const email = userInfoRes.data.email || "unknown@example.com";
     const phonenumbers = userInfoRes.data.phone_number || null; // if phone number is available
     // const firstname = profileRes.data.localizedFirstName || "LinkedIn";
     // const lastname = profileRes.data.localizedLastName || "User";
@@ -1925,8 +2071,8 @@ const linkedinCallback = async (req, res) => {
     let user = await User.findOne({
       $or: [
         { email: email },
-        phonenumbers ? { phone: phonenumbers } : null
-      ].filter(Boolean) // removes null if phoneNumber is not available
+        phonenumbers ? { phone: phonenumbers } : null,
+      ].filter(Boolean), // removes null if phoneNumber is not available
     });
 
     let isFirstTime = false;
@@ -1934,10 +2080,13 @@ const linkedinCallback = async (req, res) => {
     // ✅ Prevent login if already registered with another method
     if (user && user.signupMethod !== "linkedin") {
       const method =
-        user.signupMethod === "google" ? "Google" :
-          user.signupMethod === "email" ? "Email" :
-            user.signupMethod === "phoneNumber" ? "Phone Number" :
-              "Other";
+        user.signupMethod === "google"
+          ? "Google"
+          : user.signupMethod === "email"
+          ? "Email"
+          : user.signupMethod === "phoneNumber"
+          ? "Phone Number"
+          : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
@@ -1972,7 +2121,9 @@ const linkedinCallback = async (req, res) => {
       let referredBy = null;
 
       if (referralCode) {
-        const referringUser = await User.findOne({ referralCode: referralCode });
+        const referringUser = await User.findOne({
+          referralCode: referralCode,
+        });
 
         if (!referringUser) {
           return res.send(`
@@ -2024,15 +2175,15 @@ const linkedinCallback = async (req, res) => {
       //   provider: "linkedin"
       // });
 
-      const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
-      if (!proPlan) throw new Error("Pro plan not found in DB");
-
-      const now = new Date();
-      const trialEnds = new Date(now);
-      trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
+      // Setup initial plan using utility
+      const planData = await setupInitialPlan();
 
       const referralCodeRaw = email + Date.now();
-      const userReferralCode = crypto.createHash("sha256").update(referralCodeRaw).digest("hex").slice(0, 16);
+      const userReferralCode = crypto
+        .createHash("sha256")
+        .update(referralCodeRaw)
+        .digest("hex")
+        .slice(0, 16);
 
       user = await User.create({
         email,
@@ -2044,16 +2195,20 @@ const linkedinCallback = async (req, res) => {
         signupMethod: "linkedin",
         role: "user", // Default role for new users
         isVerified: true,
-        isPremium: true,
-        trialStart: now,
-        trialEnd: trialEnds,
         referralCode: userReferralCode,
         referredBy: referredBy,
-        plan: proPlan._id,     // 🔥 Assign Pro plan
-        planActivatedAt: now,
-        planExpiresAt: trialEnds,
-        isActive: true
+        isActive: true,
+        ...planData, // Spread plan data
       });
+
+      // Mark Pro trial as used if Pro plan was assigned
+      if (planData.plan) {
+        const assignedPlan = await Plan.findById(planData.plan);
+        if (assignedPlan && assignedPlan.name === "Pro") {
+          user.hasUsedProTrial = true;
+          await user.save();
+        }
+      }
 
       // if (referredBy) {
       //   const referrer = await User.findById(referredBy);
@@ -2081,7 +2236,6 @@ const linkedinCallback = async (req, res) => {
       if (referredBy) {
         await addOrUpdateReferral(referredBy, user);
       }
-
     }
 
     // // ✅ Sync referral data if this user was referred
@@ -2135,8 +2289,8 @@ const linkedinCallback = async (req, res) => {
     const hasAccess = user.isPremium || isTrialActive;
     // user.isActive = true; // mark as active
     const resultData = {
-      status: 'success',
-      message: 'LinkedIn Login successfully',
+      status: "success",
+      message: "LinkedIn Login successfully",
       data: {
         token: token,
         isFirstTime: isFirstTime,
@@ -2144,8 +2298,8 @@ const linkedinCallback = async (req, res) => {
         hasAccess,
         isTrialActive,
         isPremium: user.isPremium,
-        trialEndsAt: user.trialEnd
-      }
+        trialEndsAt: user.trialEnd,
+      },
     };
 
     // console.log(resultData);
@@ -2182,9 +2336,11 @@ const linkedinCallback = async (req, res) => {
     </body>
     </html>
     `);
-
   } catch (error) {
-    console.error('LinkedIn Callback Error:', error.response?.data || error.message);
+    console.error(
+      "LinkedIn Callback Error:",
+      error.response?.data || error.message
+    );
     return res.send(`
       <script>
         window.opener.postMessage({ status: 'error', message: 'LinkedIn login failed', error: '${error.message}' }, '*');
@@ -2217,7 +2373,6 @@ const logoutUser = async (req, res) => {
   }
 };
 
-
 module.exports = {
   signupWithEmail,
   unifiedLogin,
@@ -2227,5 +2382,5 @@ module.exports = {
   googleCallback,
   startLinkedInLogin,
   linkedinCallback,
-  logoutUser
+  logoutUser,
 };

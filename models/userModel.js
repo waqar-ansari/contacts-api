@@ -256,7 +256,6 @@ const userSchema = new Schema(
 
     lastSeen: { type: Date, default: null },
 
-
     tags: {
       type: [
         {
@@ -428,6 +427,12 @@ const userSchema = new Schema(
       default: 0, // every user starts with $0 credit
     },
 
+    // Flag to track if user has used free trial of Pro plan
+    hasUsedProTrial: {
+      type: Boolean,
+      default: false,
+    },
+
     // myReferrals: {
     //   type: [
     //     {
@@ -563,7 +568,7 @@ userSchema.static(
     const query = email
       ? { email }
       : // : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
-      { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
+        { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
 
     const user = await this.findOne(query);
     if (!user) throw new Error("User not found");

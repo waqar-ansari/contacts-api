@@ -1,5 +1,7 @@
 const { Router } = require("express");
 const { getUserData } = require("../controllers/getUserControllers");
+const { checkForAuthentication } = require("../middlewares/authentication");
+const { checkPlanStatus } = require("../middlewares/planValidation");
 
 const router = Router();
 
@@ -14,6 +16,6 @@ const router = Router();
  *         description: User fetched successfully
  */
 
-router.post("/", getUserData);
+router.post("/", checkForAuthentication(), checkPlanStatus(), getUserData);
 
 module.exports = router;

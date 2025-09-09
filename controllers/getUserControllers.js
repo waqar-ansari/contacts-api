@@ -19,28 +19,42 @@ const getUserData = async (req, res) => {
       apiType = "web", // <-- ADDED
     } = req.body;
 
-    const isWhatsappFav = whatsappTemplateIsFavourite === true || whatsappTemplateIsFavourite === "true";
-    const isEmailFav = emailTemplateIsFavourite === true || emailTemplateIsFavourite === "true";
+    const isWhatsappFav =
+      whatsappTemplateIsFavourite === true ||
+      whatsappTemplateIsFavourite === "true";
+    const isEmailFav =
+      emailTemplateIsFavourite === true || emailTemplateIsFavourite === "true";
 
     const user = await User.findById(req.user._id).lean();
 
     if (!user) {
-      return res.status(404).json({ status: "error", message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
     }
 
     const responseData = {};
 
     const contactCount = await Contact.countDocuments({ createdBy: user._id });
-    const favouriteCount = await Contact.countDocuments({ createdBy: user._id, isFavourite: true });
-    const totalWhatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates.length : 0;
-    const totalEmailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates.length : 0;
+    const favouriteCount = await Contact.countDocuments({
+      createdBy: user._id,
+      isFavourite: true,
+    });
+    const totalWhatsappTemplates = Array.isArray(user.whatsappTemplates)
+      ? user.whatsappTemplates.length
+      : 0;
+    const totalEmailTemplates = Array.isArray(user.emailTemplates)
+      ? user.emailTemplates.length
+      : 0;
     const totalTemplates = totalWhatsappTemplates + totalEmailTemplates;
 
     const totalScans =
       (Array.isArray(user.iScanned) ? user.iScanned.length : 0) +
       (Array.isArray(user.scannedMe) ? user.scannedMe.length : 0);
 
-    const whoScannedMeCount = Array.isArray(user.scannedMe) ? user.scannedMe.length : 0;
+    const whoScannedMeCount = Array.isArray(user.scannedMe)
+      ? user.scannedMe.length
+      : 0;
 
     const tagCountAgg = await User.aggregate([
       { $match: { _id: user._id } },
@@ -56,7 +70,7 @@ const getUserData = async (req, res) => {
       if (apiType === "web") {
         // For web: return array of concatenated digits like ["917046658651"]
         return phones
-          .map(p => {
+          .map((p) => {
             if (!p) return null;
 
             if (typeof p === "string") {
@@ -65,8 +79,13 @@ const getUserData = async (req, res) => {
             }
 
             // if stored as object { countryCode, number } (or similar)
-            const cc = String(p.countryCode || p.country || "").replace(/[^\d]/g, "");
-            const num = String(p.number || p.nationalNumber || p.phone || "").replace(/[^\d]/g, "");
+            const cc = String(p.countryCode || p.country || "").replace(
+              /[^\d]/g,
+              ""
+            );
+            const num = String(
+              p.number || p.nationalNumber || p.phone || ""
+            ).replace(/[^\d]/g, "");
 
             // If only `number` exists but already contains country code (e.g., "9170..."), return it cleaned
             if (!cc && num.length > 6) {
@@ -83,17 +102,21 @@ const getUserData = async (req, res) => {
       return phones;
     })();
 
-
     // Only return WhatsApp templates if specifically requested
     if (isWhatsappFav && !isEmailFav) {
-      let whatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates : [];
-      whatsappTemplates = whatsappTemplates.filter(t => t.whatsappTemplateIsFavourite === true);
+      let whatsappTemplates = Array.isArray(user.whatsappTemplates)
+        ? user.whatsappTemplates
+        : [];
+      whatsappTemplates = whatsappTemplates.filter(
+        (t) => t.whatsappTemplateIsFavourite === true
+      );
 
       if (searchWhatsappTemplates.trim()) {
         const search = searchWhatsappTemplates.toLowerCase();
-        whatsappTemplates = whatsappTemplates.filter(t =>
-          (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
-          (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
+        whatsappTemplates = whatsappTemplates.filter(
+          (t) =>
+            (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
+            (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
         );
       }
 
@@ -129,10 +152,8 @@ const getUserData = async (req, res) => {
       // const qrCodeDataURL = await QRCode.toDataURL(qrPayload).toString("base64");
       const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
-
       // Generate QR code (as Base64 image)
       // const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
-
 
       return res.json({
         status: "success",
@@ -200,7 +221,7 @@ const getUserData = async (req, res) => {
           totalScans,
           whoScannedMeCount,
           tagCount,
-          "templates": {
+          templates: {
             whatsappTemplates: {
               whatsappTemplatesData: paginated,
               whatsappTemplatePagination: {
@@ -216,15 +237,20 @@ const getUserData = async (req, res) => {
 
     // Only return Email templates if specifically requested
     if (isEmailFav && !isWhatsappFav) {
-      let emailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates : [];
-      emailTemplates = emailTemplates.filter(t => t.emailTemplateIsFavourite === true);
+      let emailTemplates = Array.isArray(user.emailTemplates)
+        ? user.emailTemplates
+        : [];
+      emailTemplates = emailTemplates.filter(
+        (t) => t.emailTemplateIsFavourite === true
+      );
 
       if (searchEmailTemplates.trim()) {
         const search = searchEmailTemplates.toLowerCase();
-        emailTemplates = emailTemplates.filter(t =>
-          (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
-          (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
-          (t.emailTemplateBody || "").toLowerCase().includes(search)
+        emailTemplates = emailTemplates.filter(
+          (t) =>
+            (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
+            (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
+            (t.emailTemplateBody || "").toLowerCase().includes(search)
         );
       }
 
@@ -285,7 +311,6 @@ const getUserData = async (req, res) => {
         designation: user.designation,
       };
       const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
-
 
       return res.json({
         status: "success",
@@ -352,7 +377,7 @@ const getUserData = async (req, res) => {
           totalScans,
           whoScannedMeCount,
           tagCount,
-          "templates": {
+          templates: {
             emailTemplates: {
               emailTemplatesData: paginated,
               emailTemplatePagination: {
@@ -362,13 +387,11 @@ const getUserData = async (req, res) => {
               },
             },
           },
-
         },
       });
     }
 
     // If no specific favourite flags provided, return full data
-
 
     const data = {
       id: user._id,
@@ -431,16 +454,19 @@ const getUserData = async (req, res) => {
       totalScans,
       whoScannedMeCount,
       tagCount,
-      templates: {}
+      templates: {},
     };
 
     // WhatsApp Templates
-    let whatsappTemplates = Array.isArray(user.whatsappTemplates) ? user.whatsappTemplates : [];
+    let whatsappTemplates = Array.isArray(user.whatsappTemplates)
+      ? user.whatsappTemplates
+      : [];
     if (searchWhatsappTemplates.trim()) {
       const search = searchWhatsappTemplates.toLowerCase();
-      whatsappTemplates = whatsappTemplates.filter(t =>
-        (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
-        (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
+      whatsappTemplates = whatsappTemplates.filter(
+        (t) =>
+          (t.whatsappTemplateTitle || "").toLowerCase().includes(search) ||
+          (t.whatsappTemplateMessage || "").toLowerCase().includes(search)
       );
     }
     const totalWhatsapp = whatsappTemplates.length;
@@ -451,13 +477,16 @@ const getUserData = async (req, res) => {
     );
 
     // Email Templates
-    let emailTemplates = Array.isArray(user.emailTemplates) ? user.emailTemplates : [];
+    let emailTemplates = Array.isArray(user.emailTemplates)
+      ? user.emailTemplates
+      : [];
     if (searchEmailTemplates.trim()) {
       const search = searchEmailTemplates.toLowerCase();
-      emailTemplates = emailTemplates.filter(t =>
-        (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
-        (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
-        (t.emailTemplateBody || "").toLowerCase().includes(search)
+      emailTemplates = emailTemplates.filter(
+        (t) =>
+          (t.emailTemplateTitle || "").toLowerCase().includes(search) ||
+          (t.emailTemplateSubject || "").toLowerCase().includes(search) ||
+          (t.emailTemplateBody || "").toLowerCase().includes(search)
       );
     }
     const totalEmail = emailTemplates.length;
@@ -484,7 +513,6 @@ const getUserData = async (req, res) => {
         totalTemplates: totalEmail,
       },
     };
-
 
     // const qrPayload = {
     //   id: user._id,
@@ -537,10 +565,7 @@ const getUserData = async (req, res) => {
 
     const qrCodeDataURL = await QRCode.toDataURL(JSON.stringify(qrPayload));
 
-
-
     // console.log("Generated QR Code Data URL:", qrCodeDataURL);
-
 
     data.qrCode = qrCodeDataURL;
 
