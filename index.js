@@ -306,7 +306,7 @@ const connectToDatabase = async () => {
 // ------------------- SOCKET HANDLER -------------------
 const http = require("http");
 const { Server } = require("socket.io");
-const socketHandler = require("./socket/socketHandler");
+// const socketHandler = require("./socket/socketHandler");
 // const { startPlanExpiryScheduler } = require("./utils/planScheduler");
 
 // ------------------- START APP -------------------
