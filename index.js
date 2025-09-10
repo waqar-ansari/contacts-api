@@ -71,6 +71,7 @@ const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const planRoutes = require("./routes/planRoutes");
+const savebulkuser = require("./controllers/savebulkuser")
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -155,6 +156,7 @@ app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
+app.use("/savebulkuser", checkForAuthentication(), savebulkuser);
 app.use(
   "/check-duplicate-user",
   checkForAuthentication(),
@@ -294,7 +296,14 @@ const connectToDatabase = async () => {
   if (isConnected) return;
   try {
     console.log("MongoDB URL log:", process.env.MONGO_URL);
-    await mongoose.connect(process.env.MONGO_URL);
+    // await mongoose.connect(process.env.MONGO_URL
+
+    // );
+    await mongoose.connect(process.env.MONGO_URL, {
+      maxPoolSize: 200,   // allow up to 50 concurrent DB connections
+      minPoolSize: 10,   // keep minimum connections ready
+      serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
+    });
     isConnected = true;
     console.log("✅ MongoDB connected successfully");
   } catch (err) {
