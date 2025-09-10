@@ -289,103 +289,23 @@ app.use("/", (req, res) => {
 
 console.log("Setting up error handling...");
 
-// // ------------------- DB CONNECT -------------------
-// let isConnected = false;
-
-// const connectToDatabase = async () => {
-//   if (isConnected) return;
-//   try {
-//     console.log("MongoDB URL log:", process.env.MONGO_URL);
-//     // await mongoose.connect(process.env.MONGO_URL
-
-//     // );
-//     await mongoose.connect(process.env.MONGO_URL, {
-//       maxPoolSize: 200,   // allow up to 50 concurrent DB connections
-//       minPoolSize: 10,   // keep minimum connections ready
-//       serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
-//     });
-//     isConnected = true;
-//     console.log("✅ MongoDB connected successfully");
-//   } catch (err) {
-//     console.error("❌ Database connection failed:", err);
-//     throw err;
-//   }
-// };
-
-// ------------------- SOCKET HANDLER -------------------
-// const http = require("http");
-// const { Server } = require("socket.io");
-// // const socketHandler = require("./socket/socketHandler");
-// // const { startPlanExpiryScheduler } = require("./utils/planScheduler");
-
-// // ------------------- START APP -------------------
-// (async () => {
-//   try {
-//     await connectToDatabase();
-
-//     // Start the plan expiry scheduler
-//     // startPlanExpiryScheduler();
-//     /// will see if needed
-
-//     // ✅ Local/dev mode: Start HTTP + Socket.IO
-//     if (process.env.NODE_ENV !== "serverless") {
-//       const server = http.createServer(app);
-
-//       const io = new Server(server, {
-//         cors: {
-//           origin: "*", // set frontend domain in production
-//           methods: ["GET", "POST"],
-//         },
-//       });
-
-//       // socketHandler(io);
-
-//       server.listen(PORT, () =>
-//         console.log(`🚀 Server running on http://localhost:${PORT}`)
-//       );
-//     }
-//   } catch (err) {
-//     console.error("Startup Error:", err);
-//   }
-// })();
-
-// // ------------------- SERVERLESS EXPORT -------------------
-// module.exports.handler = serverless(async (event, context) => {
-//   await connectToDatabase();
-//   return app(event, context);
-// });
-
 // (async () => {
 //   console.log("Connecting to MongoDB...");
 
 //   try {
+
 //     console.log("MongoDB URL log:", process.env.MONGO_URL);
+
 
 //     await mongoose.connect(process.env.MONGO_URL);
 //     console.log("MongoDB connected successfully");
-//     // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-//     const http = require("http");
-//     const { Server } = require("socket.io");
-//     const socketHandler = require("./socket/socketHandler"); // create this file
-
-//     const server = http.createServer(app);
-
-//     const io = new Server(server, {
-//       cors: {
-//         origin: "*", // or set to your frontend domain
-//         methods: ["GET", "POST"],
-//       },
-//     });
-
-//     // pass io to socket handler
-//     socketHandler(io);
-
-//     server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+//     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 //   } catch (err) {
 //     console.error("Database connection failed:", err);
 //   }
 // })();
 // module.exports.handler = serverless(app);
+
 
 let isConnected = false;
 
