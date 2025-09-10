@@ -253,6 +253,7 @@ const userSchema = new Schema(
       type: Boolean,
       default: false, // user is inactive until login
     },
+    onFreeTrial: { type: Boolean, default: false }, // track if user is currently on free trial
 
     lastSeen: { type: Date, default: null },
 

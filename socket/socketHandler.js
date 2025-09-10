@@ -41,16 +41,19 @@ const socketHandler = (io) => {
         console.log(`Active users count: ${activeUserIds.size}`);
 
         // Emit updated count to all connected admins
-        emitUserCountChanged(io);
+        await emitUserCountChanged(io);
       } else if (user.role === "superadmin") {
         // Admin connected - send current count immediately
+        const totalUsersCount = await User.countDocuments();
+
         socket.emit("user_count_changed", {
           count: activeUserIds.size,
+          totalUsers: totalUsersCount,
           timestamp: new Date(),
         });
 
         console.log(
-          `Admin connected, sent current count: ${activeUserIds.size}`
+          `Admin connected, sent current count: ${activeUserIds.size}, total users: ${totalUsersCount}`
         );
       }
 
@@ -74,7 +77,7 @@ const socketHandler = (io) => {
               );
 
               // Emit updated count to all connected admins
-              emitUserCountChanged(io);
+              await emitUserCountChanged(io);
             }
           } catch (error) {
             console.error(
@@ -84,7 +87,7 @@ const socketHandler = (io) => {
             // Still try to remove from active users
             if (activeUserIds.has(socket.userId)) {
               activeUserIds.delete(socket.userId);
-              emitUserCountChanged(io);
+              await emitUserCountChanged(io);
             }
           }
         }
@@ -103,14 +106,30 @@ const socketHandler = (io) => {
 };
 
 // Helper function to emit user count changes to all admins
-function emitUserCountChanged(io) {
-  const data = {
-    count: activeUserIds.size,
-    timestamp: new Date(),
-  };
+async function emitUserCountChanged(io) {
+  try {
+    const totalUsersCount = await User.countDocuments();
 
-  io.emit("user_count_changed", data);
-  console.log(`📊 Emitted user_count_changed: ${data.count}`);
+    const data = {
+      count: activeUserIds.size,
+      totalUsers: totalUsersCount,
+      timestamp: new Date(),
+    };
+
+    io.emit("user_count_changed", data);
+    console.log(
+      `📊 Emitted user_count_changed: active=${data.count}, total=${data.totalUsers}`
+    );
+  } catch (error) {
+    console.error("Error fetching total users count:", error);
+    // Fallback to sending just active count
+    const data = {
+      count: activeUserIds.size,
+      timestamp: new Date(),
+    };
+    io.emit("user_count_changed", data);
+    console.log(`📊 Emitted user_count_changed (fallback): ${data.count}`);
+  }
 }
 
 // Safety cleanup function - verify users still exist in database
@@ -143,7 +162,7 @@ async function cleanupInactiveUsers(io) {
       console.log(
         `🧹 Cleanup: Removed ${removedCount} inactive/invalid users. Active count: ${activeUserIds.size}`
       );
-      emitUserCountChanged(io);
+      await emitUserCountChanged(io);
     }
   } catch (error) {
     console.error("Error in cleanup inactive users:", error);

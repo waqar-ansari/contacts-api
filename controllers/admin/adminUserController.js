@@ -1,4 +1,5 @@
 const User = require("../../models/userModel");
+const Plan = require("../../models/planModel");
 const path = require("path");
 const mongoose = require("mongoose");
 const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
@@ -11,32 +12,102 @@ const getAllUsers = async (req, res) => {
   try {
     console.log("Fetching all users");
 
-    const users = await User.find({ role: "user" })
-      .select("firstname lastname email phonenumbers planExpiresAt")
+    // Extract pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Extract search parameter
+    const search = req.query.search || "";
+
+    // Build search query
+    let searchQuery = { role: "user" };
+    if (search) {
+      searchQuery.$or = [
+        { firstname: { $regex: search, $options: "i" } },
+        { lastname: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Get total count for pagination
+    const totalUsers = await User.countDocuments(searchQuery);
+
+    // Fetch users with pagination
+    const users = await User.find(searchQuery)
+      .select(
+        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan"
+      )
       .populate({
         path: "plan",
         select: "name",
-      });
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    const activeCount = await User.countDocuments({
-      role: "user",
-      isActive: true,
+    // Transform users to include onFreeTrial inside plan object
+    const transformedUsers = users.map((user) => {
+      const userObj = user.toObject();
+
+      // If user has a plan, add onFreeTrial to it
+      if (userObj.plan) {
+        userObj.plan.onFreeTrial = userObj.onFreeTrial;
+      } else {
+        // If no plan, create a plan object with onFreeTrial
+        userObj.plan = {
+          name: null,
+          onFreeTrial: userObj.onFreeTrial,
+        };
+      }
+
+      // Remove onFreeTrial from the root level since it's now inside plan
+      delete userObj.onFreeTrial;
+
+      return userObj;
     });
-    const inactiveCount = await User.countDocuments({
-      role: "user",
-      isActive: false,
-    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalUsers / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
 
     res.status(200).json({
       status: "success",
       message: "Users retrieved successfully",
-      count: users.length,
-      activeCount,
-      inactiveCount,
-      data: users,
+      data: transformedUsers,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+      count: transformedUsers.length,
     });
   } catch (err) {
     console.error("Get Users Error:", err);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+// GET all plans for dropdown
+const getAllPlans = async (req, res) => {
+  try {
+    console.log("Fetching all plans for dropdown");
+
+    const plans = await Plan.find({ isActive: true })
+      .select("_id name price pricePeriod")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: "success",
+      message: "Plans retrieved successfully",
+      data: plans,
+    });
+  } catch (err) {
+    console.error("Get Plans Error:", err);
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };
@@ -54,7 +125,7 @@ const getUser = async (req, res) => {
         select: "name",
       })
       .select(
-        "firstname lastname email role gender signupMethod isPremium isVerified referralCode creditBalance profileImageURL designation planExpiresAt createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
+        "firstname lastname email role gender signupMethod isPremium isVerified referralCode creditBalance profileImageURL designation planExpiresAt planActivatedAt onFreeTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
       );
 
     if (!user) {
@@ -150,6 +221,7 @@ const editProfile = async (req, res) => {
       categories = "",
       employeeCount = "",
       companyName = "",
+      planId = "", // Add planId field
 
       apiType = "web", // default to web if not provided
     } = req.body;
@@ -162,7 +234,7 @@ const editProfile = async (req, res) => {
     }
 
     const keys = Object.keys(req.body);
-
+    console.log("Fields to update:", req.body);
     if (keys.includes("firstname")) user.firstname = firstname;
     if (keys.includes("lastname")) user.lastname = lastname;
     // if (keys.includes('email')) user.email = email;
@@ -172,6 +244,32 @@ const editProfile = async (req, res) => {
     if (keys.includes("twitter")) user.twitter = twitter;
     if (keys.includes("facebook")) user.facebook = facebook;
     if (keys.includes("designation")) user.designation = designation;
+
+    // =========================
+    // 🔄 PLAN UPDATE
+    // =========================
+    if (keys.includes("planId")) {
+      if (planId === "" || planId === "null" || planId === null) {
+        // Remove plan (set to null)
+        user.plan = null;
+        user.planExpiresAt = null;
+        user.isPremium = false;
+      } else {
+        // Validate plan exists
+        const planExists = await Plan.findById(planId);
+        if (!planExists) {
+          return res.status(400).json({
+            status: "error",
+            message: "Invalid plan selected",
+          });
+        }
+
+        user.plan = planId;
+        user.isPremium = true;
+        // Set plan expiry to 1 year from now for admin assignments
+        user.planExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      }
+    }
 
     if (keys.includes("email") && email) {
       const trimmedEmail = email.trim().toLowerCase();
@@ -317,6 +415,9 @@ const editProfile = async (req, res) => {
 
     await user.save();
 
+    // Populate the plan information for the response
+    await user.populate("plan", "name price pricePeriod");
+
     return res.status(200).json({
       status: "success",
       message: "Profile updated successfully",
@@ -334,6 +435,7 @@ const editProfile = async (req, res) => {
         profileImageURL: user.profileImageURL,
         designation: user.designation,
         planExpiresAt: user.planExpiresAt,
+        planActivatedAt: user.planActivatedAt,
         createdAt: user.createdAt,
         userInfo: user.userInfo,
         phonenumbers: user.phonenumbers,
@@ -345,6 +447,8 @@ const editProfile = async (req, res) => {
         qrcode: user.qrcode,
         provider: user.provider,
         gender: user.gender,
+        onFreeTrial: user.onFreeTrial,
+        plan: user.plan, // Include plan information
       },
     });
     // }
@@ -354,4 +458,4 @@ const editProfile = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, getUser, editProfile };
+module.exports = { getAllUsers, getUser, editProfile, getAllPlans };

@@ -214,6 +214,7 @@ const signupWithEmail = async (req, res) => {
           const assignedPlan = await Plan.findById(planData.plan);
           if (assignedPlan && assignedPlan.name === "Pro") {
             user.hasUsedProTrial = true;
+            user.onFreeTrial = true; //  on free trial if Pro assigned
           }
         }
       }
