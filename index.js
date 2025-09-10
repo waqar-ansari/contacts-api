@@ -71,7 +71,7 @@ const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const planRoutes = require("./routes/planRoutes");
-const savebulkuser = require("./controllers/savebulkuser")
+const savebulkuser = require("./routes/savebulkuserroutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -156,7 +156,7 @@ app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
-app.use("/savebulkuser", checkForAuthentication(), savebulkuser);
+app.use("/savebulkuser", savebulkuser);
 app.use(
   "/check-duplicate-user",
   checkForAuthentication(),
@@ -289,71 +289,71 @@ app.use("/", (req, res) => {
 
 console.log("Setting up error handling...");
 
-// ------------------- DB CONNECT -------------------
-let isConnected = false;
+// // ------------------- DB CONNECT -------------------
+// let isConnected = false;
 
-const connectToDatabase = async () => {
-  if (isConnected) return;
-  try {
-    console.log("MongoDB URL log:", process.env.MONGO_URL);
-    // await mongoose.connect(process.env.MONGO_URL
+// const connectToDatabase = async () => {
+//   if (isConnected) return;
+//   try {
+//     console.log("MongoDB URL log:", process.env.MONGO_URL);
+//     // await mongoose.connect(process.env.MONGO_URL
 
-    // );
-    await mongoose.connect(process.env.MONGO_URL, {
-      maxPoolSize: 200,   // allow up to 50 concurrent DB connections
-      minPoolSize: 10,   // keep minimum connections ready
-      serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
-    });
-    isConnected = true;
-    console.log("✅ MongoDB connected successfully");
-  } catch (err) {
-    console.error("❌ Database connection failed:", err);
-    throw err;
-  }
-};
+//     // );
+//     await mongoose.connect(process.env.MONGO_URL, {
+//       maxPoolSize: 200,   // allow up to 50 concurrent DB connections
+//       minPoolSize: 10,   // keep minimum connections ready
+//       serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
+//     });
+//     isConnected = true;
+//     console.log("✅ MongoDB connected successfully");
+//   } catch (err) {
+//     console.error("❌ Database connection failed:", err);
+//     throw err;
+//   }
+// };
 
 // ------------------- SOCKET HANDLER -------------------
-const http = require("http");
-const { Server } = require("socket.io");
-// const socketHandler = require("./socket/socketHandler");
-// const { startPlanExpiryScheduler } = require("./utils/planScheduler");
+// const http = require("http");
+// const { Server } = require("socket.io");
+// // const socketHandler = require("./socket/socketHandler");
+// // const { startPlanExpiryScheduler } = require("./utils/planScheduler");
 
-// ------------------- START APP -------------------
-(async () => {
-  try {
-    await connectToDatabase();
+// // ------------------- START APP -------------------
+// (async () => {
+//   try {
+//     await connectToDatabase();
 
-    // Start the plan expiry scheduler
-    // startPlanExpiryScheduler();
-    /// will see if needed
+//     // Start the plan expiry scheduler
+//     // startPlanExpiryScheduler();
+//     /// will see if needed
 
-    // ✅ Local/dev mode: Start HTTP + Socket.IO
-    if (process.env.NODE_ENV !== "serverless") {
-      const server = http.createServer(app);
+//     // ✅ Local/dev mode: Start HTTP + Socket.IO
+//     if (process.env.NODE_ENV !== "serverless") {
+//       const server = http.createServer(app);
 
-      const io = new Server(server, {
-        cors: {
-          origin: "*", // set frontend domain in production
-          methods: ["GET", "POST"],
-        },
-      });
+//       const io = new Server(server, {
+//         cors: {
+//           origin: "*", // set frontend domain in production
+//           methods: ["GET", "POST"],
+//         },
+//       });
 
-      socketHandler(io);
+//       // socketHandler(io);
 
-      server.listen(PORT, () =>
-        console.log(`🚀 Server running on http://localhost:${PORT}`)
-      );
-    }
-  } catch (err) {
-    console.error("Startup Error:", err);
-  }
-})();
+//       server.listen(PORT, () =>
+//         console.log(`🚀 Server running on http://localhost:${PORT}`)
+//       );
+//     }
+//   } catch (err) {
+//     console.error("Startup Error:", err);
+//   }
+// })();
 
-// ------------------- SERVERLESS EXPORT -------------------
-module.exports.handler = serverless(async (event, context) => {
-  await connectToDatabase();
-  return app(event, context);
-});
+// // ------------------- SERVERLESS EXPORT -------------------
+// module.exports.handler = serverless(async (event, context) => {
+//   await connectToDatabase();
+//   return app(event, context);
+// });
 
 // (async () => {
 //   console.log("Connecting to MongoDB...");
@@ -387,30 +387,30 @@ module.exports.handler = serverless(async (event, context) => {
 // })();
 // module.exports.handler = serverless(app);
 
-// // let isConnected = false;
+let isConnected = false;
 
-// // const connectToDatabase = async () => {
-// //   if (isConnected) {
-// //     return;
-// //   }
-// //   try {
-// //     console.log("Console 7 MongoDB URL log:", process.env.MONGO_URL);
-// //     await mongoose.connect(process.env.MONGO_URL, {
-// //       useNewUrlParser: true,
-// //       useUnifiedTopology: true,
+const connectToDatabase = async () => {
+  if (isConnected) {
+    return;
+  }
+  try {
+    console.log("Console 7 MongoDB URL log:", process.env.MONGO_URL);
+    await mongoose.connect(process.env.MONGO_URL, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
 
-// //     });
-// //     isConnected = true;
-// //     console.log("Console 8 MongoDB connected successfully");
-// //   } catch (err) {
-// //     console.error("Console 9 Database connection failed:", err);
-// //     throw err;
-// //   }
-// // };
+    });
+    isConnected = true;
+    console.log("Console 8 MongoDB connected successfully");
+  } catch (err) {
+    console.error("Console 9 Database connection failed:", err);
+    throw err;
+  }
+};
 
-// // console.log("Console 10 last log before export");
+console.log("Console 10 last log before export");
 
-// // module.exports.handler = serverless(async (event, context) => {
-// //   await connectToDatabase();
-// //   return app(event, context);
-// // });
+module.exports.handler = serverless(async (event, context) => {
+  await connectToDatabase();
+  return app(event, context);
+});
