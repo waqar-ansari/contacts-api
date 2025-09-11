@@ -458,4 +458,29 @@ const editProfile = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, getUser, editProfile, getAllPlans };
+// GET users count excluding superadmin
+const getUsersCount = async (req, res) => {
+  try {
+    // Count users where role is not 'superadmin'
+    const totalUsers = await User.countDocuments({
+      role: { $ne: "superadmin" },
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Users count retrieved successfully",
+      data: { totalUsers },
+    });
+  } catch (err) {
+    console.error("Get Users Count Error:", err);
+    return res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+module.exports = {
+  getAllUsers,
+  getUser,
+  editProfile,
+  getAllPlans,
+  getUsersCount,
+};

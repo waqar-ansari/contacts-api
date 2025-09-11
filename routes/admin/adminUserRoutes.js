@@ -9,9 +9,11 @@ const {
   getUser,
   editProfile,
   getAllPlans,
+  getUsersCount,
 } = require("../../controllers/admin/adminUserController");
 
 router.get("/", getAllUsers);
+router.get("/count", getUsersCount); // ✅ get total users count excluding superadmin
 router.get("/plans", getAllPlans); // ✅ get all plans for dropdown
 router.get("/:id", getUser); // ✅ get single user
 router.put("/:id", upload.single("profileImage"), editProfile); // ✅ edit user profile
