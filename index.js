@@ -305,8 +305,6 @@ const connectToDatabase = async () => {
 
 // ------------------- SOCKET HANDLER -------------------
 const http = require("http");
-const { Server } = require("socket.io");
-const socketHandler = require("./socket/socketHandler");
 // const { startPlanExpiryScheduler } = require("./utils/planScheduler");
 
 // ------------------- START APP -------------------
@@ -321,15 +319,6 @@ const socketHandler = require("./socket/socketHandler");
     // ✅ Local/dev mode: Start HTTP + Socket.IO
     if (process.env.NODE_ENV !== "serverless") {
       const server = http.createServer(app);
-
-      const io = new Server(server, {
-        cors: {
-          origin: "*", // set frontend domain in production
-          methods: ["GET", "POST"],
-        },
-      });
-
-      socketHandler(io);
 
       server.listen(PORT, () =>
         console.log(`🚀 Server running on http://localhost:${PORT}`)
