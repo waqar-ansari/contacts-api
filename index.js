@@ -71,7 +71,6 @@ const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const planRoutes = require("./routes/planRoutes");
-const savebulkuser = require("./routes/savebulkuserroutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -156,7 +155,6 @@ app.use("/sendEmail", checkForAuthentication(), sendEmail);
 app.use("/reminders", checkForAuthentication(), reminderRoutes);
 app.use("/user-info", checkForAuthentication(), userInfoRoutes);
 app.use("/shareProfile", getUserCardRoutes);
-app.use("/savebulkuser", savebulkuser);
 app.use(
   "/check-duplicate-user",
   checkForAuthentication(),
@@ -352,44 +350,58 @@ module.exports.handler = serverless(async (event, context) => {
 //   console.log("Connecting to MongoDB...");
 
 //   try {
-
 //     console.log("MongoDB URL log:", process.env.MONGO_URL);
-
 
 //     await mongoose.connect(process.env.MONGO_URL);
 //     console.log("MongoDB connected successfully");
-//     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+//     // app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+//     const http = require("http");
+//     const { Server } = require("socket.io");
+//     const socketHandler = require("./socket/socketHandler"); // create this file
+
+//     const server = http.createServer(app);
+
+//     const io = new Server(server, {
+//       cors: {
+//         origin: "*", // or set to your frontend domain
+//         methods: ["GET", "POST"],
+//       },
+//     });
+
+//     // pass io to socket handler
+//     socketHandler(io);
+
+//     server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 //   } catch (err) {
 //     console.error("Database connection failed:", err);
 //   }
 // })();
 // module.exports.handler = serverless(app);
 
+// // let isConnected = false;
 
-let isConnected = false;
+// // const connectToDatabase = async () => {
+// //   if (isConnected) {
+// //     return;
+// //   }
+// //   try {
+// //     console.log("Console 7 MongoDB URL log:", process.env.MONGO_URL);
+// //     await mongoose.connect(process.env.MONGO_URL, {
+// //       useNewUrlParser: true,
+// //       useUnifiedTopology: true,
 
-const connectToDatabase = async () => {
-  if (isConnected) {
-    return;
-  }
-  try {
-    console.log("Console 7 MongoDB URL log:", process.env.MONGO_URL);
-    await mongoose.connect(process.env.MONGO_URL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+// //     });
+// //     isConnected = true;
+// //     console.log("Console 8 MongoDB connected successfully");
+// //   } catch (err) {
+// //     console.error("Console 9 Database connection failed:", err);
+// //     throw err;
+// //   }
+// // };
 
-    });
-    isConnected = true;
-    console.log("Console 8 MongoDB connected successfully");
-  } catch (err) {
-    console.error("Console 9 Database connection failed:", err);
-    throw err;
-  }
-};
+// // console.log("Console 10 last log before export");
 
-console.log("Console 10 last log before export");
-
-module.exports.handler = serverless(async (event, context) => {
-  await connectToDatabase();
-  return app(event, context);
-});
+// // module.exports.handler = serverless(async (event, context) => {
+// //   await connectToDatabase();
+// //   return app(event, context);
+// // });
