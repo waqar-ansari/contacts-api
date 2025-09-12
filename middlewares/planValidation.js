@@ -16,11 +16,36 @@ const checkPlanStatus = () => {
 
       next();
     } catch (error) {
-      console.error("Error checking plan status(checkPlanStatus middleware):", error);
+      console.error(
+        "Error checking plan status(checkPlanStatus middleware):",
+        error
+      );
       // Continue even if plan check fails - don't block the request
       next();
     }
   };
 };
 
-module.exports = { checkPlanStatus };
+const AdminCheckPlanStatus = () => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.user._id) {
+        return next(); // Skip if no user (should be caught by auth middleware)
+      }
+
+      // Validate and update plan status
+      await validateAndUpdatePlanStatus(req.params.id);
+
+      next();
+    } catch (error) {
+      console.error(
+        "Error checking plan status(checkPlanStatus middleware):",
+        error
+      );
+      // Continue even if plan check fails - don't block the request
+      next();
+    }
+  };
+};
+
+module.exports = { checkPlanStatus, AdminCheckPlanStatus };

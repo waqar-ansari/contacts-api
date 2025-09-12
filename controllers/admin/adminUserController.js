@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../../utils/s3");
-const { userInfo } = require("os");
+const { checkAndHandlePlanExpiryBatch } = require("../../utils/planUtils");
 
 // GET all users
 const getAllUsers = async (req, res) => {
@@ -36,18 +36,27 @@ const getAllUsers = async (req, res) => {
     // Fetch users with pagination
     const users = await User.find(searchQuery)
       .select(
-        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan"
+        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan creditBalance isPremium planActivatedAt"
       )
       .populate({
         path: "plan",
-        select: "name",
+        select: "name price pricePeriod",
       })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
+    // Check and handle plan expiry for all users before transformation
+    const updatedUsers = await Promise.all(
+      users.map(async (user) => {
+        const updatedUser = await checkAndHandlePlanExpiryBatch(user);
+
+        return updatedUser || user; // Return updated user or original if no changes
+      })
+    );
+
     // Transform users to include onFreeTrial inside plan object
-    const transformedUsers = users.map((user) => {
+    const transformedUsers = updatedUsers.map((user) => {
       const userObj = user.toObject();
 
       // If user has a plan, add onFreeTrial to it
@@ -222,6 +231,9 @@ const editProfile = async (req, res) => {
       employeeCount = "",
       companyName = "",
       planId = "", // Add planId field
+      planActivationDate = "", // Plan activation date
+      planExpiryDate = "", // Plan expiry date
+      onFreeTrial = false, // Free trial toggle
 
       apiType = "web", // default to web if not provided
     } = req.body;
@@ -248,26 +260,267 @@ const editProfile = async (req, res) => {
     // =========================
     // 🔄 PLAN UPDATE
     // =========================
-    if (keys.includes("planId")) {
-      if (planId === "" || planId === "null" || planId === null) {
-        // Remove plan (set to null)
-        user.plan = null;
-        user.planExpiresAt = null;
-        user.isPremium = false;
-      } else {
-        // Validate plan exists
-        const planExists = await Plan.findById(planId);
-        if (!planExists) {
+    if (
+      keys.includes("planId") ||
+      keys.includes("onFreeTrial") ||
+      keys.includes("planActivationDate") ||
+      keys.includes("planExpiryDate")
+    ) {
+      const currentDate = new Date();
+
+      // Validate activation date for free trial
+      if (
+        keys.includes("planActivationDate") &&
+        planActivationDate &&
+        keys.includes("onFreeTrial") &&
+        onFreeTrial
+      ) {
+        const activationDate = new Date(planActivationDate);
+
+        // Check if activation date is in the future
+        if (activationDate > currentDate) {
           return res.status(400).json({
             status: "error",
-            message: "Invalid plan selected",
+            message: "Activation date cannot be greater than the current date.",
           });
         }
 
-        user.plan = planId;
-        user.isPremium = true;
-        // Set plan expiry to 1 year from now for admin assignments
-        user.planExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        const expiryDate = new Date(
+          activationDate.getTime() + 14 * 24 * 60 * 60 * 1000
+        );
+
+        if (expiryDate < currentDate) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "Activation date cannot be set such that the 14-day free trial would already be expired.",
+          });
+        }
+      }
+
+      // Validate expiry date when not on free trial
+      if (
+        keys.includes("planExpiryDate") &&
+        planExpiryDate &&
+        (!keys.includes("onFreeTrial") || !onFreeTrial)
+      ) {
+        const expiryDate = new Date(planExpiryDate);
+
+        if (expiryDate <= currentDate) {
+          return res.status(400).json({
+            status: "error",
+            message: "Plan expiry date must be greater than the current date.",
+          });
+        }
+      }
+
+      // Additional validations for non-free trial mode
+      if (!keys.includes("onFreeTrial") || !onFreeTrial) {
+        // Validate activation date cannot be greater than current date
+        if (keys.includes("planActivationDate") && planActivationDate) {
+          const activationDate = new Date(planActivationDate);
+
+          if (activationDate > currentDate) {
+            return res.status(400).json({
+              status: "error",
+              message:
+                "Plan activation date cannot be greater than the current date.",
+            });
+          }
+        }
+
+        // Validate activation and expiry date relationship
+        if (
+          keys.includes("planActivationDate") &&
+          keys.includes("planExpiryDate") &&
+          planActivationDate &&
+          planExpiryDate
+        ) {
+          const activationDate = new Date(planActivationDate);
+          const expiryDate = new Date(planExpiryDate);
+
+          if (activationDate >= expiryDate) {
+            return res.status(400).json({
+              status: "error",
+              message:
+                "Plan activation date must be earlier than the expiry date.",
+            });
+          }
+        }
+
+        // Validate expiry date against existing activation date
+        if (
+          keys.includes("planExpiryDate") &&
+          planExpiryDate &&
+          !keys.includes("planActivationDate")
+        ) {
+          const expiryDate = new Date(planExpiryDate);
+          const existingActivationDate = user.planActivatedAt;
+
+          if (existingActivationDate && expiryDate <= existingActivationDate) {
+            return res.status(400).json({
+              status: "error",
+              message:
+                "Plan expiry date must be later than the current activation date.",
+            });
+          }
+        }
+
+        // Validate activation date against existing expiry date
+        if (
+          keys.includes("planActivationDate") &&
+          planActivationDate &&
+          !keys.includes("planExpiryDate")
+        ) {
+          const activationDate = new Date(planActivationDate);
+          const existingExpiryDate = user.planExpiresAt;
+
+          if (existingExpiryDate && activationDate >= existingExpiryDate) {
+            return res.status(400).json({
+              status: "error",
+              message:
+                "Plan activation date must be earlier than the current expiry date.",
+            });
+          }
+        }
+      }
+
+      // Handle free trial toggle
+      if (keys.includes("onFreeTrial")) {
+        user.onFreeTrial = onFreeTrial;
+
+        if (onFreeTrial) {
+          // If free trial is enabled, allow custom activation date but validate expiry
+          let activationDate;
+
+          if (keys.includes("planActivationDate") && planActivationDate) {
+            activationDate = new Date(planActivationDate);
+          } else {
+            activationDate = user.planActivatedAt || new Date();
+          }
+
+          user.planActivatedAt = activationDate;
+          user.planExpiresAt = new Date(
+            activationDate.getTime() + 14 * 24 * 60 * 60 * 1000
+          ); // 14 days from activation
+          user.isPremium = false; // Free trial users are not premium
+        } else {
+          // If free trial is disabled, handle plan dates normally
+          if (keys.includes("planActivationDate") && planActivationDate) {
+            user.planActivatedAt = new Date(planActivationDate);
+          }
+          if (keys.includes("planExpiryDate") && planExpiryDate) {
+            user.planExpiresAt = new Date(planExpiryDate);
+          }
+        }
+      }
+
+      // Handle plan selection
+      if (keys.includes("planId")) {
+        if (planId === "" || planId === "null" || planId === null) {
+          // Remove plan (set to null)
+          user.plan = null;
+          user.planExpiresAt = null;
+          user.planActivatedAt = null;
+          user.isPremium = false;
+          user.onFreeTrial = false;
+        } else {
+          // Validate plan exists
+          const planExists = await Plan.findById(planId);
+          if (!planExists) {
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid plan selected",
+            });
+          }
+
+          user.plan = planId;
+
+          // Check if this is a starter plan - if so, ignore all date/trial settings
+          const isStarterPlan = planExists.name
+            .toLowerCase()
+            .includes("starter");
+
+          if (isStarterPlan) {
+            // For starter plan: hardcode settings and ignore frontend values
+            user.onFreeTrial = false;
+            user.isPremium = true;
+            user.planActivatedAt = null; // Set to current date
+            user.planExpiresAt = null; // 1 year from now
+          } else {
+            // Handle dates based on free trial status for non-starter plans
+            if (
+              user.onFreeTrial ||
+              (keys.includes("onFreeTrial") && onFreeTrial)
+            ) {
+              user.isPremium = false;
+
+              // Set activation date (allow custom date for free trial)
+              if (keys.includes("planActivationDate") && planActivationDate) {
+                user.planActivatedAt = new Date(planActivationDate);
+              } else if (!user.planActivatedAt) {
+                user.planActivatedAt = new Date();
+              }
+
+              // Always set expiry to 14 days from activation for free trial
+              user.planExpiresAt = new Date(
+                user.planActivatedAt.getTime() + 14 * 24 * 60 * 60 * 1000
+              );
+            } else {
+              user.isPremium = true;
+
+              // Use provided dates or set defaults for paid plans
+              if (keys.includes("planActivationDate") && planActivationDate) {
+                user.planActivatedAt = new Date(planActivationDate);
+              } else if (!user.planActivatedAt) {
+                user.planActivatedAt = new Date(); // Set to now if not provided
+              }
+
+              if (keys.includes("planExpiryDate") && planExpiryDate) {
+                user.planExpiresAt = new Date(planExpiryDate);
+              } else if (!user.planExpiresAt) {
+                // Set plan expiry to 1 year from activation date for admin assignments
+                const activationDate = user.planActivatedAt || new Date();
+                user.planExpiresAt = new Date(
+                  activationDate.getTime() + 365 * 24 * 60 * 60 * 1000
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Handle manual date updates (but not for starter plans)
+      if (user.plan) {
+        const currentPlan = await Plan.findById(user.plan);
+        const isStarterPlan = currentPlan?.name
+          ?.toLowerCase()
+          .includes("starter");
+
+        if (!isStarterPlan) {
+          if (
+            !user.onFreeTrial &&
+            !(keys.includes("onFreeTrial") && onFreeTrial)
+          ) {
+            if (keys.includes("planActivationDate") && planActivationDate) {
+              user.planActivatedAt = new Date(planActivationDate);
+            }
+            if (keys.includes("planExpiryDate") && planExpiryDate) {
+              user.planExpiresAt = new Date(planExpiryDate);
+            }
+          } else if (
+            user.onFreeTrial ||
+            (keys.includes("onFreeTrial") && onFreeTrial)
+          ) {
+            // For free trial, only allow activation date updates, expiry is always calculated
+            if (keys.includes("planActivationDate") && planActivationDate) {
+              user.planActivatedAt = new Date(planActivationDate);
+              user.planExpiresAt = new Date(
+                user.planActivatedAt.getTime() + 14 * 24 * 60 * 60 * 1000
+              );
+            }
+          }
+        }
       }
     }
 
