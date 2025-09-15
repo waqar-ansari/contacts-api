@@ -71,6 +71,7 @@ const zohoContactFetchRoutes = require("./routes/zuhuContactFetchRoutes");
 const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const planRoutes = require("./routes/planRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -83,10 +84,15 @@ const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
 const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
 const testRoutes = require("./routes/testRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
 
 console.log("Setting up Express app...");
 
 app.use(cors());
+
+// Webhook routes must be defined before JSON parsing middleware
+// because Stripe needs raw body for signature verification
+app.use("/webhooks", webhookRoutes);
 
 // app.use(express.json());
 // app.use(express.json({ limit: '50mb' })); // or higher if needed
@@ -186,6 +192,7 @@ app.use(
   helpSupportRoutes
 );
 // app.use("/plans", checkForAuthentication(), planRoutes);
+app.use("/user/payment", checkForAuthentication(), paymentRoutes);
 app.use(
   "/fetch-google-contacts",
   (req, res, next) => {

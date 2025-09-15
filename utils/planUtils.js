@@ -148,10 +148,59 @@ async function setupInitialPlan(user = null, plan = null) {
 }
 
 /**
- * Check if user's plan has expired and handle accordingly
- * @param {Object} user - User object
- * @returns {Object} Updated user data or null if no changes needed
+ * Find the most expensive plan from remaining days array
+ * @param {Array} remainingDaysArray - Array of remaining days objects
+ * @returns {Object|null} Most expensive plan with remaining days or null
  */
+function findMostExpensivePlanWithRemainingDays(remainingDaysArray) {
+  if (!remainingDaysArray || remainingDaysArray.length === 0) return null;
+
+  return remainingDaysArray
+    .filter((item) => item.days > 0)
+    .sort(
+      (a, b) => (b.planSnapshot?.price || 0) - (a.planSnapshot?.price || 0)
+    )[0];
+}
+
+/**
+ * Apply stored remaining days from most expensive plan
+ * @param {Object} user - User object
+ * @param {Date} baseExpiryDate - Base expiry date to extend
+ * @returns {Object} { newExpiryDate, usedRemainingDays, updatedRemainingDays }
+ */
+function applyStoredRemainingDaysUtil(user, baseExpiryDate) {
+  const mostExpensivePlan = findMostExpensivePlanWithRemainingDays(
+    user.remainingDays || []
+  );
+
+  if (!mostExpensivePlan) {
+    return {
+      newExpiryDate: baseExpiryDate,
+      usedRemainingDays: null,
+      updatedRemainingDays: user.remainingDays || [],
+    };
+  }
+
+  // Calculate new expiry date by adding remaining days
+  const newExpiryDate = new Date(baseExpiryDate);
+  newExpiryDate.setDate(newExpiryDate.getDate() + mostExpensivePlan.days);
+
+  // Update remaining days array to remove used days
+  const updatedRemainingDays = (user.remainingDays || [])
+    .map((item) => {
+      if (item.planId.toString() === mostExpensivePlan.planId.toString()) {
+        return { ...item, days: 0 }; // Mark as used
+      }
+      return item;
+    })
+    .filter((item) => item.days > 0); // Remove entries with 0 days
+
+  return {
+    newExpiryDate,
+    usedRemainingDays: mostExpensivePlan,
+    updatedRemainingDays,
+  };
+}
 async function checkAndHandlePlanExpiry(user) {
   try {
     if (!user.plan || !user.planExpiresAt) {
@@ -169,7 +218,54 @@ async function checkAndHandlePlanExpiry(user) {
     }
     // Check if plan has expired
     else if (user.planExpiresAt <= now) {
-      // Check if user has credits for auto-upgrade to Pro
+      // Check for auto-renewal first
+      if (user.autoRenewal) {
+        const renewalCost = currentPlan.price;
+
+        // Try to renew with credits first (all or nothing)
+        if (user.creditBalance >= renewalCost) {
+          const newExpiryDate = calculateExpiryDate(
+            now,
+            currentPlan.pricePeriod
+          );
+
+          const updatedUser = await User.findByIdAndUpdate(
+            user._id,
+            {
+              planActivatedAt: now,
+              planExpiresAt: newExpiryDate,
+              creditBalance: user.creditBalance - renewalCost,
+              // Add remaining days from stored value if any
+              remainingDays: user.remainingDays || 0,
+            },
+            { new: true }
+          ).populate({
+            path: "plan",
+            select: "name price pricePeriod",
+          });
+
+          console.log(
+            `Auto-renewed user ${user._id} plan using ${renewalCost} credits`
+          );
+          return updatedUser;
+        } else {
+          console.log(
+            `User ${user._id} has insufficient credits (${user.creditBalance}) for auto-renewal (requires ${renewalCost}).`
+          );
+
+          // TODO: Implement Stripe auto-renewal here
+          // For now, disable auto-renewal when credits insufficient
+          // In production, this should trigger Stripe subscription payment
+          console.log(
+            `Auto-renewal disabled for user ${user._id} due to insufficient credits. Stripe auto-renewal not yet implemented.`
+          );
+
+          // Disable auto-renewal and continue with normal expiry logic
+          await User.findByIdAndUpdate(user._id, { autoRenewal: false });
+        }
+      }
+
+      // Check if user has credits for auto-upgrade to Pro (existing logic)
       const proPlan = await getProPlan();
 
       if (!proPlan) {
@@ -195,6 +291,8 @@ async function checkAndHandlePlanExpiry(user) {
               trialEnd: null,
               onFreeTrial: false,
               hasUsedProTrial: true, // Mark trial as used (they're now paying with credits)
+              // Preserve any remaining days from previous plan
+              remainingDays: user.remainingDays || 0,
             },
             { new: true }
           ).populate({
@@ -213,24 +311,32 @@ async function checkAndHandlePlanExpiry(user) {
         }
       }
 
-      // Revert to Starter plan
+      // Revert to Starter plan and handle remaining days
       const starterPlan = await getStarterPlan();
 
       if (starterPlan) {
-        const updatedUser = await User.findByIdAndUpdate(
-          user._id,
-          {
-            plan: starterPlan._id,
-            planActivatedAt: null,
-            planExpiresAt: null, // Starter plan doesn't expire
-            isPremium: false,
-            onFreeTrial: false,
+        const updateData = {
+          plan: starterPlan._id,
+          planActivatedAt: null,
+          planExpiresAt: null, // Starter plan doesn't expire
+          isPremium: false,
+          onFreeTrial: false,
+          trialStart: null,
+          trialEnd: null,
+        };
 
-            trialStart: null,
-            trialEnd: null,
-          },
-          { new: true }
-        ).populate({
+        // If user had remaining days from previous plan, add them to when the starter plan expires
+        if (user.remainingDays > 0) {
+          console.log(
+            `User ${user._id} has ${user.remainingDays} remaining days from previous plan`
+          );
+          // For now, we'll just store the remaining days - they can be applied when user upgrades again
+          updateData.remainingDays = user.remainingDays;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(user._id, updateData, {
+          new: true,
+        }).populate({
           path: "plan",
           select: "name price pricePeriod",
         });
@@ -272,6 +378,53 @@ async function checkAndHandlePlanExpiryBatch(user) {
 
     // Check if plan has expired
     if (user.planExpiresAt <= now) {
+      // Check for auto-renewal first
+      if (user.autoRenewal) {
+        const renewalCost = currentPlan.price;
+
+        // Try to renew with credits first (all or nothing)
+        if (user.creditBalance >= renewalCost) {
+          const newExpiryDate = calculateExpiryDate(
+            now,
+            currentPlan.pricePeriod
+          );
+
+          const updatedUser = await User.findByIdAndUpdate(
+            user._id,
+            {
+              planActivatedAt: now,
+              planExpiresAt: newExpiryDate,
+              creditBalance: user.creditBalance - renewalCost,
+              // Add remaining days from stored value if any
+              remainingDays: user.remainingDays || 0,
+            },
+            { new: true }
+          ).populate({
+            path: "plan",
+            select: "name price pricePeriod",
+          });
+
+          console.log(
+            `Auto-renewed user ${user._id} plan using ${renewalCost} credits`
+          );
+          return updatedUser;
+        } else {
+          console.log(
+            `User ${user._id} has insufficient credits (${user.creditBalance}) for auto-renewal (requires ${renewalCost}).`
+          );
+
+          // TODO: Implement Stripe auto-renewal here
+          // For now, disable auto-renewal when credits insufficient
+          // In production, this should trigger Stripe subscription payment
+          console.log(
+            `Auto-renewal disabled for user ${user._id} due to insufficient credits. Stripe auto-renewal not yet implemented.`
+          );
+
+          // Disable auto-renewal and continue with normal expiry logic
+          await User.findByIdAndUpdate(user._id, { autoRenewal: false });
+        }
+      }
+
       // Check if user has credits for auto-upgrade to Pro
       const proPlan = await getProPlan();
 
@@ -297,8 +450,9 @@ async function checkAndHandlePlanExpiryBatch(user) {
               trialStart: null, // Not a trial anymore
               trialEnd: null,
               onFreeTrial: false,
-
               hasUsedProTrial: true, // Mark trial as used (they're now paying with credits)
+              // Preserve any remaining days from previous plan
+              remainingDays: user.remainingDays || 0,
             },
             { new: true }
           ).populate({
@@ -317,24 +471,31 @@ async function checkAndHandlePlanExpiryBatch(user) {
         }
       }
 
-      // Revert to Starter plan
+      // Revert to Starter plan and handle remaining days
       const starterPlan = await getStarterPlan();
 
       if (starterPlan) {
-        const updatedUser = await User.findByIdAndUpdate(
-          user._id,
-          {
-            plan: starterPlan._id,
-            planActivatedAt: null,
-            planExpiresAt: null, // Starter plan doesn't expire
-            isPremium: false,
-            onFreeTrial: false,
+        const updateData = {
+          plan: starterPlan._id,
+          planActivatedAt: null,
+          planExpiresAt: null, // Starter plan doesn't expire
+          isPremium: false,
+          onFreeTrial: false,
+          trialStart: null,
+          trialEnd: null,
+        };
 
-            trialStart: null,
-            trialEnd: null,
-          },
-          { new: true }
-        ).populate({
+        // If user had remaining days from previous plan, preserve them
+        if (user.remainingDays > 0) {
+          console.log(
+            `User ${user._id} has ${user.remainingDays} remaining days from previous plan`
+          );
+          updateData.remainingDays = user.remainingDays;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(user._id, updateData, {
+          new: true,
+        }).populate({
           path: "plan",
           select: "name price pricePeriod",
         });

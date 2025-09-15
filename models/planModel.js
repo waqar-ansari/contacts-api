@@ -15,7 +15,7 @@ const planSchema = new mongoose.Schema(
     },
     pricePeriod: {
       type: String,
-      enum: ["month", "year", "lifetime", "custom"],
+      enum: ["month", "year", "lifetime"],
       default: "month",
     },
     description: {

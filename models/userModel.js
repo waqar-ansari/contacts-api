@@ -249,6 +249,37 @@ const userSchema = new Schema(
     },
     planActivatedAt: { type: Date, default: null },
     planExpiresAt: { type: Date, default: null },
+    autoRenewal: { type: Boolean, default: false }, // Track if user has auto-renewal enabled
+
+    // Store remaining days from previous plans for mid-cycle upgrades
+    // Array to handle multiple plan upgrades and dynamic plans
+    remainingDays: {
+      type: [
+        {
+          planId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Plan",
+            required: true,
+          },
+          days: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          storedAt: {
+            type: Date,
+            default: Date.now,
+          },
+          // Store the plan details at time of storage for reference
+          planSnapshot: {
+            name: String,
+            price: Number,
+            pricePeriod: String,
+          },
+        },
+      ],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: false, // user is inactive until login
