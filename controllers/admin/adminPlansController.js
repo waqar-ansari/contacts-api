@@ -59,20 +59,16 @@ const createPlan = async (req, res) => {
     } = req.body;
     // Validate required fields
     if (!name || typeof name !== "string") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Name is required and must be a string",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Name is required and must be a string",
+      });
     }
     if (price === undefined || typeof price !== "number" || price < 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Price is required and must be a non-negative number",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Price is required and must be a non-negative number",
+      });
     }
     if (pricePeriod && typeof pricePeriod !== "string") {
       return res
@@ -87,12 +83,10 @@ const createPlan = async (req, res) => {
     // Check if plan already exists
     const planExists = await Plan.findOne({ name });
     if (planExists) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Plan with this name already exists",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Plan with this name already exists",
+      });
     }
     const plan = await Plan.create({
       name,
@@ -103,13 +97,11 @@ const createPlan = async (req, res) => {
       isPopular: isPopular || false,
       isActive: isActive || true,
     });
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "Plan created successfully",
-        data: plan,
-      });
+    res.status(201).json({
+      success: true,
+      message: "Plan created successfully",
+      data: plan,
+    });
   } catch (error) {
     res
       .status(500)
@@ -133,6 +125,20 @@ const updatePlan = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Plan not found" });
     }
+
+    // Prevent editing the name of Starter or Pro plans
+    if (
+      (plan.name === "Starter" || plan.name === "Pro") &&
+      ((req.body.name && req.body.name !== plan.name) ||
+        (Object.prototype.hasOwnProperty.call(req.body, "isActive") &&
+          req.body.isActive !== plan.isActive))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: `Cannot change the name or active status of ${plan.name} plan. This is a protected plan.`,
+      });
+    }
+
     // Validate fields if present
     if (req.body.name && typeof req.body.name !== "string") {
       return res
@@ -143,12 +149,10 @@ const updatePlan = async (req, res) => {
       req.body.price !== undefined &&
       (typeof req.body.price !== "number" || req.body.price < 0)
     ) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Price must be a non-negative number",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Price must be a non-negative number",
+      });
     }
     if (req.body.pricePeriod && typeof req.body.pricePeriod !== "string") {
       return res
@@ -164,12 +168,10 @@ const updatePlan = async (req, res) => {
     if (req.body.name && req.body.name !== plan.name) {
       const planExists = await Plan.findOne({ name: req.body.name });
       if (planExists) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Plan with this name already exists",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Plan with this name already exists",
+        });
       }
     }
     const updatedPlan = await Plan.findByIdAndUpdate(req.params.id, req.body, {
@@ -204,6 +206,15 @@ const deletePlan = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Plan not found" });
     }
+
+    // Prevent deletion of Starter or Pro plans
+    if (plan.name === "Starter" || plan.name === "Pro") {
+      return res.status(403).json({
+        success: false,
+        message: `Cannot delete ${plan.name} plan. This is a protected plan.`,
+      });
+    }
+
     await Plan.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: "Plan deleted successfully" });
   } catch (error) {

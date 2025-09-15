@@ -426,13 +426,20 @@ const editProfile = async (req, res) => {
           user.onFreeTrial = false;
         } else {
           // Validate plan exists
-          const planExists = await Plan.findById(planId);
-          if (!planExists) {
+            const planExists = await Plan.findById(planId);
+            if (!planExists) {
             return res.status(400).json({
               status: "error",
               message: "Invalid plan selected",
             });
-          }
+            }
+
+            if (!planExists.isActive) {
+            return res.status(400).json({
+              status: "error",
+              message: "Selected plan is not active",
+            });
+            }
 
           user.plan = planId;
 

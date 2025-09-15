@@ -19,12 +19,7 @@ async function testEmailVerificationFlow() {
     // Test 1: Check setupInitialPlan function
     console.log("\n📋 Test 1: Setup Initial Plan Function");
     const planData = await setupInitialPlan();
-    console.log("Plan data structure:", {
-      hasPlan: !!planData.plan,
-      isPremium: planData.isPremium,
-      hasTrialDates: !!(planData.trialStart && planData.trialEnd),
-      hasExpiryDate: !!planData.planExpiresAt,
-    });
+ 
 
     // Test 2: Verify plan exists in database
     if (planData.plan) {
