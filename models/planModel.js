@@ -22,7 +22,17 @@ const planSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-   
+
+    // Stripe integration fields
+    stripePriceId: {
+      type: String,
+      sparse: true, // Allow null/undefined but ensure uniqueness when present
+    },
+    stripeProductId: {
+      type: String,
+      sparse: true,
+    },
+
     features: [
       {
         text: { type: String, required: true },

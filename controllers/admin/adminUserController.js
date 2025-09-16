@@ -6,6 +6,13 @@ const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../../utils/s3");
 const { checkAndHandlePlanExpiryBatch } = require("../../utils/planUtils");
+const {
+  getOrCreateStripeCustomer,
+  getStripeCreditBalance,
+  createStripeSubscription,
+  cancelStripeSubscription,
+  updateStripeSubscriptionPrice,
+} = require("../../utils/stripeUtils");
 
 // GET all users
 const getAllUsers = async (req, res) => {
@@ -36,7 +43,7 @@ const getAllUsers = async (req, res) => {
     // Fetch users with pagination
     const users = await User.find(searchQuery)
       .select(
-        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan creditBalance isPremium planActivatedAt"
+        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan isPremium planActivatedAt"
       )
       .populate({
         path: "plan",
@@ -134,7 +141,7 @@ const getUser = async (req, res) => {
         select: "name",
       })
       .select(
-        "firstname lastname email role gender signupMethod isPremium isVerified referralCode creditBalance profileImageURL designation planExpiresAt planActivatedAt onFreeTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
+        "firstname lastname email role gender signupMethod isPremium isVerified referralCode profileImageURL designation planExpiresAt planActivatedAt onFreeTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
       );
 
     if (!user) {
@@ -231,10 +238,7 @@ const editProfile = async (req, res) => {
       employeeCount = "",
       companyName = "",
       planId = "", // Add planId field
-      planActivationDate = "", // Plan activation date
-      planExpiryDate = "", // Plan expiry date
-      onFreeTrial = false, // Free trial toggle
-
+      onFreeTrial = false, // Free trial toggle for Stripe subscriptions
       apiType = "web", // default to web if not provided
     } = req.body;
 
@@ -258,276 +262,133 @@ const editProfile = async (req, res) => {
     if (keys.includes("designation")) user.designation = designation;
 
     // =========================
-    // 🔄 PLAN UPDATE
+    // 🔄 PLAN UPDATE - STRIPE INTEGRATED
     // =========================
-    if (
-      keys.includes("planId") ||
-      keys.includes("onFreeTrial") ||
-      keys.includes("planActivationDate") ||
-      keys.includes("planExpiryDate")
-    ) {
-      const currentDate = new Date();
-
-      // Validate activation date for free trial
-      if (
-        keys.includes("planActivationDate") &&
-        planActivationDate &&
-        keys.includes("onFreeTrial") &&
-        onFreeTrial
-      ) {
-        const activationDate = new Date(planActivationDate);
-
-        // Check if activation date is in the future
-        if (activationDate > currentDate) {
-          return res.status(400).json({
-            status: "error",
-            message: "Activation date cannot be greater than the current date.",
-          });
-        }
-
-        const expiryDate = new Date(
-          activationDate.getTime() + 14 * 24 * 60 * 60 * 1000
-        );
-
-        if (expiryDate < currentDate) {
-          return res.status(400).json({
-            status: "error",
-            message:
-              "Activation date cannot be set such that the 14-day free trial would already be expired.",
-          });
-        }
-      }
-
-      // Validate expiry date when not on free trial
-      if (
-        keys.includes("planExpiryDate") &&
-        planExpiryDate &&
-        (!keys.includes("onFreeTrial") || !onFreeTrial)
-      ) {
-        const expiryDate = new Date(planExpiryDate);
-
-        if (expiryDate <= currentDate) {
-          return res.status(400).json({
-            status: "error",
-            message: "Plan expiry date must be greater than the current date.",
-          });
-        }
-      }
-
-      // Additional validations for non-free trial mode
-      if (!keys.includes("onFreeTrial") || !onFreeTrial) {
-        // Validate activation date cannot be greater than current date
-        if (keys.includes("planActivationDate") && planActivationDate) {
-          const activationDate = new Date(planActivationDate);
-
-          if (activationDate > currentDate) {
-            return res.status(400).json({
-              status: "error",
-              message:
-                "Plan activation date cannot be greater than the current date.",
-            });
-          }
-        }
-
-        // Validate activation and expiry date relationship
-        if (
-          keys.includes("planActivationDate") &&
-          keys.includes("planExpiryDate") &&
-          planActivationDate &&
-          planExpiryDate
-        ) {
-          const activationDate = new Date(planActivationDate);
-          const expiryDate = new Date(planExpiryDate);
-
-          if (activationDate >= expiryDate) {
-            return res.status(400).json({
-              status: "error",
-              message:
-                "Plan activation date must be earlier than the expiry date.",
-            });
-          }
-        }
-
-        // Validate expiry date against existing activation date
-        if (
-          keys.includes("planExpiryDate") &&
-          planExpiryDate &&
-          !keys.includes("planActivationDate")
-        ) {
-          const expiryDate = new Date(planExpiryDate);
-          const existingActivationDate = user.planActivatedAt;
-
-          if (existingActivationDate && expiryDate <= existingActivationDate) {
-            return res.status(400).json({
-              status: "error",
-              message:
-                "Plan expiry date must be later than the current activation date.",
-            });
-          }
-        }
-
-        // Validate activation date against existing expiry date
-        if (
-          keys.includes("planActivationDate") &&
-          planActivationDate &&
-          !keys.includes("planExpiryDate")
-        ) {
-          const activationDate = new Date(planActivationDate);
-          const existingExpiryDate = user.planExpiresAt;
-
-          if (existingExpiryDate && activationDate >= existingExpiryDate) {
-            return res.status(400).json({
-              status: "error",
-              message:
-                "Plan activation date must be earlier than the current expiry date.",
-            });
-          }
-        }
-      }
-
-      // Handle free trial toggle
-      if (keys.includes("onFreeTrial")) {
-        user.onFreeTrial = onFreeTrial;
-
-        if (onFreeTrial) {
-          // If free trial is enabled, allow custom activation date but validate expiry
-          let activationDate;
-
-          if (keys.includes("planActivationDate") && planActivationDate) {
-            activationDate = new Date(planActivationDate);
-          } else {
-            activationDate = user.planActivatedAt || new Date();
-          }
-
-          user.planActivatedAt = activationDate;
-          user.planExpiresAt = new Date(
-            activationDate.getTime() + 14 * 24 * 60 * 60 * 1000
-          ); // 14 days from activation
-          user.isPremium = false; // Free trial users are not premium
-        } else {
-          // If free trial is disabled, handle plan dates normally
-          if (keys.includes("planActivationDate") && planActivationDate) {
-            user.planActivatedAt = new Date(planActivationDate);
-          }
-          if (keys.includes("planExpiryDate") && planExpiryDate) {
-            user.planExpiresAt = new Date(planExpiryDate);
-          }
-        }
-      }
-
-      // Handle plan selection
-      if (keys.includes("planId")) {
+    if (keys.includes("planId")) {
+      try {
         if (planId === "" || planId === "null" || planId === null) {
-          // Remove plan (set to null)
-          user.plan = null;
-          user.planExpiresAt = null;
-          user.planActivatedAt = null;
-          user.isPremium = false;
-          user.onFreeTrial = false;
+          // Remove plan - cancel Stripe subscription
+          if (user.stripeSubscriptionId) {
+            await cancelStripeSubscription(user.stripeSubscriptionId);
+          }
+
+          // Set to Starter plan
+          const starterPlan = await Plan.findOne({
+            name: "Starter",
+            isActive: true,
+          });
+          if (starterPlan) {
+            user.plan = starterPlan._id;
+            user.isPremium = false;
+            user.onFreeTrial = false;
+            // Clear Stripe subscription data
+            user.stripeSubscriptionId = null;
+            user.stripeSubscriptionStatus = null;
+            user.stripeCurrentPeriodStart = null;
+            user.stripeCurrentPeriodEnd = null;
+            user.stripeCancelAtPeriodEnd = false;
+          }
         } else {
           // Validate plan exists
-            const planExists = await Plan.findById(planId);
-            if (!planExists) {
+          const selectedPlan = await Plan.findById(planId);
+          if (!selectedPlan) {
             return res.status(400).json({
               status: "error",
               message: "Invalid plan selected",
             });
-            }
+          }
 
-            if (!planExists.isActive) {
+          if (!selectedPlan.isActive) {
             return res.status(400).json({
               status: "error",
               message: "Selected plan is not active",
             });
-            }
+          }
 
-          user.plan = planId;
-
-          // Check if this is a starter plan - if so, ignore all date/trial settings
-          const isStarterPlan = planExists.name
+          // Check if this is a starter plan
+          const isStarterPlan = selectedPlan.name
             .toLowerCase()
             .includes("starter");
 
           if (isStarterPlan) {
-            // For starter plan: hardcode settings and ignore frontend values
+            // Cancel any existing subscription for starter plan
+            if (user.stripeSubscriptionId) {
+              await cancelStripeSubscription(user.stripeSubscriptionId);
+            }
+
+            user.plan = selectedPlan._id;
+            user.isPremium = false;
             user.onFreeTrial = false;
-            user.isPremium = true;
-            user.planActivatedAt = null; // Set to current date
-            user.planExpiresAt = null; // 1 year from now
+            // Clear Stripe subscription data
+            user.stripeSubscriptionId = null;
+            user.stripeSubscriptionStatus = null;
+            user.stripeCurrentPeriodStart = null;
+            user.stripeCurrentPeriodEnd = null;
+            user.stripeCancelAtPeriodEnd = false;
           } else {
-            // Handle dates based on free trial status for non-starter plans
-            if (
-              user.onFreeTrial ||
-              (keys.includes("onFreeTrial") && onFreeTrial)
-            ) {
-              user.isPremium = false;
+            // For premium plans, create/update Stripe subscription
+            const stripeCustomer = await getOrCreateStripeCustomer(user);
 
-              // Set activation date (allow custom date for free trial)
-              if (keys.includes("planActivationDate") && planActivationDate) {
-                user.planActivatedAt = new Date(planActivationDate);
-              } else if (!user.planActivatedAt) {
-                user.planActivatedAt = new Date();
-              }
+            if (!selectedPlan.stripePriceId) {
+              return res.status(400).json({
+                status: "error",
+                message: "Selected plan is not configured with Stripe pricing",
+              });
+            }
 
-              // Always set expiry to 14 days from activation for free trial
-              user.planExpiresAt = new Date(
-                user.planActivatedAt.getTime() + 14 * 24 * 60 * 60 * 1000
+            let subscription;
+
+            if (user.stripeSubscriptionId) {
+              // Update existing subscription
+              subscription = await updateStripeSubscriptionPrice(
+                user.stripeSubscriptionId,
+                selectedPlan.stripePriceId
               );
             } else {
-              user.isPremium = true;
-
-              // Use provided dates or set defaults for paid plans
-              if (keys.includes("planActivationDate") && planActivationDate) {
-                user.planActivatedAt = new Date(planActivationDate);
-              } else if (!user.planActivatedAt) {
-                user.planActivatedAt = new Date(); // Set to now if not provided
-              }
-
-              if (keys.includes("planExpiryDate") && planExpiryDate) {
-                user.planExpiresAt = new Date(planExpiryDate);
-              } else if (!user.planExpiresAt) {
-                // Set plan expiry to 1 year from activation date for admin assignments
-                const activationDate = user.planActivatedAt || new Date();
-                user.planExpiresAt = new Date(
-                  activationDate.getTime() + 365 * 24 * 60 * 60 * 1000
-                );
-              }
-            }
-          }
-        }
-      }
-
-      // Handle manual date updates (but not for starter plans)
-      if (user.plan) {
-        const currentPlan = await Plan.findById(user.plan);
-        const isStarterPlan = currentPlan?.name
-          ?.toLowerCase()
-          .includes("starter");
-
-        if (!isStarterPlan) {
-          if (
-            !user.onFreeTrial &&
-            !(keys.includes("onFreeTrial") && onFreeTrial)
-          ) {
-            if (keys.includes("planActivationDate") && planActivationDate) {
-              user.planActivatedAt = new Date(planActivationDate);
-            }
-            if (keys.includes("planExpiryDate") && planExpiryDate) {
-              user.planExpiresAt = new Date(planExpiryDate);
-            }
-          } else if (
-            user.onFreeTrial ||
-            (keys.includes("onFreeTrial") && onFreeTrial)
-          ) {
-            // For free trial, only allow activation date updates, expiry is always calculated
-            if (keys.includes("planActivationDate") && planActivationDate) {
-              user.planActivatedAt = new Date(planActivationDate);
-              user.planExpiresAt = new Date(
-                user.planActivatedAt.getTime() + 14 * 24 * 60 * 60 * 1000
+              // Create new subscription
+              const hasTrialOption =
+                keys.includes("onFreeTrial") && onFreeTrial;
+              subscription = await createStripeSubscription(
+                stripeCustomer.id,
+                selectedPlan.stripePriceId,
+                hasTrialOption ? 14 : 0 // 14 day trial if requested
               );
             }
+
+            // Update user with Stripe subscription data
+            user.plan = selectedPlan._id;
+            user.isPremium =
+              subscription.status === "active" ||
+              subscription.status === "trialing";
+            user.onFreeTrial = subscription.status === "trialing";
+            user.stripeSubscriptionId = subscription.id;
+            user.stripeSubscriptionStatus = subscription.status;
+            user.stripeCurrentPeriodStart = new Date(
+              subscription.current_period_start * 1000
+            );
+            user.stripeCurrentPeriodEnd = new Date(
+              subscription.current_period_end * 1000
+            );
+            user.stripeCancelAtPeriodEnd = subscription.cancel_at_period_end;
+
+            // Remove backend date management - Stripe handles this
+            user.planActivatedAt = user.stripeCurrentPeriodStart;
+            user.planExpiresAt = user.stripeCurrentPeriodEnd;
           }
         }
+
+        console.log(
+          `Admin updated plan for user ${user._id} to ${
+            selectedPlan?.name || "Starter"
+          } via Stripe`
+        );
+      } catch (stripeError) {
+        console.error("Stripe integration error:", stripeError);
+        return res.status(500).json({
+          status: "error",
+          message:
+            "Failed to update subscription in Stripe: " + stripeError.message,
+        });
       }
     }
 
@@ -678,6 +539,9 @@ const editProfile = async (req, res) => {
     // Populate the plan information for the response
     await user.populate("plan", "name price pricePeriod");
 
+    // Get Stripe credit balance
+    const stripeCreditBalance = await getStripeCreditBalance(user._id);
+
     return res.status(200).json({
       status: "success",
       message: "Profile updated successfully",
@@ -691,11 +555,13 @@ const editProfile = async (req, res) => {
         isPremium: user.isPremium,
         isVerified: user.isVerified,
         referralCode: user.referralCode,
-        creditBalance: user.creditBalance,
+        creditBalance: stripeCreditBalance,
         profileImageURL: user.profileImageURL,
         designation: user.designation,
-        planExpiresAt: user.planExpiresAt,
-        planActivatedAt: user.planActivatedAt,
+        // Plan dates from Stripe subscription
+        planExpiresAt: user.stripeCurrentPeriodEnd || user.planExpiresAt,
+        planActivatedAt: user.stripeCurrentPeriodStart || user.planActivatedAt,
+        subscriptionStatus: user.stripeSubscriptionStatus,
         createdAt: user.createdAt,
         userInfo: user.userInfo,
         phonenumbers: user.phonenumbers,

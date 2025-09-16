@@ -6,6 +6,10 @@ const { getNextSerialNumber } = require("../utils/serialUtils");
 // const { generateUserQRCode } = require("../utils/qrUtils");
 const crypto = require("crypto");
 const { sendVerificationEmail } = require("../utils/emailUtils");
+const {
+  getOrCreateStripeCustomer,
+  addStripeCredits,
+} = require("../utils/stripeUtils");
 const googleClient = new OAuth2Client(
   "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com"
 );
@@ -106,29 +110,34 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   }
 
   if (needSaveReferrer) {
-    // increment referrer credits and save
-    referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+    // Add credits to referrer using Stripe billing credits
+    try {
+      const referrerCustomer = await getOrCreateStripeCustomer(referrer);
+      await addStripeCredits(
+        referrerCustomer.id,
+        1000,
+        "Referral bonus - new user signup"
+      ); // $10 in cents
+      console.log(
+        `Added $10 credit to referrer ${referrer._id} for referring ${referredUser._id}`
+      );
+    } catch (error) {
+      console.error("Error adding Stripe credits to referrer:", error);
+    }
     await referrer.save();
   }
 
-  // Also add credit to referredUser if not already applied
+  // Also add credit to referredUser
   try {
-    // (Don't overwrite existing credited value — only add if < 10)
-    if (!referredUser.creditBalance || referredUser.creditBalance < 10) {
-      referredUser.creditBalance = (referredUser.creditBalance || 0) + 10;
-      // If referredUser is a mongoose doc in calling scope, caller should save; else save here.
-      if (typeof referredUser.save === "function") {
-        await referredUser.save();
-      } else {
-        await User.updateOne(
-          { _id: referredUser._id },
-          { $set: { creditBalance: referredUser.creditBalance } }
-        );
-      }
-    }
-  } catch (err) {
-    // safe to continue even if credit update fails
-    console.error("Failed to credit referred user:", err.message);
+    const referredCustomer = await getOrCreateStripeCustomer(referredUser);
+    await addStripeCredits(
+      referredCustomer.id,
+      1000,
+      "Welcome bonus - signup with referral"
+    ); // $10 in cents
+    console.log(`Added $10 welcome credit to new user ${referredUser._id}`);
+  } catch (error) {
+    console.error("Error adding Stripe credits to referred user:", error);
   }
 
   // Create ReferralLog if not exists (by email or phone)
@@ -1411,10 +1420,37 @@ const unifiedLogin = async (req, res) => {
                 phonenumbers: user.phonenumbers || [],
                 signupDate: new Date(),
               });
-              referrer.creditBalance = (referrer.creditBalance || 0) + 10;
+
+              // Add credits to referrer using Stripe billing credits
+              try {
+                const referrerCustomer = await getOrCreateStripeCustomer(
+                  referrer
+                );
+                await addStripeCredits(
+                  referrerCustomer.id,
+                  1000,
+                  "Referral bonus - phone verification"
+                ); // $10 in cents
+              } catch (error) {
+                console.error(
+                  "Error adding Stripe credits to referrer:",
+                  error
+                );
+              }
               await referrer.save();
             }
-            user.creditBalance = (user.creditBalance || 0) + 10;
+
+            // Add credits to user using Stripe billing credits
+            try {
+              const userCustomer = await getOrCreateStripeCustomer(user);
+              await addStripeCredits(
+                userCustomer.id,
+                1000,
+                "Welcome bonus - phone verification"
+              ); // $10 in cents
+            } catch (error) {
+              console.error("Error adding Stripe credits to user:", error);
+            }
             await user.save();
           }
         }

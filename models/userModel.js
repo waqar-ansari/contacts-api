@@ -251,35 +251,6 @@ const userSchema = new Schema(
     planExpiresAt: { type: Date, default: null },
     autoRenewal: { type: Boolean, default: false }, // Track if user has auto-renewal enabled
 
-    // Store remaining days from previous plans for mid-cycle upgrades
-    // Array to handle multiple plan upgrades and dynamic plans
-    remainingDays: {
-      type: [
-        {
-          planId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Plan",
-            required: true,
-          },
-          days: {
-            type: Number,
-            required: true,
-            min: 0,
-          },
-          storedAt: {
-            type: Date,
-            default: Date.now,
-          },
-          // Store the plan details at time of storage for reference
-          planSnapshot: {
-            name: String,
-            price: Number,
-            pricePeriod: String,
-          },
-        },
-      ],
-      default: [],
-    },
     isActive: {
       type: Boolean,
       default: false, // user is inactive until login
@@ -454,9 +425,39 @@ const userSchema = new Schema(
       sparse: true, // only enforce uniqueness when tenantId is present
     },
 
-    creditBalance: {
-      type: Number,
-      default: 0, // every user starts with $0 credit
+    // Stripe subscription fields
+    stripeCustomerId: {
+      type: String,
+      sparse: true, // only enforce uniqueness when present
+    },
+    stripeSubscriptionId: {
+      type: String,
+      sparse: true, // only enforce uniqueness when present
+    },
+    stripeSubscriptionStatus: {
+      type: String,
+      enum: [
+        "active",
+        "canceled",
+        "incomplete",
+        "incomplete_expired",
+        "past_due",
+        "trialing",
+        "unpaid",
+      ],
+      default: null,
+    },
+    stripeCurrentPeriodStart: {
+      type: Date,
+      default: null,
+    },
+    stripeCurrentPeriodEnd: {
+      type: Date,
+      default: null,
+    },
+    stripeCancelAtPeriodEnd: {
+      type: Boolean,
+      default: false,
     },
 
     // Flag to track if user has used free trial of Pro plan

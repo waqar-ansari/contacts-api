@@ -27,7 +27,7 @@ API Request → Validation → Cost Calculation → Payment Processing → Plan 
 ### **Phase 1: User Initiates Payment**
 
 1. **User Action**: User clicks "Upgrade to Pro" or "Purchase Plan"
-2. **Frontend**: Sends request to `/user/payment/create-intent`
+2. **Frontend**: Sends request to `/user/payment/create-subscription`
 3. **Backend Receives**:
    ```json
    {
@@ -52,51 +52,53 @@ API Request → Validation → Cost Calculation → Payment Processing → Plan 
 6. **Upgrade Cost Calculation** (if upgrading):
 
    ```javascript
-   // Example calculation
-   currentPlan = $10/month = $0.33/day
-   remainingValue = 15 days × $0.33 = $5.00
-   newPlan = $20/month
-   upgradeCost = $20.00 - $5.00 = $15.00
+   // SIMPLIFIED: User pays full price of new plan
+   // Remaining days from old plan are stored for later use
+   currentPlan = "Pro ($10/month)" // 15 days remaining
+   newPlan = "Business ($20/month)"
+   upgradeCost = $20.00 // Full price of new plan
+   storedDays = 15 // Days from Pro plan stored for future use
    ```
 
-7. **Payment Method Decision**:
+7. **Payment Method Decision** (NO MIXED PAYMENTS):
 
    ```javascript
    userCredits = $12.00
-   upgradeCost = $15.00
+   upgradeCost = $20.00
 
    if (userCredits >= upgradeCost) {
-     paymentMethod = "credits_only"
+     paymentMethod = "credits" // Pay entirely with credits
    } else {
-     creditsToUse = $12.00
-     stripeAmount = $15.00 - $12.00 = $3.00
-     paymentMethod = "mixed" // credits + stripe
+     paymentMethod = "stripe" // Pay entirely with Stripe (no credits used)
    }
    ```
 
 ### **Phase 3: Payment Processing**
 
-#### **Scenario A: Credits Only (No Stripe Needed)**
+#### **Scenario A: Credits Only**
 
 8a. **Direct Processing**:
 
-- Deduct credits from user account
+- User has sufficient credits to pay full amount
+- Deduct full plan price from user credits
+- Store remaining days from previous plan (if upgrading)
 - Update user plan immediately
-- Store payment record
+- Store payment record with paymentMethod: "credits"
 - Return success response
 
-#### **Scenario B: Stripe Payment Required**
+#### **Scenario B: Stripe Payment Only**
 
 8b. **Stripe Payment Intent Creation**:
 
 ```javascript
 stripePaymentIntent = {
-  amount: 300, // $3.00 in cents
+  amount: 2000, // $20.00 in cents (full plan price)
   currency: "usd",
   metadata: {
     userId: "user_123",
     planId: "plan_456",
-    creditUsage: 1200, // $12.00 in cents
+    creditUsage: "0", // No credits used in Stripe payments
+    finalAmount: "2000",
     isUpgrade: true,
   },
 };
@@ -109,9 +111,17 @@ stripePaymentIntent = {
   "paymentMethod": "stripe",
   "clientSecret": "pi_xxx_secret_xxx",
   "planDetails": {
-    "upgradeCost": 1500,
-    "creditsUsed": 1200,
-    "stripeAmount": 300
+    "finalAmount": 2000,
+    "upgradeCost": 2000,
+    "remainingValue": 0
+  },
+  "credits": {
+    "available": 1200,
+    "willUse": 0
+  },
+  "stripe": {
+    "amount": 2000,
+    "paymentIntentId": "pi_stripe_123"
   }
 }
 ```
@@ -144,10 +154,10 @@ stripePaymentIntent = {
 
 11. **Backend Confirmation** (`/user/payment/confirm`):
     - Verify payment with Stripe
-    - Deduct credits from user account
-    - Update user plan and expiry
-    - Store remaining days for future upgrades
-    - Create payment record
+    - NO credit deduction (credits not used in Stripe payments)
+    - Store remaining days from previous plan (if upgrading)
+    - Update user plan and expiry with stored days applied
+    - Create payment record with paymentMethod: "stripe"
     - Send success response
 
 ### **Phase 6: Plan Activation**
@@ -155,22 +165,37 @@ stripePaymentIntent = {
 12. **User Plan Update**:
 
     ```javascript
-    // Store remaining days from previous plan
-    user.remainingDays.push({
-      planId: oldPlan._id,
-      days: 15,
-      planSnapshot: {
-        name: "Starter",
-        price: 1000, // $10.00 in cents
-        pricePeriod: "month",
-      },
-    });
+    // SIMPLIFIED: Store ALL remaining days from previous plan
+    if (isUpgrade && oldPlan && remainingDays > 0) {
+      user.remainingDays.push({
+        planId: oldPlan._id,
+        days: remainingDays, // ALL remaining days stored
+        storedAt: new Date(),
+        planSnapshot: {
+          name: "Pro",
+          price: 1000, // $10.00 in cents
+          pricePeriod: "month",
+        },
+      });
+    }
 
     // Activate new plan
     user.plan = newPlan._id;
     user.planActivatedAt = new Date();
-    user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-    user.creditBalance -= creditsUsed;
+
+    // Calculate base expiry + apply stored days from most expensive plan
+    const baseExpiry = calculateExpiryDate(new Date(), newPlan.pricePeriod);
+    const { newExpiryDate, usedRemainingDays } = applyStoredRemainingDays(
+      user,
+      baseExpiry
+    );
+
+    user.planExpiresAt = newExpiryDate;
+
+    // Credit deduction (only for credits payments)
+    if (paymentMethod === "credits") {
+      user.creditBalance -= finalAmount;
+    }
     ```
 
 ---
@@ -217,29 +242,40 @@ Stripe is a payment processor that handles credit card transactions securely. We
 
    ```javascript
    if (user.planExpiresAt <= now && user.autoRenewal) {
-     // Try to renew with credits
+     // Try to renew with credits ONLY (all or nothing)
      if (user.creditBalance >= currentPlan.price) {
-       renewWithCredits();
+       renewWithCredits(currentPlan.price); // Use full plan price
      } else {
-       // Could charge Stripe here (future enhancement)
+       // TODO: Implement Stripe auto-renewal
+       // For now: disable auto-renewal
+       console.log(
+         "Insufficient credits for auto-renewal. Stripe auto-renewal not yet implemented."
+       );
        disableAutoRenewal();
-       revertToStarter();
+       proceedWithExpiryLogic();
      }
    }
    ```
 
-2. **Remaining Days Logic** (when reverting to Starter):
+2. **Remaining Days Logic** (when plan expires):
 
    ```javascript
-   // User had remaining days from previous plans
-   // Find most expensive plan with remaining days
+   // Apply stored remaining days from most expensive plan
    const mostExpensivePlan = findMostExpensivePlanWithRemainingDays(
      user.remainingDays
    );
 
    if (mostExpensivePlan) {
-     // Apply those days to extend current plan
-     extendPlanBy(mostExpensivePlan.days);
+     // Extend current plan with stored days
+     const newExpiryDate = new Date(baseExpiryDate);
+     newExpiryDate.setDate(newExpiryDate.getDate() + mostExpensivePlan.days);
+
+     // Mark those days as used
+     user.remainingDays = user.remainingDays
+       .map((item) =>
+         item.planId === mostExpensivePlan.planId ? { ...item, days: 0 } : item
+       )
+       .filter((item) => item.days > 0);
    }
    ```
 
@@ -298,14 +334,14 @@ function findMostExpensivePlanWithRemainingDays(remainingDaysArray) {
 {
   paymentId: "PAY_1634567890_abc123",
   userId: "user_123",
-  planId: "pro_plan_456",
-  paymentMethod: "mixed",
+  planId: "business_plan_456",
+  paymentMethod: "stripe", // OR "credits" (no mixed payments)
   amounts: {
-    totalAmount: 2000, // $20.00
-    creditUsed: 1200,  // $12.00
-    stripeAmount: 800, // $8.00
-    upgradeCost: 2000,
-    remainingValue: 500 // $5.00 from previous plan
+    totalAmount: 2000, // $20.00 (full plan price)
+    creditUsed: 0,     // $0.00 (no credits in Stripe payments)
+    stripeAmount: 2000, // $20.00 (full amount via Stripe)
+    upgradeCost: 2000,  // $20.00 (user pays full price)
+    remainingValue: 0   // No value deduction (days stored instead)
   },
   stripe: {
     paymentIntentId: "pi_stripe_123",
@@ -313,8 +349,13 @@ function findMostExpensivePlanWithRemainingDays(remainingDaysArray) {
   },
   isUpgrade: true,
   previousPlan: {
-    planId: "starter_plan",
-    remainingDays: 15
+    planId: "pro_plan",
+    remainingDays: 15 // Stored for future use
+  },
+  newPlan: {
+    activatedAt: "2025-09-15T10:30:00Z",
+    expiresAt: "2025-10-20T10:30:00Z", // Base expiry + applied stored days
+    autoRenewal: true
   },
   status: "completed",
   completedAt: "2025-09-15T10:30:00Z"
@@ -330,24 +371,28 @@ function findMostExpensivePlanWithRemainingDays(remainingDaysArray) {
 1. **Insufficient Credits + Card Declined**:
 
    - User has $5 credits, needs $20 plan
-   - Stripe payment for $15 fails
-   - Result: Payment fails, user stays on current plan
+   - System shows: "Pay $20 with Stripe" (no partial credit usage)
+   - Stripe payment fails
+   - Result: Payment fails, user stays on current plan, credits unchanged
 
 2. **Payment Succeeds but Confirmation Fails**:
 
-   - Stripe charges card successfully
+   - Stripe charges card successfully for full $20
    - Our server crashes before updating user plan
    - Solution: Webhook receives payment success and updates plan
+   - No credit deduction needed since Stripe payment was standalone
 
 3. **Multiple Rapid Upgrades**:
 
-   - User upgrades from Free → Pro → Business quickly
-   - Each upgrade stores remaining days from previous plan
-   - Final plan gets benefit of all stored days
+   - User upgrades: Starter ($5) → Pro ($15) → Business ($30)
+   - Each upgrade: pays full price + stores remaining days from previous plan
+   - Final Business plan gets extended by stored days from both Starter and Pro
+   - Example: Business expires Oct 30 + 10 days from Pro + 5 days from Starter = Nov 14
 
 4. **Plan Deleted After Payment**:
    - Admin deletes plan while user payment is processing
-   - Solution: Store plan snapshot in payment record
+   - Solution: Store complete plan snapshot in payment record
+   - User gets access to deleted plan features until expiry
 
 ---
 
@@ -364,13 +409,14 @@ Insufficient Funds: 4000000000009995
 
 ### **Test Scenarios:**
 
-1. Credits-only purchase
-2. Mixed payment (credits + Stripe)
-3. Pure Stripe payment
-4. Failed payment
-5. Mid-cycle upgrade
-6. Auto-renewal with credits
-7. Multiple plan upgrades
+1. **Credits-only purchase** (user has enough credits)
+2. **Stripe-only payment** (user has insufficient credits)
+3. **Failed Stripe payment** (card declined)
+4. **Mid-cycle upgrade** (store remaining days)
+5. **Auto-renewal with credits** (sufficient balance)
+6. **Auto-renewal failure** (insufficient credits, Stripe not implemented)
+7. **Multiple plan upgrades** (accumulate stored days)
+8. **Stored days application** (when plan expires)
 
 ---
 
@@ -378,11 +424,21 @@ Insufficient Funds: 4000000000009995
 
 The payment system is designed to:
 
-1. **Prioritize Credits**: Always use user credits first
-2. **Handle Complexity**: Support any number of dynamic plans
-3. **Track Everything**: Complete audit trail of all payments
-4. **Be Secure**: Follow Stripe best practices
-5. **Handle Failures**: Graceful error handling and recovery
-6. **Support Growth**: Easily add new payment features
+1. **Simple Payment Choice**: User chooses either credits OR Stripe (no mixing)
+2. **Fair Upgrade Logic**: User pays full price, unused days stored for future
+3. **Dynamic Plan Support**: Handle unlimited plans with intelligent remaining days
+4. **Complete Audit Trail**: Track all payments with detailed records
+5. **Secure Processing**: Follow Stripe best practices, never store card data
+6. **Graceful Failures**: Handle errors without losing user value
+7. **Future-Proof**: Easy to add Stripe auto-renewal and new features
 
-The key insight is that payments are not just "charge money" - they involve complex business logic around prorations, credits, plan upgrades, and ensuring users get fair value for their money.
+### **Key Changes from Previous Version:**
+
+- ❌ **Removed**: Mixed payments (credits + Stripe)
+- ❌ **Removed**: Complex daily rate calculations
+- ✅ **Added**: Simple "full price" upgrade logic
+- ✅ **Added**: Complete remaining days storage system
+- ✅ **Added**: Clear separation between payment methods
+- ✅ **Added**: Most expensive plan priority for stored days
+
+The core insight: **Simplicity over complexity**. Users pay clear amounts, get clear value, and the system preserves their investment through stored days rather than complex prorations.

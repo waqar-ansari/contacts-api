@@ -4,6 +4,10 @@ const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
 // const LZString = require("lz-string");
 const zlib = require("zlib");
+const {
+  getOrCreateStripeCustomer,
+  getStripeCreditBalance,
+} = require("../utils/stripeUtils");
 
 const getUserData = async (req, res) => {
   try {
@@ -31,6 +35,17 @@ const getUserData = async (req, res) => {
       return res
         .status(404)
         .json({ status: "error", message: "User not found" });
+    }
+
+    // Get Stripe credit balance
+    let creditBalance = 0;
+    try {
+      const customer = await getOrCreateStripeCustomer(user);
+      const stripeCreditBalance = await getStripeCreditBalance(customer.id);
+      creditBalance = Math.abs(stripeCreditBalance); // Convert to dollars
+    } catch (error) {
+      console.error("Error getting Stripe credit balance:", error);
+      creditBalance = 0;
     }
 
     const responseData = {};
@@ -185,7 +200,7 @@ const getUserData = async (req, res) => {
           trialEndDate: user.trialEnd || null,
           isPremium: user.isPremium || false,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
-          creditBalance: user.creditBalance || 0,
+          creditBalance: creditBalance,
           accounts: [
             {
               type: "google",

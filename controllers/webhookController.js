@@ -1,7 +1,14 @@
 const { stripe } = require("../config/stripe");
 const User = require("../models/userModel");
 const Plan = require("../models/planModel");
-const { calculateExpiryDate } = require("../utils/planUtils");
+const {
+  calculateExpiryDate,
+  applyStoredRemainingDaysUtil,
+} = require("../utils/planUtils");
+const {
+  updateUserSubscriptionData,
+  clearUserSubscriptionData,
+} = require("../utils/stripeUtils");
 
 /**
  * Handle Stripe webhook events
@@ -25,22 +32,31 @@ const handleStripeWebhook = async (req, res) => {
   // Handle the event
   try {
     switch (event.type) {
-      case "payment_intent.succeeded":
-        await handlePaymentIntentSucceeded(event.data.object);
+      // Subscription events
+      case "customer.subscription.created":
+        await handleSubscriptionCreated(event.data.object);
         break;
 
-      case "payment_intent.payment_failed":
-        await handlePaymentIntentFailed(event.data.object);
+      case "customer.subscription.updated":
+        await handleSubscriptionUpdated(event.data.object);
         break;
 
+      case "customer.subscription.deleted":
+        await handleSubscriptionDeleted(event.data.object);
+        break;
+
+      // Invoice events (for subscription billing)
       case "invoice.payment_succeeded":
-        // Handle subscription renewal
         await handleInvoicePaymentSucceeded(event.data.object);
         break;
 
       case "invoice.payment_failed":
-        // Handle failed subscription renewal
         await handleInvoicePaymentFailed(event.data.object);
+        break;
+
+      // Payment method events
+      case "setup_intent.succeeded":
+        await handleSetupIntentSucceeded(event.data.object);
         break;
 
       default:
@@ -55,126 +71,319 @@ const handleStripeWebhook = async (req, res) => {
 };
 
 /**
- * Handle successful payment intent
- * This is a backup in case the frontend doesn't call the confirm endpoint
+ * Handle subscription creation
  */
-const handlePaymentIntentSucceeded = async (paymentIntent) => {
+const handleSubscriptionCreated = async (subscription) => {
   try {
-    console.log("Payment succeeded:", paymentIntent.id);
+    console.log("Subscription created:", subscription.id);
 
-    const {
-      userId,
-      planId,
-      creditUsage,
-      finalAmount,
-      isUpgrade,
-      remainingValue,
-      autoRenewal,
-    } = paymentIntent.metadata;
+    const { userId, planId } = subscription.metadata;
 
     if (!userId || !planId) {
-      console.error("Missing required metadata in payment intent");
+      console.error("Missing required metadata in subscription");
       return;
     }
 
-    // Check if this payment has already been processed
-    const user = await User.findById(userId).populate("plan");
-    if (!user) {
-      console.error("User not found for payment intent:", paymentIntent.id);
-      return;
-    }
+    // Get user and plan
+    const [user, plan] = await Promise.all([
+      User.findById(userId).populate("plan"),
+      Plan.findById(planId),
+    ]);
 
-    // Validate plan
-    const plan = await Plan.findById(planId);
-    if (!plan) {
-      console.error("Plan not found for payment intent:", paymentIntent.id);
-      return;
-    }
-
-    // Calculate remaining days to store (for upgrades)
-    let remainingDaysToStore = 0;
-    if (isUpgrade === "true" && user.planExpiresAt) {
-      const now = new Date();
-      const diffTime = user.planExpiresAt - now;
-      remainingDaysToStore = Math.max(
-        0,
-        Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (!user || !plan) {
+      console.error(
+        "User or plan not found for subscription:",
+        subscription.id
       );
+      return;
     }
 
-    // Calculate new expiry date
-    const now = new Date();
-    const newExpiryDate = calculateExpiryDate(now, plan.pricePeriod);
+    // Store remaining days from current plan if upgrading
+    let updatedRemainingDays = [...(user.remainingDays || [])];
+    if (
+      user.plan &&
+      user.planExpiresAt &&
+      subscription.metadata.isUpgrade === "true"
+    ) {
+      const remainingDays = Math.max(
+        0,
+        Math.ceil((user.planExpiresAt - new Date()) / (1000 * 60 * 60 * 24))
+      );
 
-    // Update user plan
+      if (remainingDays > 0) {
+        const existingIndex = updatedRemainingDays.findIndex(
+          (item) => item.planId.toString() === user.plan._id.toString()
+        );
+
+        if (existingIndex !== -1) {
+          updatedRemainingDays[existingIndex].days += remainingDays;
+        } else {
+          updatedRemainingDays.push({
+            planId: user.plan._id,
+            days: remainingDays,
+            storedAt: new Date(),
+            planSnapshot: {
+              name: user.plan.name,
+              price: user.plan.price,
+              pricePeriod: user.plan.pricePeriod,
+            },
+          });
+        }
+      }
+    }
+
+    // Calculate expiry date and apply remaining days
+    const baseExpiryDate = new Date(subscription.current_period_end * 1000);
+    const { newExpiryDate, updatedRemainingDays: finalRemainingDays } =
+      applyStoredRemainingDaysUtil(
+        { remainingDays: updatedRemainingDays },
+        baseExpiryDate
+      );
+
+    // Update user with new subscription data
     await User.findByIdAndUpdate(userId, {
       plan: plan._id,
-      planActivatedAt: now,
+      planActivatedAt: new Date(subscription.current_period_start * 1000),
       planExpiresAt: newExpiryDate,
       isPremium: plan.name !== "Starter",
-      creditBalance: Math.max(
-        0,
-        (user.creditBalance || 0) - parseInt(creditUsage || 0)
+      autoRenewal: true,
+      remainingDays: finalRemainingDays || [],
+      trialStart: subscription.trial_start
+        ? new Date(subscription.trial_start * 1000)
+        : null,
+      trialEnd: subscription.trial_end
+        ? new Date(subscription.trial_end * 1000)
+        : null,
+      onFreeTrial: subscription.status === "trialing",
+      hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
+      stripeSubscriptionId: subscription.id,
+      stripeSubscriptionStatus: subscription.status,
+      stripeCurrentPeriodStart: new Date(
+        subscription.current_period_start * 1000
       ),
-      autoRenewal: autoRenewal === "true",
-      remainingDays: remainingDaysToStore,
-      trialStart: null,
-      trialEnd: null,
-      onFreeTrial: false,
+      stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
 
     console.log(
-      `Webhook: Successfully updated user ${userId} plan to ${plan.name}`
+      `Webhook: Successfully created subscription for user ${userId}`
     );
   } catch (error) {
-    console.error("Error handling payment intent succeeded:", error);
+    console.error("Error handling subscription created:", error);
   }
 };
 
 /**
- * Handle failed payment intent
+ * Handle subscription updates
  */
-const handlePaymentIntentFailed = async (paymentIntent) => {
+const handleSubscriptionUpdated = async (subscription) => {
   try {
-    console.log("Payment failed:", paymentIntent.id);
+    console.log("Subscription updated:", subscription.id);
 
-    const { userId } = paymentIntent.metadata;
+    // Find user by subscription ID
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
 
-    if (userId) {
-      // You could implement logic here to notify the user of payment failure
-      // or update their account status
-      console.log(`Payment failed for user: ${userId}`);
+    if (!user) {
+      console.error("User not found for subscription:", subscription.id);
+      return;
     }
+
+    // Update subscription data
+    await updateUserSubscriptionData(user._id, subscription);
+
+    // If subscription was canceled, update user accordingly
+    if (subscription.status === "canceled") {
+      await handleSubscriptionCancellation(user, subscription);
+    }
+
+    console.log(
+      `Webhook: Successfully updated subscription for user ${user._id}`
+    );
   } catch (error) {
-    console.error("Error handling payment intent failed:", error);
+    console.error("Error handling subscription updated:", error);
   }
 };
 
 /**
- * Handle successful invoice payment (for subscriptions/auto-renewal)
+ * Handle subscription deletion/cancellation
+ */
+const handleSubscriptionDeleted = async (subscription) => {
+  try {
+    console.log("Subscription deleted:", subscription.id);
+
+    // Find user by subscription ID
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+
+    if (!user) {
+      console.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    await handleSubscriptionCancellation(user, subscription);
+
+    console.log(
+      `Webhook: Successfully handled subscription deletion for user ${user._id}`
+    );
+  } catch (error) {
+    console.error("Error handling subscription deleted:", error);
+  }
+};
+
+/**
+ * Handle subscription cancellation logic
+ */
+const handleSubscriptionCancellation = async (user, subscription) => {
+  try {
+    // Get starter plan
+    const starterPlan = await Plan.findOne({ name: "Starter", isActive: true });
+
+    if (!starterPlan) {
+      console.error("Starter plan not found");
+      return;
+    }
+
+    // Store remaining days from current plan
+    let updatedRemainingDays = [...(user.remainingDays || [])];
+    const currentPlan = await Plan.findById(user.plan);
+
+    if (currentPlan && user.planExpiresAt) {
+      const remainingDays = Math.max(
+        0,
+        Math.ceil((user.planExpiresAt - new Date()) / (1000 * 60 * 60 * 24))
+      );
+
+      if (remainingDays > 0) {
+        const existingIndex = updatedRemainingDays.findIndex(
+          (item) => item.planId.toString() === currentPlan._id.toString()
+        );
+
+        if (existingIndex !== -1) {
+          updatedRemainingDays[existingIndex].days += remainingDays;
+        } else {
+          updatedRemainingDays.push({
+            planId: currentPlan._id,
+            days: remainingDays,
+            storedAt: new Date(),
+            planSnapshot: {
+              name: currentPlan.name,
+              price: currentPlan.price,
+              pricePeriod: currentPlan.pricePeriod,
+            },
+          });
+        }
+      }
+    }
+
+    // Revert to starter plan
+    await User.findByIdAndUpdate(user._id, {
+      plan: starterPlan._id,
+      planActivatedAt: null,
+      planExpiresAt: null,
+      isPremium: false,
+      autoRenewal: false,
+      remainingDays: updatedRemainingDays,
+      onFreeTrial: false,
+      trialStart: null,
+      trialEnd: null,
+      stripeSubscriptionId: null,
+      stripeSubscriptionStatus: null,
+      stripeCurrentPeriodStart: null,
+      stripeCurrentPeriodEnd: null,
+      stripeCancelAtPeriodEnd: false,
+    });
+  } catch (error) {
+    console.error("Error handling subscription cancellation:", error);
+  }
+};
+
+/**
+ * Handle successful invoice payment (subscription renewals)
  */
 const handleInvoicePaymentSucceeded = async (invoice) => {
   try {
     console.log("Invoice payment succeeded:", invoice.id);
 
-    // This would be used for subscription renewals
-    // You can implement subscription logic here if needed
+    if (!invoice.subscription) {
+      return; // Not a subscription invoice
+    }
+
+    // Get the subscription
+    const subscription = await stripe.subscriptions.retrieve(
+      invoice.subscription
+    );
+
+    // Find user by subscription ID
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+
+    if (!user) {
+      console.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    // Update subscription data (renewal)
+    await updateUserSubscriptionData(user._id, subscription);
+
+    console.log(
+      `Webhook: Successfully renewed subscription for user ${user._id}`
+    );
   } catch (error) {
     console.error("Error handling invoice payment succeeded:", error);
   }
 };
 
 /**
- * Handle failed invoice payment (for subscriptions/auto-renewal)
+ * Handle failed invoice payment (failed renewals)
  */
 const handleInvoicePaymentFailed = async (invoice) => {
   try {
     console.log("Invoice payment failed:", invoice.id);
 
-    // This would be used for failed subscription renewals
-    // You can implement logic to handle failed renewals here
+    if (!invoice.subscription) {
+      return; // Not a subscription invoice
+    }
+
+    // Get the subscription
+    const subscription = await stripe.subscriptions.retrieve(
+      invoice.subscription
+    );
+
+    // Find user by subscription ID
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+
+    if (!user) {
+      console.error("User not found for subscription:", subscription.id);
+      return;
+    }
+
+    // Update subscription status
+    await updateUserSubscriptionData(user._id, subscription);
+
+    // If subscription is past_due or unpaid, you might want to take action
+    if (
+      subscription.status === "past_due" ||
+      subscription.status === "unpaid"
+    ) {
+      console.log(
+        `Subscription ${subscription.id} is ${subscription.status} for user ${user._id}`
+      );
+      // You can implement notification logic here
+    }
+
+    console.log(`Webhook: Handled failed payment for user ${user._id}`);
   } catch (error) {
     console.error("Error handling invoice payment failed:", error);
+  }
+};
+
+/**
+ * Handle setup intent success (payment method setup)
+ */
+const handleSetupIntentSucceeded = async (setupIntent) => {
+  try {
+    console.log("Setup intent succeeded:", setupIntent.id);
+    // This can be used to track when customers successfully add payment methods
+  } catch (error) {
+    console.error("Error handling setup intent succeeded:", error);
   }
 };
 

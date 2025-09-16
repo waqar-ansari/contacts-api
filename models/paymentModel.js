@@ -61,7 +61,6 @@ const paymentSchema = new mongoose.Schema(
     // Previous plan info (for upgrades)
     previousPlan: {
       planId: { type: mongoose.Schema.Types.ObjectId, ref: "Plan" },
-      remainingDays: { type: Number, default: 0 },
       expiryDate: Date,
     },
 

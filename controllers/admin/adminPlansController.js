@@ -1,5 +1,6 @@
 // controllers/admin/adminPlansController.js
 const Plan = require("../../models/planModel");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // @desc    Get all plans
 // @route   GET /api/admin/plans
@@ -57,6 +58,7 @@ const createPlan = async (req, res) => {
       isPopular,
       isActive,
     } = req.body;
+
     // Validate required fields
     if (!name || typeof name !== "string") {
       return res.status(400).json({
@@ -80,6 +82,7 @@ const createPlan = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Features must be an array" });
     }
+
     // Check if plan already exists
     const planExists = await Plan.findOne({ name });
     if (planExists) {
@@ -88,6 +91,52 @@ const createPlan = async (req, res) => {
         message: "Plan with this name already exists",
       });
     }
+
+    let stripeProductId = null;
+    let stripePriceId = null;
+
+    // Create Stripe product and price for non-Starter plans
+    if (name.toLowerCase() !== "starter" && price > 0) {
+      try {
+        // Create Stripe product
+        const stripeProduct = await stripe.products.create({
+          name: name,
+          description: description || `${name} subscription plan`,
+          metadata: {
+            planName: name,
+            createdBy: "admin-panel",
+          },
+        });
+        stripeProductId = stripeProduct.id;
+
+        // Create Stripe price
+        const stripePrice = await stripe.prices.create({
+          currency: "usd",
+          product: stripeProductId,
+          unit_amount: price, // Price should be in cents
+          recurring: {
+            interval: pricePeriod === "year" ? "year" : "month",
+          },
+          metadata: {
+            planName: name,
+            createdBy: "admin-panel",
+          },
+        });
+        stripePriceId = stripePrice.id;
+
+        console.log(
+          `Created Stripe product ${stripeProductId} and price ${stripePriceId} for plan ${name}`
+        );
+      } catch (stripeError) {
+        console.error("Stripe creation error:", stripeError);
+        return res.status(500).json({
+          success: false,
+          message:
+            "Failed to create Stripe product/price: " + stripeError.message,
+        });
+      }
+    }
+
     const plan = await Plan.create({
       name,
       price,
@@ -96,7 +145,10 @@ const createPlan = async (req, res) => {
       features: features || [],
       isPopular: isPopular || false,
       isActive: isActive || true,
+      stripeProductId,
+      stripePriceId,
     });
+
     res.status(201).json({
       success: true,
       message: "Plan created successfully",
@@ -164,6 +216,7 @@ const updatePlan = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Features must be an array" });
     }
+
     // Check if name is being changed and if it conflicts with another plan
     if (req.body.name && req.body.name !== plan.name) {
       const planExists = await Plan.findOne({ name: req.body.name });
@@ -174,10 +227,82 @@ const updatePlan = async (req, res) => {
         });
       }
     }
-    const updatedPlan = await Plan.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+
+    // Handle Stripe updates for price/period changes
+    let updatedFields = { ...req.body };
+
+    if (
+      (req.body.price !== undefined && req.body.price !== plan.price) ||
+      (req.body.pricePeriod && req.body.pricePeriod !== plan.pricePeriod)
+    ) {
+      // Only update Stripe for non-Starter plans with actual pricing
+      const newPrice =
+        req.body.price !== undefined ? req.body.price : plan.price;
+      const newPeriod = req.body.pricePeriod || plan.pricePeriod;
+      const planName = req.body.name || plan.name;
+
+      if (planName.toLowerCase() !== "starter" && newPrice > 0) {
+        try {
+          // Create new Stripe price (can't modify existing prices in Stripe)
+          const stripePrice = await stripe.prices.create({
+            currency: "usd",
+            product: plan.stripeProductId,
+            unit_amount: newPrice,
+            recurring: {
+              interval: newPeriod === "year" ? "year" : "month",
+            },
+            metadata: {
+              planName: planName,
+              updatedBy: "admin-panel",
+              previousPriceId: plan.stripePriceId,
+            },
+          });
+
+          // Archive old price
+          if (plan.stripePriceId) {
+            await stripe.prices.update(plan.stripePriceId, {
+              active: false,
+            });
+          }
+
+          updatedFields.stripePriceId = stripePrice.id;
+          console.log(
+            `Updated Stripe price for plan ${planName}: ${stripePrice.id}`
+          );
+        } catch (stripeError) {
+          console.error("Stripe update error:", stripeError);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to update Stripe pricing: " + stripeError.message,
+          });
+        }
+      }
+    }
+
+    // Update Stripe product name if name changed
+    if (req.body.name && req.body.name !== plan.name && plan.stripeProductId) {
+      try {
+        await stripe.products.update(plan.stripeProductId, {
+          name: req.body.name,
+          description:
+            req.body.description || `${req.body.name} subscription plan`,
+        });
+        console.log(`Updated Stripe product name for plan ${req.body.name}`);
+      } catch (stripeError) {
+        console.error("Stripe product update error:", stripeError);
+        // Don't fail the entire request for product name update
+      }
+    }
+
+    const updatedPlan = await Plan.findByIdAndUpdate(
+      req.params.id,
+      updatedFields,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
     res.json({
       success: true,
       message: "Plan updated successfully",
@@ -200,6 +325,7 @@ const deletePlan = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid plan ID" });
     }
+
     const plan = await Plan.findById(req.params.id);
     if (!plan) {
       return res
@@ -215,8 +341,51 @@ const deletePlan = async (req, res) => {
       });
     }
 
+    // Check if any users are currently assigned to this plan
+    const User = require("../../models/User");
+    const usersWithPlan = await User.countDocuments({ plan: req.params.id });
+
+    if (usersWithPlan > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete plan. ${usersWithPlan} user(s) are currently assigned to this plan.`,
+      });
+    }
+
+    // Archive Stripe resources if they exist
+    if (plan.stripePriceId || plan.stripeProductId) {
+      try {
+        // Archive the price first
+        if (plan.stripePriceId) {
+          await stripe.prices.update(plan.stripePriceId, {
+            active: false,
+          });
+          console.log(`Archived Stripe price: ${plan.stripePriceId}`);
+        }
+
+        // Archive the product
+        if (plan.stripeProductId) {
+          await stripe.products.update(plan.stripeProductId, {
+            active: false,
+            metadata: {
+              archivedBy: "admin-panel",
+              archivedAt: new Date().toISOString(),
+            },
+          });
+          console.log(`Archived Stripe product: ${plan.stripeProductId}`);
+        }
+      } catch (stripeError) {
+        console.error("Stripe cleanup error:", stripeError);
+        // Continue with plan deletion even if Stripe cleanup fails
+      }
+    }
+
     await Plan.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Plan deleted successfully" });
+
+    res.json({
+      success: true,
+      message: "Plan deleted successfully",
+    });
   } catch (error) {
     res
       .status(500)

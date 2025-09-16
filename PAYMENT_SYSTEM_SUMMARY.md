@@ -151,7 +151,7 @@ POST /user/payment/purchase-with-credits
 
 ```javascript
 // User on $10 Starter (15 days left) → $25 Pro
-POST /user/payment/create-intent
+POST /user/payment/create-subscription
 {
   "planId": "pro_plan_id"
 }

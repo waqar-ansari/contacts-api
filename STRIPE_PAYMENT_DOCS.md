@@ -30,7 +30,7 @@ Returns current plan, expiry, credits, auto-renewal status, etc.
 #### 2. Create Payment Intent
 
 ```
-POST /user/payment/create-intent
+POST /user/payment/create-subscription
 Body: {
   "planId": "plan_object_id",
   "autoRenewal": false // optional
@@ -88,7 +88,7 @@ Handles Stripe webhook events (payment success/failure, etc.)
 
 Add these to your `.env` file:
 
-```env
+````env
 # Stripe Test Keys (for sandbox)
 STRIPE_PUBLISHABLE_KEY=pk_test_51JM78KBtOBT8b78e...
 STRIPE_SECRET_KEY=sk_test_51JM78KBtOBT8b78e...
@@ -146,7 +146,7 @@ Use Stripe test cards for testing:
 
 ```bash
 stripe listen --forward-to localhost:3000/webhooks/stripe
-```
+````
 
 2. Copy webhook signing secret to `.env`
 

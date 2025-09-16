@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createPaymentIntent,
+  createSubscription,
   purchaseWithCredits,
   confirmPayment,
   toggleAutoRenewal,
@@ -11,8 +11,8 @@ const {
 // GET user payment status and plan information
 router.get("/status", getPaymentStatus);
 
-// POST create payment intent for plan purchase/upgrade
-router.post("/create-intent", createPaymentIntent);
+// POST create subscription for plan purchase/upgrade
+router.post("/create-subscription", createSubscription);
 
 // POST purchase plan using credits only
 router.post("/purchase-with-credits", purchaseWithCredits);
