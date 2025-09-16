@@ -2,8 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   createSubscription,
-  purchaseWithCredits,
-  confirmPayment,
+  // purchaseWithCredits,
   toggleAutoRenewal,
   getPaymentStatus,
 } = require("../controllers/paymentController");
@@ -15,10 +14,7 @@ router.get("/status", getPaymentStatus);
 router.post("/create-subscription", createSubscription);
 
 // POST purchase plan using credits only
-router.post("/purchase-with-credits", purchaseWithCredits);
-
-// POST confirm payment after successful Stripe payment
-router.post("/confirm", confirmPayment);
+// router.post("/purchase-with-credits", purchaseWithCredits);
 
 // PATCH toggle auto-renewal setting
 router.patch("/auto-renewal", toggleAutoRenewal);

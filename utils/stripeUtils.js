@@ -247,49 +247,120 @@ async function useStripeCredits(customerId, amount, description) {
  * @param {Object} subscription - Stripe subscription object
  * @returns {Object} Updated user object
  */
-async function updateUserSubscriptionData(userId, subscription) {
-  try {
-    const updateData = {
-      stripeSubscriptionId: subscription.id,
-      stripeSubscriptionStatus: subscription.status,
-      stripeCurrentPeriodStart: new Date(
-        subscription.current_period_start * 1000
-      ),
-      stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
-    };
+// async function updateUserSubscriptionData(userId, subscription) {
+//   try {
+//     const updateData = {
+//       stripeSubscriptionId: subscription.id,
+//       stripeSubscriptionStatus: subscription.status,
+//       stripeCurrentPeriodStart: new Date(
+//         subscription.current_period_start * 1000
+//       ),
+//       stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+//       stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
+//     };
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    });
-    return updatedUser;
-  } catch (error) {
-    console.error("Error updating user subscription data:", error);
-    throw error;
-  }
-}
+//     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
+//       new: true,
+//     });
+//     return updatedUser;
+//   } catch (error) {
+//     console.error("Error updating user subscription data:", error);
+//     throw error;
+//   }
+// }
 
 /**
  * Clear user's subscription data in database
  * @param {String} userId - User ID
  * @returns {Object} Updated user object
  */
-async function clearUserSubscriptionData(userId) {
-  try {
-    const updateData = {
-      stripeSubscriptionId: null,
-      stripeSubscriptionStatus: null,
-      stripeCurrentPeriodStart: null,
-      stripeCurrentPeriodEnd: null,
-      stripeCancelAtPeriodEnd: false,
-    };
+// async function clearUserSubscriptionData(userId) {
+//   try {
+//     const updateData = {
+//       stripeSubscriptionId: null,
+//       stripeSubscriptionStatus: null,
+//       stripeCurrentPeriodStart: null,
+//       stripeCurrentPeriodEnd: null,
+//       stripeCancelAtPeriodEnd: false,
+//     };
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    });
-    return updatedUser;
+//     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
+//       new: true,
+//     });
+//     return updatedUser;
+//   } catch (error) {
+//     console.error("Error clearing user subscription data:", error);
+//     throw error;
+//   }
+// }
+
+/**
+ * Get user's Stripe subscription data for admin interfaces
+ * @param {Object} user - User object with stripeSubscriptionId
+ * @returns {Object} Subscription data or null
+ */
+async function getUserStripeSubscriptionData(user) {
+  try {
+    if (!user.stripeSubscriptionId) {
+      return null;
+    }
+
+    const subscription = await getStripeSubscription(user.stripeSubscriptionId);
+
+    return {
+      status: subscription.status,
+      isTrialing: subscription.status === "trialing",
+      activatedAt: new Date(subscription.current_period_start * 1000),
+      expiresAt: new Date(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      trialStart: subscription.trial_start
+        ? new Date(subscription.trial_start * 1000)
+        : null,
+      trialEnd: subscription.trial_end
+        ? new Date(subscription.trial_end * 1000)
+        : null,
+    };
   } catch (error) {
-    console.error("Error clearing user subscription data:", error);
+    console.error(
+      `Error fetching subscription data for user ${user._id}:`,
+      error
+    );
+    return null;
+  }
+}
+
+/**
+ * Update subscription for admin without billing - cancels current and creates new
+ * @param {String} subscriptionId - Current Stripe subscription ID
+ * @param {String} customerId - Stripe customer ID
+ * @param {String} newPriceId - New Stripe price ID
+ * @returns {Object} New Stripe subscription object
+ */
+async function updateSubscriptionForAdmin(
+  subscriptionId,
+  customerId,
+  newPriceId
+) {
+  try {
+    // Cancel current subscription at period end
+    await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
+
+    // Create new subscription immediately without proration
+    const newSubscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: newPriceId }],
+      proration_behavior: "none", // No proration/billing
+      metadata: {
+        adminUpdate: "true",
+        previousSubscription: subscriptionId,
+      },
+    });
+
+    return newSubscription;
+  } catch (error) {
+    console.error("Error updating subscription for admin:", error);
     throw error;
   }
 }
@@ -305,6 +376,8 @@ module.exports = {
   getStripeCreditBalance,
   addStripeCredits,
   useStripeCredits,
-  updateUserSubscriptionData,
-  clearUserSubscriptionData,
+  //   updateUserSubscriptionData,
+  //   clearUserSubscriptionData,
+  getUserStripeSubscriptionData,
+  updateSubscriptionForAdmin,
 };

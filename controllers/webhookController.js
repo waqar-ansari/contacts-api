@@ -1,14 +1,6 @@
 const { stripe } = require("../config/stripe");
 const User = require("../models/userModel");
 const Plan = require("../models/planModel");
-const {
-  calculateExpiryDate,
-  applyStoredRemainingDaysUtil,
-} = require("../utils/planUtils");
-const {
-  updateUserSubscriptionData,
-  clearUserSubscriptionData,
-} = require("../utils/stripeUtils");
 
 /**
  * Handle Stripe webhook events
@@ -98,71 +90,14 @@ const handleSubscriptionCreated = async (subscription) => {
       return;
     }
 
-    // Store remaining days from current plan if upgrading
-    let updatedRemainingDays = [...(user.remainingDays || [])];
-    if (
-      user.plan &&
-      user.planExpiresAt &&
-      subscription.metadata.isUpgrade === "true"
-    ) {
-      const remainingDays = Math.max(
-        0,
-        Math.ceil((user.planExpiresAt - new Date()) / (1000 * 60 * 60 * 24))
-      );
-
-      if (remainingDays > 0) {
-        const existingIndex = updatedRemainingDays.findIndex(
-          (item) => item.planId.toString() === user.plan._id.toString()
-        );
-
-        if (existingIndex !== -1) {
-          updatedRemainingDays[existingIndex].days += remainingDays;
-        } else {
-          updatedRemainingDays.push({
-            planId: user.plan._id,
-            days: remainingDays,
-            storedAt: new Date(),
-            planSnapshot: {
-              name: user.plan.name,
-              price: user.plan.price,
-              pricePeriod: user.plan.pricePeriod,
-            },
-          });
-        }
-      }
-    }
-
-    // Calculate expiry date and apply remaining days
-    const baseExpiryDate = new Date(subscription.current_period_end * 1000);
-    const { newExpiryDate, updatedRemainingDays: finalRemainingDays } =
-      applyStoredRemainingDaysUtil(
-        { remainingDays: updatedRemainingDays },
-        baseExpiryDate
-      );
-
-    // Update user with new subscription data
+    // Update user with new subscription data - minimal fields only
     await User.findByIdAndUpdate(userId, {
       plan: plan._id,
-      planActivatedAt: new Date(subscription.current_period_start * 1000),
-      planExpiresAt: newExpiryDate,
       isPremium: plan.name !== "Starter",
-      autoRenewal: true,
-      remainingDays: finalRemainingDays || [],
-      trialStart: subscription.trial_start
-        ? new Date(subscription.trial_start * 1000)
-        : null,
-      trialEnd: subscription.trial_end
-        ? new Date(subscription.trial_end * 1000)
-        : null,
+      // autoRenewal: true,
       onFreeTrial: subscription.status === "trialing",
       hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
       stripeSubscriptionId: subscription.id,
-      stripeSubscriptionStatus: subscription.status,
-      stripeCurrentPeriodStart: new Date(
-        subscription.current_period_start * 1000
-      ),
-      stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
 
     console.log(
@@ -188,8 +123,11 @@ const handleSubscriptionUpdated = async (subscription) => {
       return;
     }
 
-    // Update subscription data
-    await updateUserSubscriptionData(user._id, subscription);
+    // Update basic subscription state
+    await User.findByIdAndUpdate(user._id, {
+      onFreeTrial: subscription.status === "trialing",
+      // autoRenewal: !subscription.cancel_at_period_end,
+    });
 
     // If subscription was canceled, update user accordingly
     if (subscription.status === "canceled") {
@@ -242,54 +180,13 @@ const handleSubscriptionCancellation = async (user, subscription) => {
       return;
     }
 
-    // Store remaining days from current plan
-    let updatedRemainingDays = [...(user.remainingDays || [])];
-    const currentPlan = await Plan.findById(user.plan);
-
-    if (currentPlan && user.planExpiresAt) {
-      const remainingDays = Math.max(
-        0,
-        Math.ceil((user.planExpiresAt - new Date()) / (1000 * 60 * 60 * 24))
-      );
-
-      if (remainingDays > 0) {
-        const existingIndex = updatedRemainingDays.findIndex(
-          (item) => item.planId.toString() === currentPlan._id.toString()
-        );
-
-        if (existingIndex !== -1) {
-          updatedRemainingDays[existingIndex].days += remainingDays;
-        } else {
-          updatedRemainingDays.push({
-            planId: currentPlan._id,
-            days: remainingDays,
-            storedAt: new Date(),
-            planSnapshot: {
-              name: currentPlan.name,
-              price: currentPlan.price,
-              pricePeriod: currentPlan.pricePeriod,
-            },
-          });
-        }
-      }
-    }
-
     // Revert to starter plan
     await User.findByIdAndUpdate(user._id, {
       plan: starterPlan._id,
-      planActivatedAt: null,
-      planExpiresAt: null,
       isPremium: false,
       autoRenewal: false,
-      remainingDays: updatedRemainingDays,
       onFreeTrial: false,
-      trialStart: null,
-      trialEnd: null,
       stripeSubscriptionId: null,
-      stripeSubscriptionStatus: null,
-      stripeCurrentPeriodStart: null,
-      stripeCurrentPeriodEnd: null,
-      stripeCancelAtPeriodEnd: false,
     });
   } catch (error) {
     console.error("Error handling subscription cancellation:", error);
@@ -307,22 +204,17 @@ const handleInvoicePaymentSucceeded = async (invoice) => {
       return; // Not a subscription invoice
     }
 
-    // Get the subscription
-    const subscription = await stripe.subscriptions.retrieve(
-      invoice.subscription
-    );
-
     // Find user by subscription ID
-    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+    const user = await User.findOne({
+      stripeSubscriptionId: invoice.subscription,
+    });
 
     if (!user) {
-      console.error("User not found for subscription:", subscription.id);
+      console.error("User not found for subscription:", invoice.subscription);
       return;
     }
 
-    // Update subscription data (renewal)
-    await updateUserSubscriptionData(user._id, subscription);
-
+    // For successful renewals, just log - subscription data fetched from Stripe when needed
     console.log(
       `Webhook: Successfully renewed subscription for user ${user._id}`
     );
@@ -342,33 +234,17 @@ const handleInvoicePaymentFailed = async (invoice) => {
       return; // Not a subscription invoice
     }
 
-    // Get the subscription
-    const subscription = await stripe.subscriptions.retrieve(
-      invoice.subscription
-    );
-
     // Find user by subscription ID
-    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+    const user = await User.findOne({
+      stripeSubscriptionId: invoice.subscription,
+    });
 
     if (!user) {
-      console.error("User not found for subscription:", subscription.id);
+      console.error("User not found for subscription:", invoice.subscription);
       return;
     }
 
-    // Update subscription status
-    await updateUserSubscriptionData(user._id, subscription);
-
-    // If subscription is past_due or unpaid, you might want to take action
-    if (
-      subscription.status === "past_due" ||
-      subscription.status === "unpaid"
-    ) {
-      console.log(
-        `Subscription ${subscription.id} is ${subscription.status} for user ${user._id}`
-      );
-      // You can implement notification logic here
-    }
-
+    // Log the failed payment - specific status handling done when fetching from Stripe
     console.log(`Webhook: Handled failed payment for user ${user._id}`);
   } catch (error) {
     console.error("Error handling invoice payment failed:", error);

@@ -78,50 +78,94 @@ async function getProPlan() {
 }
 
 /**
- * Setup initial plan for new user with Stripe subscription integration
- * @param {Object} user - User object (optional, for checking trial status)
- * @param {Object} plan - Plan to assign (optional, will use default if not provided)
+ * Setup initial plan for new user with 14-day Pro trial via Stripe subscription
+ * @param {Object} user - User object (required for creating Stripe subscription)
+ * @param {Object} plan - Plan to assign (optional, will use Pro plan for trial)
  * @returns {Object} Updated user data with plan details
  */
-async function setupInitialPlan(user = null, plan = null) {
+async function setupInitialPlan(user, plan = null) {
   try {
-    // With Stripe subscriptions, we start users on Starter plan
-    // Pro trials/subscriptions are created via Stripe when user upgrades
-    const starterPlan = await getStarterPlan();
-
-    if (!starterPlan) {
-      console.warn("No Starter plan found, user will have no plan assigned");
+    if (!user) {
+      console.error("User object is required for setupInitialPlan");
       return {
         plan: null,
-        planActivatedAt: null,
-        planExpiresAt: null,
         isPremium: false,
-        trialStart: null,
-        trialEnd: null,
+        hasUsedProTrial: false,
       };
     }
 
-    const now = new Date();
+    // Get Pro plan for trial
+    const proPlan = await getProPlan();
 
-    // All new users start with Starter plan
-    // Stripe subscriptions handle Pro plan trials and billing
-    return {
-      plan: starterPlan._id,
-      planActivatedAt: now,
-      planExpiresAt: null, // Starter plan doesn't expire
-      isPremium: false, // Starter plan is not premium
-      trialStart: null, // Trials managed by Stripe subscriptions
-      trialEnd: null, // Trials managed by Stripe subscriptions
-    };
+    if (!proPlan || !proPlan.stripePriceId) {
+      console.warn(
+        "No Pro plan with Stripe price found, falling back to Starter plan"
+      );
+      const starterPlan = await getStarterPlan();
+
+      return {
+        plan: starterPlan ? starterPlan._id : null,
+        isPremium: false,
+        hasUsedProTrial: false,
+      };
+    }
+
+    // Import Stripe utilities
+    const {
+      getOrCreateStripeCustomer,
+      createStripeSubscription,
+    } = require("./stripeUtils");
+
+    try {
+      // Get or create Stripe customer
+      const customer = await getOrCreateStripeCustomer(user);
+
+      // Create 14-day Pro trial subscription
+      const subscriptionOptions = {
+        trial_period_days: 14,
+        metadata: {
+          userId: user._id.toString(),
+          planId: proPlan._id.toString(),
+          planName: proPlan.name,
+          isInitialTrial: "true",
+          signupMethod: user.signupMethod || "unknown",
+        },
+      };
+
+      const subscription = await createStripeSubscription(
+        customer.id,
+        proPlan.stripePriceId,
+        subscriptionOptions
+      );
+
+      console.log(
+        `Created 14-day Pro trial for user ${user._id}: ${subscription.id}`
+      );
+
+      return {
+        plan: proPlan._id,
+        isPremium: true, // Pro trial is premium
+        hasUsedProTrial: true, // Mark trial as used
+        stripeSubscriptionId: subscription.id, // Keep this for webhook/cancellation purposes
+      };
+    } catch (stripeError) {
+      console.error("Error creating Stripe trial subscription:", stripeError);
+
+      // Fall back to Starter plan if Stripe fails
+      const starterPlan = await getStarterPlan();
+
+      return {
+        plan: starterPlan ? starterPlan._id : null,
+        isPremium: false,
+        hasUsedProTrial: false,
+      };
+    }
   } catch (error) {
     console.error("Error setting up initial plan:", error);
     return {
       plan: null,
-      planActivatedAt: null,
-      planExpiresAt: null,
       isPremium: false,
-      trialStart: null,
-      trialEnd: null,
+      hasUsedProTrial: false,
     };
   }
 }

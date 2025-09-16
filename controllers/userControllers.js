@@ -208,24 +208,13 @@ const signupWithEmail = async (req, res) => {
 
       // Setup initial plan after email verification
       if (!user.plan) {
-        const planData = await setupInitialPlan();
+        const planData = await setupInitialPlan(user);
         console.log("planData:", planData);
 
         user.plan = planData.plan;
-        user.planActivatedAt = planData.planActivatedAt;
-        user.planExpiresAt = planData.planExpiresAt;
+        user.stripeSubscriptionId = planData.stripeSubscriptionId;
         user.isPremium = planData.isPremium;
-        user.trialStart = planData.trialStart;
-        user.trialEnd = planData.trialEnd;
-
-        // Mark Pro trial as used if Pro plan was assigned
-        if (planData.plan) {
-          const assignedPlan = await Plan.findById(planData.plan);
-          if (assignedPlan && assignedPlan.name === "Pro") {
-            user.hasUsedProTrial = true;
-            user.onFreeTrial = true; //  on free trial if Pro assigned
-          }
-        }
+        user.hasUsedProTrial = planData.hasUsedProTrial;
       }
 
       // Activate user after email verification
@@ -804,14 +793,12 @@ const signupWithPhoneNumber = async (req, res) => {
     }
 
     // Setup initial plan using utility
-    const planData = await setupInitialPlan(null);
+    const planData = await setupInitialPlan(user);
 
     user.plan = planData.plan;
-    user.planActivatedAt = planData.planActivatedAt;
-    user.planExpiresAt = planData.planExpiresAt;
-    user.trialStart = planData.trialStart;
-    user.trialEnd = planData.trialEnd;
+    user.stripeSubscriptionId = planData.stripeSubscriptionId;
     user.isPremium = planData.isPremium;
+    user.hasUsedProTrial = planData.hasUsedProTrial;
 
     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
     user.referralCode = crypto
@@ -1791,8 +1778,16 @@ const googleCallback = async (req, res) => {
       //   provider: "google"
       // });
 
-      // Setup initial plan using utility
-      const planData = await setupInitialPlan();
+      // Setup initial plan using utility - pass temporary user data for Stripe customer creation
+      const tempUser = {
+        _id: new (require("mongoose").Types.ObjectId)(),
+        email,
+        firstname,
+        lastname,
+        signupMethod: "google",
+      };
+
+      const planData = await setupInitialPlan(tempUser);
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
@@ -1814,19 +1809,13 @@ const googleCallback = async (req, res) => {
         isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
-        ...planData, // Spread plan data
+        plan: planData.plan,
+        stripeSubscriptionId: planData.stripeSubscriptionId,
+        isPremium: planData.isPremium,
+        hasUsedProTrial: planData.hasUsedProTrial,
 
         // referredByAdmin: referredByAdmin
       });
-
-      // Mark Pro trial as used if Pro plan was assigned
-      if (planData.plan) {
-        const assignedPlan = await Plan.findById(planData.plan);
-        if (assignedPlan && assignedPlan.name === "Pro") {
-          user.hasUsedProTrial = true;
-          await user.save();
-        }
-      }
 
       // if (referredBy) {
       //   const referrer = await User.findById(referredBy);
@@ -2212,8 +2201,16 @@ const linkedinCallback = async (req, res) => {
       //   provider: "linkedin"
       // });
 
-      // Setup initial plan using utility
-      const planData = await setupInitialPlan();
+      // Setup initial plan using utility - pass temporary user data for Stripe customer creation
+      const tempUser = {
+        _id: new (require("mongoose").Types.ObjectId)(),
+        email,
+        firstname,
+        lastname,
+        signupMethod: "linkedin",
+      };
+
+      const planData = await setupInitialPlan(tempUser);
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
@@ -2235,17 +2232,11 @@ const linkedinCallback = async (req, res) => {
         referralCode: userReferralCode,
         referredBy: referredBy,
         isActive: true,
-        ...planData, // Spread plan data
+        plan: planData.plan,
+        stripeSubscriptionId: planData.stripeSubscriptionId,
+        isPremium: planData.isPremium,
+        hasUsedProTrial: planData.hasUsedProTrial,
       });
-
-      // Mark Pro trial as used if Pro plan was assigned
-      if (planData.plan) {
-        const assignedPlan = await Plan.findById(planData.plan);
-        if (assignedPlan && assignedPlan.name === "Pro") {
-          user.hasUsedProTrial = true;
-          await user.save();
-        }
-      }
 
       // if (referredBy) {
       //   const referrer = await User.findById(referredBy);

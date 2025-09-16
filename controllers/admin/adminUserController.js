@@ -5,13 +5,13 @@ const mongoose = require("mongoose");
 const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../../utils/s3");
-const { checkAndHandlePlanExpiryBatch } = require("../../utils/planUtils");
 const {
   getOrCreateStripeCustomer,
   getStripeCreditBalance,
   createStripeSubscription,
   cancelStripeSubscription,
-  updateStripeSubscriptionPrice,
+  updateSubscriptionForAdmin,
+  getUserStripeSubscriptionData,
 } = require("../../utils/stripeUtils");
 
 // GET all users
@@ -40,10 +40,10 @@ const getAllUsers = async (req, res) => {
     // Get total count for pagination
     const totalUsers = await User.countDocuments(searchQuery);
 
-    // Fetch users with pagination
+    // Fetch users with pagination - only basic fields, Stripe data fetched separately
     const users = await User.find(searchQuery)
       .select(
-        "firstname lastname email phonenumbers planExpiresAt onFreeTrial plan isPremium planActivatedAt"
+        "firstname lastname email phonenumbers plan isPremium stripeSubscriptionId hasUsedProTrial"
       )
       .populate({
         path: "plan",
@@ -53,35 +53,42 @@ const getAllUsers = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    // Check and handle plan expiry for all users before transformation
-    const updatedUsers = await Promise.all(
+    // Transform users and fetch Stripe subscription data for each
+    const transformedUsers = await Promise.all(
       users.map(async (user) => {
-        const updatedUser = await checkAndHandlePlanExpiryBatch(user);
+        const userObj = user.toObject();
 
-        return updatedUser || user; // Return updated user or original if no changes
+        // Fetch Stripe subscription data if user has a subscription
+        const stripeData = await getUserStripeSubscriptionData(user);
+
+        // If user has a plan, add subscription info to it
+        if (userObj.plan) {
+          userObj.plan.subscriptionStatus = stripeData?.status || null;
+          userObj.plan.isTrialing = stripeData?.isTrialing || false;
+          userObj.plan.activatedAt = stripeData?.activatedAt || null;
+          userObj.plan.expiresAt = stripeData?.expiresAt || null;
+          userObj.plan.cancelAtPeriodEnd =
+            stripeData?.cancelAtPeriodEnd || false;
+          userObj.plan.hasUsedProTrial = userObj.hasUsedProTrial;
+        } else {
+          // If no plan, create a plan object with subscription info
+          userObj.plan = {
+            name: null,
+            subscriptionStatus: stripeData?.status || null,
+            isTrialing: stripeData?.isTrialing || false,
+            activatedAt: stripeData?.activatedAt || null,
+            expiresAt: stripeData?.expiresAt || null,
+            cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+            hasUsedProTrial: userObj.hasUsedProTrial,
+          };
+        }
+
+        // Clean up fields from root level since they're now inside plan
+        delete userObj.hasUsedProTrial;
+
+        return userObj;
       })
     );
-
-    // Transform users to include onFreeTrial inside plan object
-    const transformedUsers = updatedUsers.map((user) => {
-      const userObj = user.toObject();
-
-      // If user has a plan, add onFreeTrial to it
-      if (userObj.plan) {
-        userObj.plan.onFreeTrial = userObj.onFreeTrial;
-      } else {
-        // If no plan, create a plan object with onFreeTrial
-        userObj.plan = {
-          name: null,
-          onFreeTrial: userObj.onFreeTrial,
-        };
-      }
-
-      // Remove onFreeTrial from the root level since it's now inside plan
-      delete userObj.onFreeTrial;
-
-      return userObj;
-    });
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalUsers / limit);
@@ -141,7 +148,7 @@ const getUser = async (req, res) => {
         select: "name",
       })
       .select(
-        "firstname lastname email role gender signupMethod isPremium isVerified referralCode profileImageURL designation planExpiresAt planActivatedAt onFreeTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
+        "firstname lastname email role gender signupMethod isPremium isVerified referralCode profileImageURL designation stripeSubscriptionId hasUsedProTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
       );
 
     if (!user) {
@@ -155,6 +162,18 @@ const getUser = async (req, res) => {
     const userData = user.toObject();
     userData.id = userData._id;
     delete userData._id;
+
+    // Fetch Stripe subscription data if user has a subscription
+    const stripeData = await getUserStripeSubscriptionData(user);
+
+    // Add subscription data to plan object
+    if (userData.plan) {
+      userData.plan.subscriptionStatus = stripeData?.status || null;
+      userData.plan.isTrialing = stripeData?.isTrialing || false;
+      userData.plan.activatedAt = stripeData?.activatedAt || null;
+      userData.plan.expiresAt = stripeData?.expiresAt || null;
+      userData.plan.cancelAtPeriodEnd = stripeData?.cancelAtPeriodEnd || false;
+    }
 
     res.status(200).json({
       status: "success",
@@ -280,13 +299,8 @@ const editProfile = async (req, res) => {
           if (starterPlan) {
             user.plan = starterPlan._id;
             user.isPremium = false;
-            user.onFreeTrial = false;
-            // Clear Stripe subscription data
+            // Clear Stripe subscription ID only
             user.stripeSubscriptionId = null;
-            user.stripeSubscriptionStatus = null;
-            user.stripeCurrentPeriodStart = null;
-            user.stripeCurrentPeriodEnd = null;
-            user.stripeCancelAtPeriodEnd = false;
           }
         } else {
           // Validate plan exists
@@ -318,13 +332,8 @@ const editProfile = async (req, res) => {
 
             user.plan = selectedPlan._id;
             user.isPremium = false;
-            user.onFreeTrial = false;
-            // Clear Stripe subscription data
+            // Clear Stripe subscription ID only
             user.stripeSubscriptionId = null;
-            user.stripeSubscriptionStatus = null;
-            user.stripeCurrentPeriodStart = null;
-            user.stripeCurrentPeriodEnd = null;
-            user.stripeCancelAtPeriodEnd = false;
           } else {
             // For premium plans, create/update Stripe subscription
             const stripeCustomer = await getOrCreateStripeCustomer(user);
@@ -339,9 +348,10 @@ const editProfile = async (req, res) => {
             let subscription;
 
             if (user.stripeSubscriptionId) {
-              // Update existing subscription
-              subscription = await updateStripeSubscriptionPrice(
+              // Update existing subscription without billing via admin function
+              subscription = await updateSubscriptionForAdmin(
                 user.stripeSubscriptionId,
+                stripeCustomer.id,
                 selectedPlan.stripePriceId
               );
             } else {
@@ -351,29 +361,16 @@ const editProfile = async (req, res) => {
               subscription = await createStripeSubscription(
                 stripeCustomer.id,
                 selectedPlan.stripePriceId,
-                hasTrialOption ? 14 : 0 // 14 day trial if requested
+                hasTrialOption ? { trial_period_days: 14 } : {}
               );
             }
 
-            // Update user with Stripe subscription data
+            // Update user with basic subscription info only
             user.plan = selectedPlan._id;
             user.isPremium =
               subscription.status === "active" ||
               subscription.status === "trialing";
-            user.onFreeTrial = subscription.status === "trialing";
             user.stripeSubscriptionId = subscription.id;
-            user.stripeSubscriptionStatus = subscription.status;
-            user.stripeCurrentPeriodStart = new Date(
-              subscription.current_period_start * 1000
-            );
-            user.stripeCurrentPeriodEnd = new Date(
-              subscription.current_period_end * 1000
-            );
-            user.stripeCancelAtPeriodEnd = subscription.cancel_at_period_end;
-
-            // Remove backend date management - Stripe handles this
-            user.planActivatedAt = user.stripeCurrentPeriodStart;
-            user.planExpiresAt = user.stripeCurrentPeriodEnd;
           }
         }
 
@@ -542,6 +539,9 @@ const editProfile = async (req, res) => {
     // Get Stripe credit balance
     const stripeCreditBalance = await getStripeCreditBalance(user._id);
 
+    // Fetch Stripe subscription data dynamically
+    const stripeData = await getUserStripeSubscriptionData(user);
+
     return res.status(200).json({
       status: "success",
       message: "Profile updated successfully",
@@ -558,10 +558,12 @@ const editProfile = async (req, res) => {
         creditBalance: stripeCreditBalance,
         profileImageURL: user.profileImageURL,
         designation: user.designation,
-        // Plan dates from Stripe subscription
-        planExpiresAt: user.stripeCurrentPeriodEnd || user.planExpiresAt,
-        planActivatedAt: user.stripeCurrentPeriodStart || user.planActivatedAt,
-        subscriptionStatus: user.stripeSubscriptionStatus,
+        // Plan dates from Stripe subscription (live data)
+        planExpiresAt: stripeData?.expiresAt || null,
+        planActivatedAt: stripeData?.activatedAt || null,
+        subscriptionStatus: stripeData?.status || null,
+        cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+        isTrialing: stripeData?.isTrialing || false,
         createdAt: user.createdAt,
         userInfo: user.userInfo,
         phonenumbers: user.phonenumbers,
@@ -573,7 +575,7 @@ const editProfile = async (req, res) => {
         qrcode: user.qrcode,
         provider: user.provider,
         gender: user.gender,
-        onFreeTrial: user.onFreeTrial,
+        hasUsedProTrial: user.hasUsedProTrial,
         plan: user.plan, // Include plan information
       },
     });

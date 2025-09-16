@@ -7,10 +7,98 @@ const {
   createStripeSubscription,
   getStripeCreditBalance,
   useStripeCredits,
-  updateUserSubscriptionData,
+  getUserStripeSubscriptionData,
 } = require("../utils/stripeUtils");
+
+/**
+ * Validate plan upgrade based on price hierarchy
+ * @param {Object} currentPlan - User's current plan
+ * @param {Object} newPlan - Plan user wants to upgrade to
+ * @returns {Object} Validation result
+ */
+const validatePlanUpgrade = (currentPlan, newPlan) => {
+  const validation = {
+    isValid: true,
+    isUpgrade: false,
+    isDowngrade: false,
+    isSamePlan: false,
+    message: "",
+  };
+
+  // If user has no current plan, any plan is valid
+  if (!currentPlan) {
+    validation.message = "Creating new subscription";
+    return validation;
+  }
+
+  // Check if trying to subscribe to same plan
+  if (currentPlan._id.toString() === newPlan._id.toString()) {
+    validation.isValid = false;
+    validation.isSamePlan = true;
+    validation.message = "You already have this plan active";
+    return validation;
+  }
+
+  const currentPrice = currentPlan.price;
+  const newPrice = newPlan.price;
+
+  if (newPrice > currentPrice) {
+    // This is an upgrade
+    validation.isUpgrade = true;
+    validation.message = `Upgrading from ${currentPlan.name} to ${newPlan.name}`;
+  } else if (newPrice < currentPrice) {
+    // This is a downgrade - not allowed
+    validation.isValid = false;
+    validation.isDowngrade = true;
+    validation.message = `Cannot downgrade from ${currentPlan.name} (${currentPrice}) to ${newPlan.name} (${newPrice}). Downgrades are not allowed.`;
+  } else {
+    // Same price different plan
+    validation.message = `Changing from ${currentPlan.name} to ${newPlan.name}`;
+  }
+
+  return validation;
+};
+
+/**
+ * Check if user has any active Stripe subscriptions
+ * @param {Object} user - User object
+ * @returns {Object} Active subscription info
+ */
+const checkActiveSubscription = async (user) => {
+  const result = {
+    hasActiveSubscription: false,
+    subscriptionId: null,
+    subscriptionStatus: null,
+  };
+
+  if (!user.stripeSubscriptionId) {
+    return result;
+  }
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(
+      user.stripeSubscriptionId
+    );
+
+    const activeStatuses = ["active", "trialing", "past_due"];
+    if (activeStatuses.includes(subscription.status)) {
+      result.hasActiveSubscription = true;
+      result.subscriptionId = subscription.id;
+      result.subscriptionStatus = subscription.status;
+    }
+  } catch (error) {
+    console.log("Error checking active subscription:", error.message);
+    // If subscription doesn't exist in Stripe, clear it from user record
+    await User.findByIdAndUpdate(user._id, {
+      stripeSubscriptionId: null,
+    });
+  }
+
+  return result;
+};
 /**
  * Create subscription for plan purchase/upgrade
+ * cannot directly/explicitly buy with credits, if there are enough credits, will automatically use those credits first
  * @route POST /api/user/payment/create-subscription
  * @access Private
  */
@@ -45,40 +133,85 @@ const createSubscription = async (req, res) => {
       });
     }
 
+    // Check for active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
+
+    // Validate plan upgrade/change
+    const validation = validatePlanUpgrade(user.plan, plan);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
+
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
 
-    // Create Stripe subscription
-    const subscriptionOptions = {
-      cancel_at_period_end: !autoRenewal, // Set based on autoRenewal preference
-      metadata: {
-        userId: userId.toString(),
-        planId: planId.toString(),
-        planName: plan.name,
-        autoRenewal: autoRenewal.toString(),
-      },
-    };
+    let subscription;
 
-    // Add trial period for new Pro plan users
-    if (plan.name === "Pro" && !user.hasUsedProTrial) {
-      subscriptionOptions.trialPeriodDays = 14;
+    if (!activeSubInfo.hasActiveSubscription) {
+      // Create new subscription
+      const subscriptionOptions = {
+        cancel_at_period_end: !autoRenewal,
+        metadata: {
+          userId: userId.toString(),
+          planId: planId.toString(),
+          planName: plan.name,
+          autoRenewal: autoRenewal.toString(),
+        },
+      };
+
+      // Add trial period for new Pro plan users
+      if (plan.name === "Pro" && !user.hasUsedProTrial) {
+        subscriptionOptions.trialPeriodDays = 14;
+      }
+
+      subscription = await createStripeSubscription(
+        customer.id,
+        plan.stripePriceId,
+        subscriptionOptions
+      );
+    } else {
+      // Update existing subscription for upgrade
+      const currentSubscription = await stripe.subscriptions.retrieve(
+        activeSubInfo.subscriptionId
+      );
+
+      subscription = await stripe.subscriptions.update(
+        activeSubInfo.subscriptionId,
+        {
+          items: [
+            {
+              id: currentSubscription.items.data[0].id,
+              price: plan.stripePriceId,
+            },
+          ],
+          proration_behavior: "create_prorations", // Create prorations for upgrades
+          metadata: {
+            userId: userId.toString(),
+            planId: planId.toString(),
+            planName: plan.name,
+            autoRenewal: autoRenewal.toString(),
+            upgradeType: validation.isUpgrade ? "upgrade" : "change",
+          },
+        }
+      );
     }
 
-    const subscription = await createStripeSubscription(
-      customer.id,
-      plan.stripePriceId,
-      subscriptionOptions
-    );
-
-    res.json({
+    const responseData = {
       success: true,
       paymentMethod: "stripe_subscription",
-      clientSecret: subscription.latest_invoice.payment_intent.client_secret,
       planDetails: {
         planId: plan._id,
         planName: plan.name,
         planPrice: plan.price,
-        trialDays: subscriptionOptions.trialPeriodDays || 0,
+        trialDays:
+          !activeSubInfo.hasActiveSubscription &&
+          plan.name === "Pro" &&
+          !user.hasUsedProTrial
+            ? 14
+            : 0,
         autoRenewal: autoRenewal,
       },
       subscription: {
@@ -88,7 +221,22 @@ const createSubscription = async (req, res) => {
         currentPeriodEnd: subscription.current_period_end,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
       },
-    });
+      upgrade: {
+        isUpgrade: validation.isUpgrade,
+        message: validation.message,
+      },
+    };
+
+    // Only include client_secret for new subscriptions that need payment
+    if (
+      !activeSubInfo.hasActiveSubscription &&
+      subscription.latest_invoice?.payment_intent?.client_secret
+    ) {
+      responseData.clientSecret =
+        subscription.latest_invoice.payment_intent.client_secret;
+    }
+
+    res.json(responseData);
   } catch (error) {
     console.error("Error creating subscription:", error);
     res.status(500).json({
@@ -109,198 +257,138 @@ const createSubscription = async (req, res) => {
  * @route POST /api/user/payment/purchase-with-credits
  * @access Private
  */
-const purchaseWithCredits = async (req, res) => {
-  try {
-    const { planId, autoRenewal = false } = req.body; // Default to false for credit purchases
-    const userId = req.user._id;
+// const purchaseWithCredits = async (req, res) => {
+//   try {
+//     const { planId, autoRenewal = false } = req.body; // Default to false for credit purchases
+//     const userId = req.user._id;
 
-    // Validate plan
-    const plan = await Plan.findById(planId);
-    if (!plan || !plan.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: "Plan not found or inactive",
-      });
-    }
+//     // Validate plan
+//     const plan = await Plan.findById(planId);
+//     if (!plan || !plan.isActive) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Plan not found or inactive",
+//       });
+//     }
 
-    // Get user
-    const user = await User.findById(userId).populate("plan");
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
+//     // Get user
+//     const user = await User.findById(userId).populate("plan");
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
 
-    // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
+//     // Check for active subscription
+//     const activeSubInfo = await checkActiveSubscription(user);
 
-    // Check Stripe credit balance
-    const availableCredits = Math.abs(
-      await getStripeCreditBalance(customer.id)
-    );
+//     // Validate plan upgrade/change
+//     const validation = validatePlanUpgrade(user.plan, plan);
+//     if (!validation.isValid) {
+//       return res.status(400).json({
+//         success: false,
+//         message: validation.message,
+//       });
+//     }
 
-    if (availableCredits < plan.price) {
-      return res.status(400).json({
-        success: false,
-        message: "Insufficient Stripe credits",
-        required: plan.price,
-        available: availableCredits,
-      });
-    }
+//     // Prevent credit purchases if user has active subscription (should upgrade instead)
+//     if (activeSubInfo.hasActiveSubscription) {
+//       return res.status(400).json({
+//         success: false,
+//         message:
+//           "You have an active subscription. Please use the subscription upgrade flow instead of purchasing with credits.",
+//       });
+//     }
 
-    // Use Stripe credits
-    await useStripeCredits(
-      customer.id,
-      plan.price,
-      `Payment for ${plan.name} plan`
-    );
+//     // Get or create Stripe customer
+//     const customer = await getOrCreateStripeCustomer(user);
 
-    // Create payment record
-    const payment = new Payment({
-      userId: userId,
-      planId: plan._id,
-      paymentMethod: "stripe_credits",
-      amounts: {
-        totalAmount: plan.price,
-        creditUsed: plan.price,
-        stripeAmount: 0,
-        upgradeCost: plan.price,
-        remainingValue: 0,
-      },
-      isUpgrade: false,
-      status: "completed",
-      completedAt: new Date(),
-      metadata: {
-        autoRenewal: autoRenewal,
-        paymentType: "credit_purchase",
-      },
-    });
+//     // Check Stripe credit balance
+//     const availableCredits = Math.abs(
+//       await getStripeCreditBalance(customer.id)
+//     );
 
-    // Save payment record
-    await payment.save();
+//     if (availableCredits < plan.price) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Insufficient Stripe credits",
+//         required: plan.price,
+//         available: availableCredits,
+//       });
+//     }
 
-    // Get updated credit balance
-    const newCreditBalance = Math.abs(
-      await getStripeCreditBalance(customer.id)
-    );
+//     // Use Stripe credits
+//     await useStripeCredits(
+//       customer.id,
+//       plan.price,
+//       `Payment for ${plan.name} plan`
+//     );
 
-    res.json({
-      success: true,
-      message: "Plan purchased successfully with Stripe credits",
-      credits: {
-        used: plan.price,
-        remaining: newCreditBalance,
-      },
-      transaction: {
-        paymentId: payment.paymentId,
-        method: "stripe_credits",
-        amount: plan.price,
-        planName: plan.name,
-        autoRenewal: autoRenewal,
-      },
-    });
-  } catch (error) {
-    console.error("Error purchasing with credits:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to purchase plan",
-      error: error.message,
-    });
-  }
-};
+//     // Create payment record
+//     const payment = new Payment({
+//       userId: userId,
+//       planId: plan._id,
+//       paymentMethod: "stripe_credits",
+//       amounts: {
+//         totalAmount: plan.price,
+//         creditUsed: plan.price,
+//         stripeAmount: 0,
+//         upgradeCost: plan.price,
+//         remainingValue: 0,
+//       },
+//       isUpgrade: validation.isUpgrade,
+//       status: "completed",
+//       completedAt: new Date(),
+//       metadata: {
+//         autoRenewal: autoRenewal,
+//         paymentType: "credit_purchase",
+//         upgradeInfo: validation.message,
+//       },
+//     });
 
-/**
- * Confirm payment and update user plan after successful Stripe payment
- * Note: This function is mostly legacy - webhooks handle subscription updates
- * @route POST /api/user/payment/confirm
- * @access Private
- */
-const confirmPayment = async (req, res) => {
-  try {
-    const { paymentIntentId } = req.body;
-    const userId = req.user._id;
+//     // Save payment record
+//     await payment.save();
 
-    // Retrieve payment intent from Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+//     // Update user plan
+//     await User.findByIdAndUpdate(userId, {
+//       plan: plan._id,
+//       isPremium: plan.name !== "Starter",
+//     });
 
-    if (paymentIntent.status !== "succeeded") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment not completed",
-        status: paymentIntent.status,
-      });
-    }
+//     // Get updated credit balance
+//     const newCreditBalance = Math.abs(
+//       await getStripeCreditBalance(customer.id)
+//     );
 
-    // Extract metadata
-    const { planId, finalAmount, autoRenewal } = paymentIntent.metadata;
-
-    // Validate plan
-    const plan = await Plan.findById(planId);
-    if (!plan) {
-      return res.status(404).json({
-        success: false,
-        message: "Plan not found",
-      });
-    }
-
-    // Get user
-    const user = await User.findById(userId).populate("plan");
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Create payment record
-    const payment = new Payment({
-      userId: userId,
-      planId: plan._id,
-      paymentMethod: "stripe",
-      stripePaymentIntentId: paymentIntentId,
-      amounts: {
-        totalAmount: parseInt(finalAmount),
-        creditUsed: 0,
-        stripeAmount: parseInt(finalAmount),
-        upgradeCost: parseInt(finalAmount),
-        remainingValue: 0,
-      },
-      isUpgrade: false,
-      status: "completed",
-      completedAt: new Date(),
-      metadata: {
-        autoRenewal: autoRenewal || "true", // Default to true if not specified
-        paymentType: "stripe_payment",
-      },
-    });
-
-    // Save payment record
-    await payment.save();
-
-    res.json({
-      success: true,
-      message:
-        "Payment confirmed successfully. Plan activation will be handled by webhooks.",
-      transaction: {
-        paymentId: payment.paymentId,
-        paymentIntentId,
-        method: "stripe",
-        stripeAmount: parseInt(finalAmount),
-        totalAmount: parseInt(finalAmount),
-        planName: plan.name,
-        autoRenewal: autoRenewal === "true",
-      },
-    });
-  } catch (error) {
-    console.error("Error confirming payment:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to confirm payment",
-      error: error.message,
-    });
-  }
-};
+//     res.json({
+//       success: true,
+//       message: "Plan purchased successfully with Stripe credits",
+//       credits: {
+//         used: plan.price,
+//         remaining: newCreditBalance,
+//       },
+//       transaction: {
+//         paymentId: payment.paymentId,
+//         method: "stripe_credits",
+//         amount: plan.price,
+//         planName: plan.name,
+//         autoRenewal: autoRenewal,
+//       },
+//       upgrade: {
+//         isUpgrade: validation.isUpgrade,
+//         message: validation.message,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error purchasing with credits:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to purchase plan",
+//       error: error.message,
+//     });
+//   }
+// };
 
 /**
  * Toggle auto-renewal setting for user's Stripe subscription
@@ -320,38 +408,40 @@ const toggleAutoRenewal = async (req, res) => {
       });
     }
 
-    // If user has an active Stripe subscription, update it
-    if (user.stripeSubscriptionId) {
-      try {
-        await stripe.subscriptions.update(user.stripeSubscriptionId, {
-          cancel_at_period_end: !autoRenewal, // Cancel at period end if autoRenewal is false
-        });
+    // Check if user has active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
 
-        // Update user's cancel at period end status
-        await User.findByIdAndUpdate(userId, {
-          stripeCancelAtPeriodEnd: !autoRenewal,
-        });
-
-        res.json({
-          success: true,
-          message: `Auto-renewal ${
-            autoRenewal ? "enabled" : "disabled"
-          } successfully`,
-          autoRenewal: autoRenewal,
-          cancelAtPeriodEnd: !autoRenewal,
-        });
-      } catch (stripeError) {
-        console.error("Error updating Stripe subscription:", stripeError);
-        res.status(500).json({
-          success: false,
-          message: "Failed to update subscription auto-renewal",
-          error: stripeError.message,
-        });
-      }
-    } else {
-      res.status(400).json({
+    if (!activeSubInfo.hasActiveSubscription) {
+      return res.status(400).json({
         success: false,
         message: "No active subscription found to modify",
+      });
+    }
+
+    try {
+      await stripe.subscriptions.update(activeSubInfo.subscriptionId, {
+        cancel_at_period_end: !autoRenewal,
+      });
+
+      // Update user record
+      // await User.findByIdAndUpdate(userId, {
+      //   autoRenewal: autoRenewal,
+      // });
+
+      res.json({
+        success: true,
+        message: `Auto-renewal ${
+          autoRenewal ? "enabled" : "disabled"
+        } successfully`,
+        autoRenewal: autoRenewal,
+        cancelAtPeriodEnd: !autoRenewal,
+      });
+    } catch (stripeError) {
+      console.error("Error updating Stripe subscription:", stripeError);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update subscription auto-renewal",
+        error: stripeError.message,
       });
     }
   } catch (error) {
@@ -376,7 +466,7 @@ const getPaymentStatus = async (req, res) => {
     const user = await User.findById(userId)
       .populate("plan")
       .select(
-        "plan stripeCustomerId stripeSubscriptionId stripeSubscriptionStatus stripeCurrentPeriodStart stripeCurrentPeriodEnd stripeCancelAtPeriodEnd hasUsedProTrial"
+        "plan stripeCustomerId stripeSubscriptionId hasUsedProTrial autoRenewal"
       );
 
     if (!user) {
@@ -399,25 +489,26 @@ const getPaymentStatus = async (req, res) => {
       }
     }
 
-    // Get subscription details from Stripe if available
+    // Check for active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
     let subscriptionDetails = null;
-    if (user.stripeSubscriptionId) {
+
+    if (activeSubInfo.hasActiveSubscription) {
       try {
-        const subscription = await stripe.subscriptions.retrieve(
-          user.stripeSubscriptionId
-        );
-        subscriptionDetails = {
-          id: subscription.id,
-          status: subscription.status,
-          currentPeriodStart: new Date(
-            subscription.current_period_start * 1000
-          ),
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
-          trialEnd: subscription.trial_end
-            ? new Date(subscription.trial_end * 1000)
-            : null,
-        };
+        const stripeData = await getUserStripeSubscriptionData(user);
+        if (stripeData) {
+          subscriptionDetails = {
+            id: activeSubInfo.subscriptionId,
+            status: stripeData.status,
+            currentPeriodStart: stripeData.activatedAt,
+            currentPeriodEnd: stripeData.expiresAt,
+            cancelAtPeriodEnd: stripeData.cancelAtPeriodEnd,
+            isTrialing: stripeData.isTrialing,
+            trialStart: stripeData.trialStart,
+            trialEnd: stripeData.trialEnd,
+            autoRenewal: user.autoRenewal,
+          };
+        }
       } catch (error) {
         console.error("Error getting Stripe subscription:", error);
       }
@@ -431,6 +522,7 @@ const getPaymentStatus = async (req, res) => {
         hasUsedProTrial: user.hasUsedProTrial,
         subscription: subscriptionDetails,
         stripeCustomerId: user.stripeCustomerId,
+        hasActiveSubscription: activeSubInfo.hasActiveSubscription,
       },
     });
   } catch (error) {
@@ -445,8 +537,7 @@ const getPaymentStatus = async (req, res) => {
 
 module.exports = {
   createSubscription,
-  purchaseWithCredits,
-  confirmPayment,
+  // purchaseWithCredits,
   toggleAutoRenewal,
   getPaymentStatus,
 };
