@@ -61,6 +61,9 @@ const getAllUsers = async (req, res) => {
         // Fetch Stripe subscription data if user has a subscription
         const stripeData = await getUserStripeSubscriptionData(user);
 
+        // Get Stripe credit balance
+        const stripeCreditBalance = await getStripeCreditBalance(user._id);
+
         // If user has a plan, add subscription info to it
         if (userObj.plan) {
           userObj.plan.subscriptionStatus = stripeData?.status || null;
@@ -82,6 +85,9 @@ const getAllUsers = async (req, res) => {
             hasUsedProTrial: userObj.hasUsedProTrial,
           };
         }
+
+        // Add credit balance to user object
+        userObj.creditBalance = stripeCreditBalance;
 
         // Clean up fields from root level since they're now inside plan
         delete userObj.hasUsedProTrial;
@@ -166,6 +172,9 @@ const getUser = async (req, res) => {
     // Fetch Stripe subscription data if user has a subscription
     const stripeData = await getUserStripeSubscriptionData(user);
 
+    // Get Stripe credit balance
+    const stripeCreditBalance = await getStripeCreditBalance(user._id);
+
     // Add subscription data to plan object
     if (userData.plan) {
       userData.plan.subscriptionStatus = stripeData?.status || null;
@@ -174,6 +183,9 @@ const getUser = async (req, res) => {
       userData.plan.expiresAt = stripeData?.expiresAt || null;
       userData.plan.cancelAtPeriodEnd = stripeData?.cancelAtPeriodEnd || false;
     }
+
+    // Add credit balance to user data
+    userData.creditBalance = stripeCreditBalance;
 
     res.status(200).json({
       status: "success",
@@ -257,7 +269,7 @@ const editProfile = async (req, res) => {
       employeeCount = "",
       companyName = "",
       planId = "", // Add planId field
-      onFreeTrial = false, // Free trial toggle for Stripe subscriptions
+      // onFreeTrial = false, // Free trial toggle for Stripe subscriptions
       apiType = "web", // default to web if not provided
     } = req.body;
 
@@ -331,7 +343,6 @@ const editProfile = async (req, res) => {
             }
 
             user.plan = selectedPlan._id;
-            user.isPremium = false;
             // Clear Stripe subscription ID only
             user.stripeSubscriptionId = null;
           } else {
@@ -356,12 +367,12 @@ const editProfile = async (req, res) => {
               );
             } else {
               // Create new subscription
-              const hasTrialOption =
-                keys.includes("onFreeTrial") && onFreeTrial;
+              // const hasTrialOption =
+              //   keys.includes("onFreeTrial") && onFreeTrial;
               subscription = await createStripeSubscription(
                 stripeCustomer.id,
-                selectedPlan.stripePriceId,
-                hasTrialOption ? { trial_period_days: 14 } : {}
+                selectedPlan.stripePriceId
+                // hasTrialOption ? { trial_period_days: 14 } : {}
               );
             }
 

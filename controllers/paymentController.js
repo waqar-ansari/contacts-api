@@ -163,9 +163,9 @@ const createSubscription = async (req, res) => {
       };
 
       // Add trial period for new Pro plan users
-      if (plan.name === "Pro" && !user.hasUsedProTrial) {
-        subscriptionOptions.trialPeriodDays = 14;
-      }
+      // if (plan.name === "Pro" && !user.hasUsedProTrial) {
+      //   subscriptionOptions.trialPeriodDays = 14;
+      // }
 
       subscription = await createStripeSubscription(
         customer.id,

@@ -1,6 +1,7 @@
 const { stripe } = require("../config/stripe");
 const User = require("../models/userModel");
 const Plan = require("../models/planModel");
+const Payment = require("../models/paymentModel");
 
 /**
  * Handle Stripe webhook events
@@ -90,18 +91,16 @@ const handleSubscriptionCreated = async (subscription) => {
       return;
     }
 
-    // Update user with new subscription data - minimal fields only
+    // Update user with new subscription data
     await User.findByIdAndUpdate(userId, {
       plan: plan._id,
       isPremium: plan.name !== "Starter",
-      // autoRenewal: true,
-      onFreeTrial: subscription.status === "trialing",
       hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
       stripeSubscriptionId: subscription.id,
     });
 
     console.log(
-      `Webhook: Successfully created subscription for user ${userId}`
+      `✅ Webhook: Successfully created subscription for user ${userId}, plan: ${plan.name}`
     );
   } catch (error) {
     console.error("Error handling subscription created:", error);
@@ -123,15 +122,28 @@ const handleSubscriptionUpdated = async (subscription) => {
       return;
     }
 
-    // Update basic subscription state
-    await User.findByIdAndUpdate(user._id, {
-      onFreeTrial: subscription.status === "trialing",
-      // autoRenewal: !subscription.cancel_at_period_end,
-    });
+    // Handle plan changes from subscription metadata
+    if (subscription.metadata && subscription.metadata.planId) {
+      const planId = subscription.metadata.planId;
 
-    // If subscription was canceled, update user accordingly
-    if (subscription.status === "canceled") {
-      await handleSubscriptionCancellation(user, subscription);
+      // Validate the plan exists
+      const plan = await Plan.findById(planId);
+      if (plan) {
+        console.log(
+          `Updating user ${user._id} plan to ${plan.name} via webhook`
+        );
+
+        // Update user's plan in database
+        await User.findByIdAndUpdate(user._id, {
+          plan: plan._id,
+          // isPremium: plan.name !== "Starter",
+          stripeSubscriptionId: subscription.id, // Ensure subscription ID is set
+        });
+
+        console.log(`✅ Updated user ${user._id} plan to ${plan.name}`);
+      } else {
+        console.error(`Plan not found with ID: ${planId}`);
+      }
     }
 
     console.log(
@@ -185,7 +197,7 @@ const handleSubscriptionCancellation = async (user, subscription) => {
       plan: starterPlan._id,
       isPremium: false,
       autoRenewal: false,
-      onFreeTrial: false,
+      // onFreeTrial: false,
       stripeSubscriptionId: null,
     });
   } catch (error) {
@@ -207,17 +219,84 @@ const handleInvoicePaymentSucceeded = async (invoice) => {
     // Find user by subscription ID
     const user = await User.findOne({
       stripeSubscriptionId: invoice.subscription,
-    });
+    }).populate("plan");
 
     if (!user) {
       console.error("User not found for subscription:", invoice.subscription);
       return;
     }
 
-    // For successful renewals, just log - subscription data fetched from Stripe when needed
-    console.log(
-      `Webhook: Successfully renewed subscription for user ${user._id}`
+    // Get subscription details from Stripe to access metadata
+    const subscription = await stripe.subscriptions.retrieve(
+      invoice.subscription
     );
+
+    // Determine if this is a renewal or initial payment
+    const isRenewal = invoice.billing_reason === "subscription_cycle";
+    const isInitialPayment = invoice.billing_reason === "subscription_create";
+    const isUpgrade = invoice.billing_reason === "subscription_update";
+
+    // Create payment record
+    const paymentData = {
+      userId: user._id,
+      planId: user.plan._id,
+      paymentMethod: "stripe",
+      amounts: {
+        totalAmount: invoice.amount_paid, // Amount already in cents
+        creditUsed: 0,
+        stripeAmount: invoice.amount_paid,
+        upgradeCost: isUpgrade ? invoice.amount_paid : invoice.amount_paid,
+        remainingValue: 0,
+      },
+      stripe: {
+        paymentIntentId: invoice.payment_intent,
+        paymentStatus: "succeeded",
+        transactionId: invoice.id,
+      },
+      isUpgrade: isUpgrade,
+      isRenewal: isRenewal,
+      isAutoRenewal: !subscription.cancel_at_period_end,
+      newPlan: {
+        activatedAt: new Date(invoice.period_start * 1000),
+        expiresAt: new Date(invoice.period_end * 1000),
+        autoRenewal: !subscription.cancel_at_period_end,
+      },
+      status: "completed",
+      processedAt: new Date(),
+      completedAt: new Date(),
+      metadata: {
+        currency: invoice.currency.toUpperCase(),
+        notes: `${
+          isRenewal
+            ? "Subscription renewal"
+            : isUpgrade
+            ? "Subscription upgrade"
+            : "Initial subscription payment"
+        } via Stripe webhook`,
+      },
+    };
+
+    // Add upgrade metadata if available
+    if (subscription.metadata && subscription.metadata.upgradeType) {
+      paymentData.metadata.upgradeType = subscription.metadata.upgradeType;
+    }
+
+    // Create the payment record
+    const payment = new Payment(paymentData);
+    await payment.save();
+
+    console.log(
+      `✅ Webhook: Successfully processed payment for user ${user._id}, invoice: ${invoice.id}, payment record: ${payment.paymentId}`
+    );
+
+    // Log specific payment type
+    if (isRenewal) {
+      console.log(`💰 Subscription renewed for user ${user._id}`);
+    } else if (isUpgrade) {
+      console.log(`⬆️ Subscription upgraded for user ${user._id}`);
+    } else if (isInitialPayment) {
+      console.log(`🎉 Initial subscription payment for user ${user._id}`);
+    }
   } catch (error) {
     console.error("Error handling invoice payment succeeded:", error);
   }
