@@ -301,7 +301,13 @@ const connectToDatabase = async () => {
   if (isConnected) return;
   try {
     console.log("MongoDB URL log:", process.env.MONGO_URL);
-    await mongoose.connect(process.env.MONGO_URL);
+    await mongoose.connect(process.env.MONGO_URL,
+      {
+        maxPoolSize: 200,   // allow up to 50 concurrent DB connections
+        minPoolSize: 10,   // keep minimum connections ready
+        serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
+      }
+    );
     isConnected = true;
     console.log("✅ MongoDB connected successfully");
   } catch (err) {
