@@ -7,6 +7,8 @@ const zlib = require("zlib");
 const {
   getOrCreateStripeCustomer,
   getStripeCreditBalance,
+  getUserCurrentPlan,
+  getUserStripeSubscriptionData,
 } = require("../utils/stripeUtils");
 
 const getUserData = async (req, res) => {
@@ -403,6 +405,11 @@ const getUserData = async (req, res) => {
       });
     }
 
+    const currentPlan = await getUserCurrentPlan(user);
+
+    // Fetch Stripe subscription data if user has a subscription
+    const stripeData = await getUserStripeSubscriptionData(user);
+
     // If no specific favourite flags provided, return full data
 
     const data = {
@@ -464,6 +471,15 @@ const getUserData = async (req, res) => {
       totalTemplates,
       totalScans,
       whoScannedMeCount,
+      plan: {
+        _id: currentPlan?._id || null,
+        name: currentPlan?.name || null,
+        subscriptionStatus: stripeData?.status || null,
+        isTrialing: stripeData?.isTrialing || false,
+        activatedAt: stripeData?.activatedAt || null,
+        expiresAt: stripeData?.expiresAt || null,
+        cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+      },
       tagCount,
       templates: {},
     };

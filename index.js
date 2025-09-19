@@ -84,7 +84,6 @@ const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
 const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
 const testRoutes = require("./routes/testRoutes");
-const webhookRoutes = require("./routes/webhookRoutes");
 
 console.log("Setting up Express app...");
 
@@ -191,7 +190,7 @@ app.use(
   upload.single("helpAndSupportAttachments"),
   helpSupportRoutes
 );
-// app.use("/plans", checkForAuthentication(), planRoutes);
+app.use("/plans", planRoutes); // Public route for getting plans
 app.use("/user/payment", checkForAuthentication(), paymentRoutes);
 app.use(
   "/fetch-google-contacts",
@@ -301,13 +300,11 @@ const connectToDatabase = async () => {
   if (isConnected) return;
   try {
     console.log("MongoDB URL log:", process.env.MONGO_URL);
-    await mongoose.connect(process.env.MONGO_URL,
-      {
-        maxPoolSize: 200,   // allow up to 50 concurrent DB connections
-        minPoolSize: 10,   // keep minimum connections ready
-        serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
-      }
-    );
+    await mongoose.connect(process.env.MONGO_URL, {
+      maxPoolSize: 200, // allow up to 50 concurrent DB connections
+      minPoolSize: 10, // keep minimum connections ready
+      serverSelectionTimeoutMS: 5000, // fail fast if DB is unreachable
+    });
     isConnected = true;
     console.log("✅ MongoDB connected successfully");
   } catch (err) {

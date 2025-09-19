@@ -162,8 +162,6 @@ const createSubscription = async (req, res) => {
         },
       };
 
-    
-
       subscription = await createStripeSubscription(
         customer.id,
         plan.stripePriceId,
@@ -518,9 +516,244 @@ const getPaymentStatus = async (req, res) => {
   }
 };
 
+/**
+ * Create checkout session for subscription purchase
+ * @route POST /api/user/payment/create-checkout-session
+ * @access Private
+ */
+const createCheckoutSession = async (req, res) => {
+  try {
+    const { planId, autoRenewal = true } = req.body;
+    const userId = req.user._id;
+
+    // Validate plan
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found or inactive",
+      });
+    }
+
+    // Check if plan has a Stripe price ID
+    if (!plan.stripePriceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan is not properly configured with Stripe",
+      });
+    }
+
+    // Get user and current plan from subscription
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Get current plan from active subscription
+    const currentPlan = await getUserCurrentPlan(user);
+    console.log("Current plan:", currentPlan);
+
+    // Check for active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
+    console.log("Active subscription info:", activeSubInfo);
+
+    // Validate plan upgrade/change
+    const validation = validatePlanUpgrade(currentPlan, plan);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
+
+    // Get or create Stripe customer
+    const customer = await getOrCreateStripeCustomer(user);
+
+    // Cancel existing subscription if user is upgrading
+    if (activeSubInfo.hasActiveSubscription) {
+      try {
+        await stripe.subscriptions.cancel(activeSubInfo.subscriptionId);
+        console.log(
+          "Cancelled existing subscription:",
+          activeSubInfo.subscriptionId
+        );
+      } catch (cancelError) {
+        console.error("Error cancelling existing subscription:", cancelError);
+        // Continue with new subscription creation
+      }
+    }
+
+    // Create Stripe Checkout Session for embedded form
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
+      customer: customer.id,
+      line_items: [
+        {
+          price: plan.stripePriceId,
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      return_url: `${
+        process.env.FRONTEND_URL || "http://localhost:3000"
+      }/settings/upgrade-plan?session_id={CHECKOUT_SESSION_ID}`,
+      metadata: {
+        userId: userId.toString(),
+        planId: plan._id.toString(),
+        autoRenewal: autoRenewal.toString(),
+        upgradeFrom: currentPlan?._id?.toString() || "none",
+        type: "plan_upgrade",
+      },
+    });
+
+    console.log("Created checkout session:", {
+      id: session.id,
+      status: session.status,
+      client_secret: session.client_secret ? "present" : "missing",
+    });
+
+    res.json({
+      success: true,
+      clientSecret: session.client_secret,
+      sessionId: session.id,
+      planDetails: {
+        planId: plan._id,
+        planName: plan.name,
+        planPrice: plan.price,
+        autoRenewal: autoRenewal,
+      },
+      upgrade: {
+        isUpgrade: validation.isUpgrade,
+        message: validation.message,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating checkout session:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create checkout session",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Complete subscription after successful checkout
+ * @route POST /api/user/payment/complete-subscription
+ * @access Private
+ */
+const completeSubscription = async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    const userId = req.user._id;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
+
+    // Retrieve the checkout session
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["subscription", "subscription.items.data.price"],
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: "Checkout session not found",
+      });
+    }
+
+    if (session.payment_status !== "paid") {
+      return res.status(400).json({
+        success: false,
+        message: "Payment not completed",
+      });
+    }
+
+    // Verify this session belongs to the current user
+    if (session.metadata.userId !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access to session",
+      });
+    }
+
+    const { planId } = session.metadata;
+
+    // Get plan and user
+    const [plan, user] = await Promise.all([
+      Plan.findById(planId),
+      User.findById(userId),
+    ]);
+
+    if (!plan || !user) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan or user not found",
+      });
+    }
+
+    // Update user with new plan and subscription info
+    await User.findByIdAndUpdate(userId, {
+      plan: plan._id,
+      stripeSubscriptionId: session.subscription.id,
+      hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
+    });
+
+    // Create payment record
+    await Payment.create({
+      userId: userId,
+      planId: plan._id,
+      amount: session.amount_total,
+      currency: session.currency,
+      status: "succeeded",
+      stripePaymentId: session.payment_intent,
+      stripeSubscriptionId: session.subscription.id,
+      metadata: {
+        autoRenewal: session.metadata.autoRenewal === "true",
+        paymentType: "subscription_purchase",
+        sessionId: sessionId,
+      },
+    });
+
+    console.log(`Successfully upgraded user ${userId} to plan ${plan.name}`);
+
+    res.json({
+      success: true,
+      message: `Successfully upgraded to ${plan.name}!`,
+      subscription: {
+        id: session.subscription.id,
+        status: session.subscription.status,
+        currentPeriodStart: session.subscription.current_period_start,
+        currentPeriodEnd: session.subscription.current_period_end,
+      },
+      plan: {
+        id: plan._id,
+        name: plan.name,
+        price: plan.price,
+      },
+    });
+  } catch (error) {
+    console.error("Error completing subscription:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to complete subscription",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSubscription,
   // purchaseWithCredits,
   toggleAutoRenewal,
   getPaymentStatus,
+  createCheckoutSession,
+  completeSubscription,
 };
