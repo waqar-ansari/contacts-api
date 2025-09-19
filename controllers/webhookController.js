@@ -94,7 +94,6 @@ const handleSubscriptionCreated = async (subscription) => {
     // Update user with new subscription data
     await User.findByIdAndUpdate(userId, {
       plan: plan._id,
-      isPremium: plan.name !== "Starter",
       hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
       stripeSubscriptionId: subscription.id,
     });
@@ -136,7 +135,6 @@ const handleSubscriptionUpdated = async (subscription) => {
         // Update user's plan in database
         await User.findByIdAndUpdate(user._id, {
           plan: plan._id,
-          // isPremium: plan.name !== "Starter",
           stripeSubscriptionId: subscription.id, // Ensure subscription ID is set
         });
 
@@ -195,9 +193,6 @@ const handleSubscriptionCancellation = async (user, subscription) => {
     // Revert to starter plan
     await User.findByIdAndUpdate(user._id, {
       plan: starterPlan._id,
-      isPremium: false,
-      autoRenewal: false,
-      // onFreeTrial: false,
       stripeSubscriptionId: null,
     });
   } catch (error) {

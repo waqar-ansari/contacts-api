@@ -12,6 +12,9 @@ const {
   cancelStripeSubscription,
   updateSubscriptionForAdmin,
   getUserStripeSubscriptionData,
+  getCustomerPrimarySubscription,
+  getUserCurrentPlan,
+  customerHasPaymentMethod,
 } = require("../../utils/stripeUtils");
 
 // GET all users
@@ -42,13 +45,7 @@ const getAllUsers = async (req, res) => {
 
     // Fetch users with pagination - only basic fields, Stripe data fetched separately
     const users = await User.find(searchQuery)
-      .select(
-        "firstname lastname email phonenumbers plan isPremium stripeSubscriptionId hasUsedProTrial"
-      )
-      .populate({
-        path: "plan",
-        select: "name price pricePeriod",
-      })
+      .select("firstname lastname email phonenumbers stripeCustomerId")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -58,39 +55,32 @@ const getAllUsers = async (req, res) => {
       users.map(async (user) => {
         const userObj = user.toObject();
 
+        // Get current plan from Stripe subscription
+        const currentPlan = await getUserCurrentPlan(user);
+
         // Fetch Stripe subscription data if user has a subscription
         const stripeData = await getUserStripeSubscriptionData(user);
 
         // Get Stripe credit balance
-        const stripeCreditBalance = await getStripeCreditBalance(user._id);
+        const stripeCreditBalance = await getStripeCreditBalance(
+          user.stripeCustomerId
+        );
 
-        // If user has a plan, add subscription info to it
-        if (userObj.plan) {
-          userObj.plan.subscriptionStatus = stripeData?.status || null;
-          userObj.plan.isTrialing = stripeData?.isTrialing || false;
-          userObj.plan.activatedAt = stripeData?.activatedAt || null;
-          userObj.plan.expiresAt = stripeData?.expiresAt || null;
-          userObj.plan.cancelAtPeriodEnd =
-            stripeData?.cancelAtPeriodEnd || false;
-          userObj.plan.hasUsedProTrial = userObj.hasUsedProTrial;
-        } else {
-          // If no plan, create a plan object with subscription info
-          userObj.plan = {
-            name: null,
-            subscriptionStatus: stripeData?.status || null,
-            isTrialing: stripeData?.isTrialing || false,
-            activatedAt: stripeData?.activatedAt || null,
-            expiresAt: stripeData?.expiresAt || null,
-            cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
-            hasUsedProTrial: userObj.hasUsedProTrial,
-          };
-        }
+        // Create plan object with current plan and subscription info
+        userObj.plan = {
+          _id: currentPlan?._id || null,
+          name: currentPlan?.name || null,
+          price: currentPlan?.price || null,
+          pricePeriod: currentPlan?.pricePeriod || null,
+          subscriptionStatus: stripeData?.status || null,
+          isTrialing: stripeData?.isTrialing || false,
+          activatedAt: stripeData?.activatedAt || null,
+          expiresAt: stripeData?.expiresAt || null,
+          cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+        };
 
         // Add credit balance to user object
         userObj.creditBalance = stripeCreditBalance;
-
-        // Clean up fields from root level since they're now inside plan
-        delete userObj.hasUsedProTrial;
 
         return userObj;
       })
@@ -148,14 +138,9 @@ const getUser = async (req, res) => {
 
     const { id } = req.params;
 
-    const user = await User.findOne({ _id: id, role: "user" })
-      .populate({
-        path: "plan",
-        select: "name",
-      })
-      .select(
-        "firstname lastname email role gender signupMethod isPremium isVerified referralCode profileImageURL designation stripeSubscriptionId hasUsedProTrial createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram"
-      );
+    const user = await User.findOne({ _id: id, role: "user" }).select(
+      "firstname lastname email role gender signupMethod isVerified referralCode profileImageURL designation createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram stripeCustomerId"
+    );
 
     if (!user) {
       return res.status(404).json({
@@ -169,20 +154,27 @@ const getUser = async (req, res) => {
     userData.id = userData._id;
     delete userData._id;
 
+    // Get current plan from Stripe subscription
+    const currentPlan = await getUserCurrentPlan(user);
+
     // Fetch Stripe subscription data if user has a subscription
     const stripeData = await getUserStripeSubscriptionData(user);
 
     // Get Stripe credit balance
-    const stripeCreditBalance = await getStripeCreditBalance(user._id);
+    const stripeCreditBalance = await getStripeCreditBalance(
+      user.stripeCustomerId
+    );
 
-    // Add subscription data to plan object
-    if (userData.plan) {
-      userData.plan.subscriptionStatus = stripeData?.status || null;
-      userData.plan.isTrialing = stripeData?.isTrialing || false;
-      userData.plan.activatedAt = stripeData?.activatedAt || null;
-      userData.plan.expiresAt = stripeData?.expiresAt || null;
-      userData.plan.cancelAtPeriodEnd = stripeData?.cancelAtPeriodEnd || false;
-    }
+    // Create plan object with current plan and subscription info
+    userData.plan = {
+      _id: currentPlan?._id || null,
+      name: currentPlan?.name || null,
+      subscriptionStatus: stripeData?.status || null,
+      isTrialing: stripeData?.isTrialing || false,
+      activatedAt: stripeData?.activatedAt || null,
+      expiresAt: stripeData?.expiresAt || null,
+      cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+    };
 
     // Add credit balance to user data
     userData.creditBalance = stripeCreditBalance;
@@ -269,7 +261,6 @@ const editProfile = async (req, res) => {
       employeeCount = "",
       companyName = "",
       planId = "", // Add planId field
-      // onFreeTrial = false, // Free trial toggle for Stripe subscriptions
       apiType = "web", // default to web if not provided
     } = req.body;
 
@@ -299,21 +290,16 @@ const editProfile = async (req, res) => {
       try {
         if (planId === "" || planId === "null" || planId === null) {
           // Remove plan - cancel Stripe subscription
-          if (user.stripeSubscriptionId) {
-            await cancelStripeSubscription(user.stripeSubscriptionId);
+          if (user.stripeCustomerId) {
+            const activeSubscription = await getCustomerPrimarySubscription(
+              user.stripeCustomerId
+            );
+            if (activeSubscription) {
+              await cancelStripeSubscription(activeSubscription.id);
+            }
           }
 
-          // Set to Starter plan
-          const starterPlan = await Plan.findOne({
-            name: "Starter",
-            isActive: true,
-          });
-          if (starterPlan) {
-            user.plan = starterPlan._id;
-            user.isPremium = false;
-            // Clear Stripe subscription ID only
-            user.stripeSubscriptionId = null;
-          }
+          // No need to set plan in DB - it will be derived from subscription
         } else {
           // Validate plan exists
           const selectedPlan = await Plan.findById(planId);
@@ -338,13 +324,16 @@ const editProfile = async (req, res) => {
 
           if (isStarterPlan) {
             // Cancel any existing subscription for starter plan
-            if (user.stripeSubscriptionId) {
-              await cancelStripeSubscription(user.stripeSubscriptionId);
+            if (user.stripeCustomerId) {
+              const activeSubscription = await getCustomerPrimarySubscription(
+                user.stripeCustomerId
+              );
+              if (activeSubscription) {
+                await cancelStripeSubscription(activeSubscription.id);
+              }
             }
 
-            user.plan = selectedPlan._id;
-            // Clear Stripe subscription ID only
-            user.stripeSubscriptionId = null;
+            // No need to set plan in DB - it will be derived from subscription
           } else {
             // For premium plans, create/update Stripe subscription
             const stripeCustomer = await getOrCreateStripeCustomer(user);
@@ -356,32 +345,30 @@ const editProfile = async (req, res) => {
               });
             }
 
-            let subscription;
+            // Check if customer has payment method - required for plan assignment
+            const hasPaymentMethod = await customerHasPaymentMethod(
+              stripeCustomer.id
+            );
 
-            if (user.stripeSubscriptionId) {
-              // Update existing subscription without billing via admin function
-              subscription = await updateSubscriptionForAdmin(
-                user.stripeSubscriptionId,
-                stripeCustomer.id,
-                selectedPlan.stripePriceId
-              );
-            } else {
-              // Create new subscription
-              // const hasTrialOption =
-              //   keys.includes("onFreeTrial") && onFreeTrial;
-              subscription = await createStripeSubscription(
-                stripeCustomer.id,
-                selectedPlan.stripePriceId
-                // hasTrialOption ? { trial_period_days: 14 } : {}
-              );
+            if (!hasPaymentMethod) {
+              return res.status(400).json({
+                status: "error",
+                message:
+                  "User must have a payment method to be assigned a premium plan",
+              });
             }
 
-            // Update user with basic subscription info only
-            user.plan = selectedPlan._id;
-            user.isPremium =
-              subscription.status === "active" ||
-              subscription.status === "trialing";
-            user.stripeSubscriptionId = subscription.id;
+            // Create/update subscription using the admin function
+            const newSubscription = await updateSubscriptionForAdmin(
+              stripeCustomer.id,
+              selectedPlan.stripePriceId
+            );
+
+            console.log(
+              `Created subscription ${newSubscription.id} for user ${user._id}. Status: ${newSubscription.status}`
+            );
+
+            // No need to update user plan in DB - it will be derived from subscription
           }
         }
 
@@ -544,11 +531,13 @@ const editProfile = async (req, res) => {
 
     await user.save();
 
-    // Populate the plan information for the response
-    await user.populate("plan", "name price pricePeriod");
+    // Get current plan from Stripe subscription for response
+    const currentPlan = await getUserCurrentPlan(user);
 
     // Get Stripe credit balance
-    const stripeCreditBalance = await getStripeCreditBalance(user._id);
+    const stripeCreditBalance = await getStripeCreditBalance(
+      user.stripeCustomerId
+    );
 
     // Fetch Stripe subscription data dynamically
     const stripeData = await getUserStripeSubscriptionData(user);
@@ -563,7 +552,6 @@ const editProfile = async (req, res) => {
         email: user.email,
         role: user.role,
         signupMethod: user.signupMethod,
-        isPremium: user.isPremium,
         isVerified: user.isVerified,
         referralCode: user.referralCode,
         creditBalance: stripeCreditBalance,
@@ -586,8 +574,12 @@ const editProfile = async (req, res) => {
         qrcode: user.qrcode,
         provider: user.provider,
         gender: user.gender,
-        hasUsedProTrial: user.hasUsedProTrial,
-        plan: user.plan, // Include plan information
+        plan: {
+          _id: currentPlan?._id || null,
+          name: currentPlan?.name || null,
+          price: currentPlan?.price || null,
+          pricePeriod: currentPlan?.pricePeriod || null,
+        },
       },
     });
     // }

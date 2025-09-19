@@ -206,15 +206,11 @@ const signupWithEmail = async (req, res) => {
         user.signupMethod = "email";
       }
 
-      // Setup initial plan after email verification
-      if (!user.plan) {
-        const planData = await setupInitialPlan(user);
+      // Setup initial plan after email verification (skip for superadmin)
+      let planData = null;
+      if (user.role !== "superadmin") {
+        planData = await setupInitialPlan(user);
         console.log("planData:", planData);
-
-        user.plan = planData.plan;
-        user.stripeSubscriptionId = planData.stripeSubscriptionId;
-        user.isPremium = planData.isPremium;
-        user.hasUsedProTrial = planData.hasUsedProTrial;
       }
 
       // Activate user after email verification
@@ -792,13 +788,13 @@ const signupWithPhoneNumber = async (req, res) => {
       }
     }
 
-    // Setup initial plan using utility
-    const planData = await setupInitialPlan(user);
+    // Setup initial plan using utility (skip for superadmin)
+    let planData = null;
+    if (user.role !== "superadmin") {
+      planData = await setupInitialPlan(user);
+    }
 
-    user.plan = planData.plan;
-    user.stripeSubscriptionId = planData.stripeSubscriptionId;
-    user.isPremium = planData.isPremium;
-    user.hasUsedProTrial = planData.hasUsedProTrial;
+    // Plan is now derived from subscription, no need to store in user
 
     const referralCodeRaw = `${sanitizedCountryCode}${sanitizedNumber}${Date.now()}`;
     user.referralCode = crypto
@@ -886,14 +882,6 @@ const signupWithPhoneNumber = async (req, res) => {
       }
     }
     user.isActive = true; // mark as active
-
-    // Mark Pro trial as used if Pro plan was assigned
-    if (planData.plan) {
-      const assignedPlan = await Plan.findById(planData.plan);
-      if (assignedPlan && assignedPlan.name === "Pro") {
-        user.hasUsedProTrial = true;
-      }
-    }
 
     await user.save();
 
@@ -1099,7 +1087,6 @@ const unifiedLogin = async (req, res) => {
 
     //     const now = new Date();
     //     const isTrialActive = user.trialEnd && now < user.trialEnd;
-    //     const hasAccess = user.isPremium || isTrialActive;
 
     //     // try {
     //     //   if (user.myReferrals?.length > 0) {
@@ -1154,7 +1141,6 @@ const unifiedLogin = async (req, res) => {
     //         token,
     //         hasAccess,
     //         isTrialActive,
-    //         isPremium: user.isPremium,
     //         trialEndsAt: user.trialEnd,
     //         registeredWith: user.signupMethod
     //       }
@@ -1283,16 +1269,13 @@ const unifiedLogin = async (req, res) => {
 
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
-        const hasAccess = user.isPremium || isTrialActive;
         user.isActive = true; // mark as active
         return res.json({
           status: "success",
           message: "Login successful",
           data: {
             token,
-            hasAccess,
             isTrialActive,
-            isPremium: user.isPremium,
             trialEndsAt: user.trialEnd,
             registeredWith: user.signupMethod,
             role: user.role || "user",
@@ -1388,7 +1371,6 @@ const unifiedLogin = async (req, res) => {
             // qrCode,
             signupMethod: "google",
             isVerified: true,
-            isPremium: false,
             trialStart: now,
             trialEnd: trialEnds,
             referralCode, // ✅ Store generated referral code
@@ -1445,7 +1427,6 @@ const unifiedLogin = async (req, res) => {
         const token = createTokenforUser(user);
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
-        const hasAccess = user.isPremium || isTrialActive;
         return res.json({
           status: "success",
           message: "Google login successful",
@@ -1453,9 +1434,7 @@ const unifiedLogin = async (req, res) => {
             token: token,
             registeredWith: user.signupMethod,
             isFirstTime: isFirstTime,
-            hasAccess,
             isTrialActive,
-            isPremium: user.isPremium,
             trialEndsAt: user.trialEnd,
           },
         });
@@ -1534,7 +1513,6 @@ const unifiedLogin = async (req, res) => {
             serialNumber,
             // qrCode,
             signupMethod: "apple",
-            isPremium: false,
             trialStart: now,
             trialEnd: trialEnds,
           });
@@ -1543,15 +1521,12 @@ const unifiedLogin = async (req, res) => {
         const token = createTokenforUser(user);
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
-        const hasAccess = user.isPremium || isTrialActive;
         return res.json({
           status: "success",
           message: "Apple login successful",
           data: {
             token,
-            hasAccess,
             isTrialActive,
-            isPremium: user.isPremium,
             trialEndsAt: user.trialEnd,
           },
         });
@@ -1686,7 +1661,6 @@ const googleCallback = async (req, res) => {
     //     qrCode,
     //     signupMethod: "google",
     //     isVerified: true,
-    //     isPremium: false,
     //     trialStart: now,
     //     trialEnd: trialEnds,
     //   });
@@ -1787,7 +1761,10 @@ const googleCallback = async (req, res) => {
         signupMethod: "google",
       };
 
-      const planData = await setupInitialPlan(tempUser);
+      let planData = null;
+      if (tempUser.role !== "superadmin") {
+        planData = await setupInitialPlan(tempUser);
+      }
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
@@ -1809,10 +1786,6 @@ const googleCallback = async (req, res) => {
         isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
-        plan: planData.plan,
-        stripeSubscriptionId: planData.stripeSubscriptionId,
-        isPremium: planData.isPremium,
-        hasUsedProTrial: planData.hasUsedProTrial,
 
         // referredByAdmin: referredByAdmin
       });
@@ -2210,7 +2183,10 @@ const linkedinCallback = async (req, res) => {
         signupMethod: "linkedin",
       };
 
-      const planData = await setupInitialPlan(tempUser);
+      let planData = null;
+      if (tempUser.role !== "superadmin") {
+        planData = await setupInitialPlan(tempUser);
+      }
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
@@ -2232,10 +2208,6 @@ const linkedinCallback = async (req, res) => {
         referralCode: userReferralCode,
         referredBy: referredBy,
         isActive: true,
-        plan: planData.plan,
-        stripeSubscriptionId: planData.stripeSubscriptionId,
-        isPremium: planData.isPremium,
-        hasUsedProTrial: planData.hasUsedProTrial,
       });
 
       // if (referredBy) {
@@ -2314,7 +2286,6 @@ const linkedinCallback = async (req, res) => {
     const token = createTokenforUser(user);
     const now = new Date();
     const isTrialActive = user.trialEnd && now < user.trialEnd;
-    const hasAccess = user.isPremium || isTrialActive;
     // user.isActive = true; // mark as active
     const resultData = {
       status: "success",
@@ -2325,7 +2296,6 @@ const linkedinCallback = async (req, res) => {
         registeredWith: user.signupMethod,
         hasAccess,
         isTrialActive,
-        isPremium: user.isPremium,
         trialEndsAt: user.trialEnd,
       },
     };
@@ -2341,7 +2311,6 @@ const linkedinCallback = async (req, res) => {
     //     registeredWith: user.signupMethod,
     //     hasAccess,
     //     isTrialActive,
-    //     isPremium: user.isPremium,
     //     trialEndsAt: user.trialEnd
     //   }
     // });

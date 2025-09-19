@@ -66,6 +66,9 @@ const userSchema = new Schema(
   {
     reminders: [reminderSchema],
 
+    /// removed plan, it will be fetched from stripe ubscription
+    /// removed hasUsedProTrial
+
     // whatsappTemplates: [whatsappTemplateSchema],
 
     // emailTemplates: [emailTemplateSchema],
@@ -241,21 +244,11 @@ const userSchema = new Schema(
 
     trialStart: { type: Date },
     trialEnd: { type: Date },
-    isPremium: { type: Boolean, default: false },
-    plan: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Plan",
-      default: null,
-    },
-    planActivatedAt: { type: Date, default: null },
-    planExpiresAt: { type: Date, default: null },
-    autoRenewal: { type: Boolean, default: false }, // Track if user has auto-renewal enabled
 
     isActive: {
       type: Boolean,
       default: false, // user is inactive until login
     },
-    // onFreeTrial: { type: Boolean, default: false }, // track if user is currently on free trial
 
     lastSeen: { type: Date, default: null },
 
@@ -429,41 +422,6 @@ const userSchema = new Schema(
     stripeCustomerId: {
       type: String,
       sparse: true, // only enforce uniqueness when present
-    },
-    stripeSubscriptionId: {
-      type: String,
-      sparse: true, // only enforce uniqueness when present
-    },
-    stripeSubscriptionStatus: {
-      type: String,
-      enum: [
-        "active",
-        "canceled",
-        "incomplete",
-        "incomplete_expired",
-        "past_due",
-        "trialing",
-        "unpaid",
-      ],
-      default: null,
-    },
-    stripeCurrentPeriodStart: {
-      type: Date,
-      default: null,
-    },
-    stripeCurrentPeriodEnd: {
-      type: Date,
-      default: null,
-    },
-    stripeCancelAtPeriodEnd: {
-      type: Boolean,
-      default: false,
-    },
-
-    // Flag to track if user has used free trial of Pro plan
-    hasUsedProTrial: {
-      type: Boolean,
-      default: false,
     },
 
     // myReferrals: {

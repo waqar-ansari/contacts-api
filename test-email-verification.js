@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const User = require("./models/userModel");
 const Plan = require("./models/planModel");
 const { setupInitialPlan } = require("./utils/planUtils");
+const { getUserCurrentPlan } = require("./utils/stripeUtils");
 
 async function testEmailVerificationFlow() {
   try {
@@ -19,12 +20,11 @@ async function testEmailVerificationFlow() {
     // Test 1: Check setupInitialPlan function
     console.log("\n📋 Test 1: Setup Initial Plan Function");
     const planData = await setupInitialPlan();
- 
 
     // Test 2: Verify plan exists in database
-    if (planData.plan) {
+    if (planData?.plan) {
       const plan = await Plan.findById(planData.plan);
-      console.log("Assigned plan details:", {
+      console.log("Available plan details:", {
         name: plan?.name,
         duration: plan?.duration,
         price: plan?.price,
@@ -49,7 +49,6 @@ async function testEmailVerificationFlow() {
     console.log("Initial user state:", {
       isVerified: testUser.isVerified,
       isActive: testUser.isActive,
-      hasPlan: !!testUser.plan,
       hasVerificationToken: !!testUser.emailVerificationToken,
     });
 
@@ -58,23 +57,7 @@ async function testEmailVerificationFlow() {
     testUser.emailVerificationToken = undefined;
 
     // Setup initial plan after email verification
-    if (!testUser.plan) {
-      const verificationPlanData = await setupInitialPlan();
-      testUser.plan = verificationPlanData.plan;
-      testUser.planActivatedAt = verificationPlanData.planActivatedAt;
-      testUser.planExpiresAt = verificationPlanData.planExpiresAt;
-      testUser.isPremium = verificationPlanData.isPremium;
-      testUser.trialStart = verificationPlanData.trialStart;
-      testUser.trialEnd = verificationPlanData.trialEnd;
-
-      // Mark Pro trial as used if Pro plan was assigned
-      if (verificationPlanData.plan) {
-        const assignedPlan = await Plan.findById(verificationPlanData.plan);
-        if (assignedPlan && assignedPlan.name === "Pro") {
-          testUser.hasUsedProTrial = true;
-        }
-      }
-    }
+    const verificationPlanData = await setupInitialPlan();
 
     // Activate user after email verification
     testUser.isActive = true;
@@ -82,12 +65,12 @@ async function testEmailVerificationFlow() {
     console.log("After email verification:", {
       isVerified: testUser.isVerified,
       isActive: testUser.isActive,
-      hasPlan: !!testUser.plan,
-      isPremium: testUser.isPremium,
-      hasTrialDates: !!(testUser.trialStart && testUser.trialEnd),
-      hasUsedProTrial: testUser.hasUsedProTrial,
       noVerificationToken: !testUser.emailVerificationToken,
     });
+
+    // For testing purposes, we can check what plan would be assigned using getUserCurrentPlan
+    // if the user had a stripeCustomerId (in real scenario this would be set up during payment)
+    console.log("Initial plan setup completed:", !!verificationPlanData);
 
     console.log("\n✅ Email verification flow test completed successfully!");
     console.log("✅ Plan assignment happens only AFTER email verification");

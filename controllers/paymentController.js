@@ -8,6 +8,8 @@ const {
   getStripeCreditBalance,
   useStripeCredits,
   getUserStripeSubscriptionData,
+  getCustomerPrimarySubscription,
+  getUserCurrentPlan,
 } = require("../utils/stripeUtils");
 
 /**
@@ -71,27 +73,22 @@ const checkActiveSubscription = async (user) => {
     subscriptionStatus: null,
   };
 
-  if (!user.stripeSubscriptionId) {
+  if (!user.stripeCustomerId) {
     return result;
   }
 
   try {
-    const subscription = await stripe.subscriptions.retrieve(
-      user.stripeSubscriptionId
+    const subscription = await getCustomerPrimarySubscription(
+      user.stripeCustomerId
     );
 
-    const activeStatuses = ["active", "trialing", "past_due"];
-    if (activeStatuses.includes(subscription.status)) {
+    if (subscription) {
       result.hasActiveSubscription = true;
       result.subscriptionId = subscription.id;
       result.subscriptionStatus = subscription.status;
     }
   } catch (error) {
     console.log("Error checking active subscription:", error.message);
-    // If subscription doesn't exist in Stripe, clear it from user record
-    await User.findByIdAndUpdate(user._id, {
-      stripeSubscriptionId: null,
-    });
   }
 
   return result;
@@ -124,8 +121,8 @@ const createSubscription = async (req, res) => {
       });
     }
 
-    // Get user
-    const user = await User.findById(userId).populate("plan");
+    // Get user and current plan from subscription
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -133,11 +130,14 @@ const createSubscription = async (req, res) => {
       });
     }
 
+    // Get current plan from active subscription
+    const currentPlan = await getUserCurrentPlan(user);
+
     // Check for active subscription
     const activeSubInfo = await checkActiveSubscription(user);
 
     // Validate plan upgrade/change
-    const validation = validatePlanUpgrade(user.plan, plan);
+    const validation = validatePlanUpgrade(currentPlan, plan);
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -162,10 +162,7 @@ const createSubscription = async (req, res) => {
         },
       };
 
-      // Add trial period for new Pro plan users
-      // if (plan.name === "Pro" && !user.hasUsedProTrial) {
-      //   subscriptionOptions.trialPeriodDays = 14;
-      // }
+    
 
       subscription = await createStripeSubscription(
         customer.id,
@@ -206,12 +203,7 @@ const createSubscription = async (req, res) => {
         planId: plan._id,
         planName: plan.name,
         planPrice: plan.price,
-        trialDays:
-          !activeSubInfo.hasActiveSubscription &&
-          plan.name === "Pro" &&
-          !user.hasUsedProTrial
-            ? 14
-            : 0,
+        trialDays: 0, // Trials only given on signup, not here
         autoRenewal: autoRenewal,
       },
       subscription: {
@@ -353,7 +345,6 @@ const createSubscription = async (req, res) => {
 //     // Update user plan
 //     await User.findByIdAndUpdate(userId, {
 //       plan: plan._id,
-//       isPremium: plan.name !== "Starter",
 //     });
 
 //     // Get updated credit balance
@@ -423,11 +414,6 @@ const toggleAutoRenewal = async (req, res) => {
         cancel_at_period_end: !autoRenewal,
       });
 
-      // Update user record
-      // await User.findByIdAndUpdate(userId, {
-      //   autoRenewal: autoRenewal,
-      // });
-
       res.json({
         success: true,
         message: `Auto-renewal ${
@@ -463,11 +449,7 @@ const getPaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId)
-      .populate("plan")
-      .select(
-        "plan stripeCustomerId stripeSubscriptionId hasUsedProTrial autoRenewal"
-      );
+    const user = await User.findById(userId).select("stripeCustomerId");
 
     if (!user) {
       return res.status(404).json({
@@ -506,7 +488,6 @@ const getPaymentStatus = async (req, res) => {
             isTrialing: stripeData.isTrialing,
             trialStart: stripeData.trialStart,
             trialEnd: stripeData.trialEnd,
-            autoRenewal: user.autoRenewal,
           };
         }
       } catch (error) {
@@ -514,12 +495,14 @@ const getPaymentStatus = async (req, res) => {
       }
     }
 
+    // Get current plan from subscription
+    const currentPlan = await getUserCurrentPlan(user);
+
     res.json({
       success: true,
       data: {
-        plan: user.plan,
+        plan: currentPlan,
         creditBalance: creditBalance,
-        hasUsedProTrial: user.hasUsedProTrial,
         subscription: subscriptionDetails,
         stripeCustomerId: user.stripeCustomerId,
         hasActiveSubscription: activeSubInfo.hasActiveSubscription,

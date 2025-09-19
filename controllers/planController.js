@@ -23,29 +23,25 @@ exports.purchasePlan = async (req, res) => {
     const { planId } = req.body;
 
     if (!planId) {
-      return res.status(400).json({ success: false, message: "Plan ID is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Plan ID is required" });
     }
 
     // ✅ Check if plan exists
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
-      return res.status(404).json({ success: false, message: "Plan not found or inactive" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Plan not found or inactive" });
     }
 
-    // ✅ Update user with new plan
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    user.plan = plan._id;
-    user.planActivatedAt = new Date();
-    user.isPremium = plan.price !== "Free"; // Example: mark premium if not free
-    await user.save();
+    // Plan is now derived from Stripe subscription, not stored in user model
+    // This endpoint is deprecated - plans should be managed through Stripe subscriptions
 
     res.status(200).json({
       success: true,
-      message: `Plan '${plan.name}' activated successfully`,
+      message: `Plan management has been moved to Stripe subscriptions. Use payment endpoints instead.`,
       plan,
     });
   } catch (error) {

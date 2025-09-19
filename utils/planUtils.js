@@ -89,8 +89,6 @@ async function setupInitialPlan(user, plan = null) {
       console.error("User object is required for setupInitialPlan");
       return {
         plan: null,
-        isPremium: false,
-        hasUsedProTrial: false,
       };
     }
 
@@ -105,8 +103,7 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: starterPlan ? starterPlan._id : null,
-        isPremium: false,
-        hasUsedProTrial: false,
+        // No need to track hasUsedProTrial anymore
       };
     }
 
@@ -144,9 +141,7 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: proPlan._id,
-        isPremium: true, // Pro trial is premium
-        hasUsedProTrial: true, // Mark trial as used
-        stripeSubscriptionId: subscription.id, // Keep this for webhook/cancellation purposes
+        // No need to track hasUsedProTrial anymore
       };
     } catch (stripeError) {
       console.error("Error creating Stripe trial subscription:", stripeError);
@@ -156,16 +151,14 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: starterPlan ? starterPlan._id : null,
-        isPremium: false,
-        hasUsedProTrial: false,
+        // No need to track hasUsedProTrial anymore
       };
     }
   } catch (error) {
     console.error("Error setting up initial plan:", error);
     return {
       plan: null,
-      isPremium: false,
-      hasUsedProTrial: false,
+      // No need to track hasUsedProTrial anymore
     };
   }
 }
@@ -175,21 +168,15 @@ async function checkAndHandlePlanExpiry(user) {
     // With Stripe subscriptions, plan expiry is handled automatically via webhooks
     // This function is maintained for backward compatibility but Stripe manages lifecycle
 
-    if (!user.plan || !user.stripeSubscriptionId) {
-      return null; // No plan or no Stripe subscription
+    if (!user) {
+      return null; // No user
     }
 
     // If user has an active Stripe subscription, trust Stripe's status
     // The webhook handlers will update plan status based on subscription events
-    if (user.stripeSubscriptionStatus === "active") {
-      return null; // Active subscription, no action needed
-    }
 
     // If subscription is not active and we reach here, let webhook handle it
     // This maintains existing behavior while allowing Stripe to be the source of truth
-    console.log(
-      `User ${user._id} subscription status: ${user.stripeSubscriptionStatus}. Webhook will handle status updates.`
-    );
 
     return null;
   } catch (error) {
@@ -208,20 +195,14 @@ async function checkAndHandlePlanExpiryBatch(user) {
     // With Stripe subscriptions, plan expiry is handled automatically via webhooks
     // This function is maintained for backward compatibility but Stripe manages lifecycle
 
-    if (!user.plan || !user.stripeSubscriptionId) {
-      return null; // No plan or no Stripe subscription
+    if (!user) {
+      return null; // No user
     }
 
     // If user has an active Stripe subscription, trust Stripe's status
     // The webhook handlers will update plan status based on subscription events
-    if (user.stripeSubscriptionStatus === "active") {
-      return null; // Active subscription, no action needed
-    }
 
     // If subscription is not active and we reach here, let webhook handle it
-    console.log(
-      `Batch check: User ${user._id} subscription status: ${user.stripeSubscriptionStatus}. Webhook will handle status updates.`
-    );
 
     return null;
   } catch (error) {
@@ -237,7 +218,7 @@ async function checkAndHandlePlanExpiryBatch(user) {
  */
 async function validateAndUpdatePlanStatus(userId) {
   try {
-    const user = await User.findById(userId).populate("plan");
+    const user = await User.findById(userId);
 
     if (!user) {
       return null;

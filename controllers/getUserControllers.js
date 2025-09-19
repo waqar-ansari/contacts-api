@@ -198,7 +198,6 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          isPremium: user.isPremium || false,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
           creditBalance: creditBalance,
           accounts: [
@@ -298,7 +297,6 @@ const getUserData = async (req, res) => {
       //   // referralCode: user.referralCode || null,
       //   // trialStartDate: user.trialStart || null,
       //   // trialEndDate: user.trialEnd || null,
-      //   // isPremium: user.isPremium || false,
       //   // referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       // };
 
@@ -353,7 +351,6 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          isPremium: user.isPremium || false,
           referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
           creditBalance: user.creditBalance || 0,
           qrCode: qrCodeDataURL,
@@ -431,7 +428,6 @@ const getUserData = async (req, res) => {
       referralCode: user.referralCode || null,
       trialStartDate: user.trialStart || null,
       trialEndDate: user.trialEnd || null,
-      isPremium: user.isPremium || false,
       referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
       accounts: [

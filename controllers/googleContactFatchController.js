@@ -1,12 +1,12 @@
-const { google } = require('googleapis');
-const querystring = require('querystring');
-const Contact = require('../models/contactModel'); // ✅ Adjust path as needed
+const { google } = require("googleapis");
+const querystring = require("querystring");
+const Contact = require("../models/contactModel"); // ✅ Adjust path as needed
 const mongoose = require("mongoose"); // ⬅️ Make sure this is imported at the top
-const { parsePhoneNumberFromString } = require('libphonenumber-js');
-const { title } = require('process');
+const { parsePhoneNumberFromString } = require("libphonenumber-js");
+const { title } = require("process");
 const User = require("../models/userModel"); // make sure to import
 const Plan = require("../models/planModel"); // if you have plan details here
-
+const { getUserCurrentPlan } = require("../utils/stripeUtils");
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -16,23 +16,23 @@ const oauth2Client = new google.auth.OAuth2(
 
 // Step 1: Generate the Google OAuth Consent URL
 const redirectToGoogle = (req, res) => {
-  const scopes = ['https://www.googleapis.com/auth/contacts.readonly'];
+  const scopes = ["https://www.googleapis.com/auth/contacts.readonly"];
 
   const user_id = req.user._id; // Use user ID from request context if available
-  console.log('user_id', user_id);
+  console.log("user_id", user_id);
 
   const params = querystring.stringify({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: process.env.GOOGLE_REDIRECT_URI3,
-    response_type: 'code',
-    scope: scopes.join(' '),
-    access_type: 'offline',
-    prompt: 'consent',
+    response_type: "code",
+    scope: scopes.join(" "),
+    access_type: "offline",
+    prompt: "consent",
     state: user_id,
   });
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-  return res.json({ status: 'success', url: authUrl });
+  return res.json({ status: "success", url: authUrl });
 };
 
 // Step 2: Google redirects here with ?code=... and ?state=...
@@ -41,45 +41,60 @@ const handleGoogleCallback = async (req, res) => {
   const { code } = req.query;
 
   if (!code) {
-    return res.status(400).json({ status: 'error', message: 'Missing authorization code' });
+    return res
+      .status(400)
+      .json({ status: "error", message: "Missing authorization code" });
   }
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
-    const peopleService = google.people({ version: 'v1', auth: oauth2Client });
+    const peopleService = google.people({ version: "v1", auth: oauth2Client });
 
     const response = await peopleService.people.connections.list({
-      resourceName: 'people/me',
+      resourceName: "people/me",
       pageSize: 1000,
-      personFields: 'names,emailAddresses,phoneNumbers',
+      personFields: "names,emailAddresses,phoneNumbers",
     });
 
     const userId = req.query.state || null;
     if (!userId) {
-      return res.status(400).json({ status: 'error', message: 'Missing user ID in state parameter' });
+      return res
+        .status(400)
+        .json({
+          status: "error",
+          message: "Missing user ID in state parameter",
+        });
     }
 
     // ✅ Fetch user & plan details
-    const user = await User.findById(userId).populate("plan");
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ status: 'error', message: 'User not found' });
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
     }
 
-    const userPlan = user.plan ? user.plan.name.toLowerCase() : "free"; // default free
-    const currentContactCount = await Contact.countDocuments({ createdBy: userId });
+    // Get current plan from subscription
+    const currentPlan = await getUserCurrentPlan(user);
+    const userPlan = currentPlan ? currentPlan.name.toLowerCase() : "starter"; // default starter
+    const currentContactCount = await Contact.countDocuments({
+      createdBy: userId,
+    });
 
     let maxLimit = Infinity;
     if (userPlan === "free") {
       maxLimit = 1000; // free users limited to 1000
     }
 
-
     const connections = response.data.connections || [];
 
     // Fetch existing contact emails and phones for this user
-    const existingContacts = await Contact.find({ createdBy: userId }, 'emailaddresses phonenumbers');
+    const existingContacts = await Contact.find(
+      { createdBy: userId },
+      "emailaddresses phonenumbers"
+    );
     const existingEmails = new Set();
     const existingPhones = new Set();
 
@@ -98,14 +113,15 @@ const handleGoogleCallback = async (req, res) => {
     const contactsToInsert = [];
 
     for (const person of connections) {
-      const name = person.names?.[0]?.displayName || '';
-      const [firstname = '', ...lastnameParts] = name.split(' ');
-      const lastname = lastnameParts.join(' ');
+      const name = person.names?.[0]?.displayName || "";
+      const [firstname = "", ...lastnameParts] = name.split(" ");
+      const lastname = lastnameParts.join(" ");
 
       // const emailList = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
       // const phoneList = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || []; // ⬅️ Cleaned
 
-      const emailListRaw = person.emailAddresses?.map(e => e.value.toLowerCase()) || [];
+      const emailListRaw =
+        person.emailAddresses?.map((e) => e.value.toLowerCase()) || [];
       // const phoneListRaw = person.phoneNumbers?.map(p => p.value.replace(/\+/g, '')) || [];
 
       const emailList = emailListRaw.length > 0 ? [emailListRaw[0]] : [];
@@ -123,7 +139,7 @@ const handleGoogleCallback = async (req, res) => {
       //   return { countryCode, number };
       // });
 
-      const phoneListRaw = (person.phoneNumbers || []).map(p => {
+      const phoneListRaw = (person.phoneNumbers || []).map((p) => {
         let raw = p.value.trim();
 
         // Use libphonenumber-js to parse
@@ -132,13 +148,13 @@ const handleGoogleCallback = async (req, res) => {
         if (parsed) {
           return {
             countryCode: `+${parsed.countryCallingCode}`, // ✅ Always correct, e.g., +91, +1, +44
-            number: parsed.nationalNumber // ✅ Clean national number (without country code)
+            number: parsed.nationalNumber, // ✅ Clean national number (without country code)
           };
         } else {
           // fallback: if libphonenumber-js fails
           return {
             countryCode: "",
-            number: raw.replace(/\D/g, "") // keep only digits
+            number: raw.replace(/\D/g, ""), // keep only digits
           };
         }
       });
@@ -147,9 +163,11 @@ const handleGoogleCallback = async (req, res) => {
 
       // Skip if any email or phone matches existing
       const isDuplicate =
-        emailList.some(email => existingEmails.has(email)) ||
+        emailList.some((email) => existingEmails.has(email)) ||
         // phoneList.some(phone => existingPhones.has(phone));
-        phoneList.some(phone => existingPhones.has(`${phone.countryCode}-${phone.number}`));
+        phoneList.some((phone) =>
+          existingPhones.has(`${phone.countryCode}-${phone.number}`)
+        );
 
       if (isDuplicate) continue;
 
@@ -164,21 +182,21 @@ const handleGoogleCallback = async (req, res) => {
         phonenumbers: phoneList,
         // emailaddresses: Array.isArray(emailList) ? emailList : (emailList ? [emailList] : []),
         // phonenumbers: Array.isArray(phoneList) ? phoneList : (phoneList ? [phoneList] : []),
-        company: '',
-        designation: '',
-        linkedin: '',
-        instagram: '',
-        telegram: '',
-        twitter: '',
-        facebook: '',
+        company: "",
+        designation: "",
+        linkedin: "",
+        instagram: "",
+        telegram: "",
+        twitter: "",
+        facebook: "",
         createdBy: userId,
         activities: [
           {
-            action: 'contact_created',
+            action: "contact_created",
             type: "contact", // ✅ this is important
             title: "Contact Imported from Google",
             description: `${firstname} ${lastname}`,
-          }
+          },
         ],
       });
     }
@@ -203,7 +221,6 @@ const handleGoogleCallback = async (req, res) => {
       savedContacts = await Contact.insertMany(allowedContacts);
     }
 
-
     // return res.json({
     //   status: 'success',
     //   contacts: savedContacts, // ✅ only imported contacts
@@ -223,7 +240,6 @@ const handleGoogleCallback = async (req, res) => {
       totalContacts: currentContactCount + savedContacts.length,
       contacts: savedContacts,
     };
-
 
     // return res.send(`
     //     <script>
@@ -255,7 +271,6 @@ const handleGoogleCallback = async (req, res) => {
     </body>
     </html>
 `);
-
   } catch (error) {
     // console.error('Google Contact Fetch Error:', error);
     // return res.status(500).json({
@@ -271,7 +286,6 @@ const handleGoogleCallback = async (req, res) => {
         `);
   }
 };
-
 
 module.exports = {
   redirectToGoogle,

@@ -7,18 +7,22 @@ const path = require("path");
 const { createGoogleMeetEvent } = require("../utils/googleCalendar");
 const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
-const Plan = require("../models/planModel"); // <-- Add this at the top
-
-
+const Plan = require("../models/planModel");
+const { getUserCurrentPlan } = require("../utils/stripeUtils");
 
 const addEditContact = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate("plan");
+    const user = await User.findById(req.user._id);
     console.log(user);
 
     if (!user) {
-      return res.status(401).json({ status: "error", message: "Unauthorized: User not found" });
+      return res
+        .status(401)
+        .json({ status: "error", message: "Unauthorized: User not found" });
     }
+
+    // Get current plan from subscription
+    const currentPlan = await getUserCurrentPlan(user);
 
     let {
       contact_id,
@@ -60,19 +64,24 @@ const addEditContact = async (req, res) => {
 
     if (emailaddresses) {
       try {
-        const parsed = typeof emailaddresses === "string" ? JSON.parse(emailaddresses) : emailaddresses;
+        const parsed =
+          typeof emailaddresses === "string"
+            ? JSON.parse(emailaddresses)
+            : emailaddresses;
         const arrayEmails = Array.isArray(parsed) ? parsed : [parsed];
 
         cleanedEmails = arrayEmails
           .map((email) => String(email).trim())
           .filter((email) => email !== "");
       } catch (err) {
-        if (typeof emailaddresses === "string" && emailaddresses.trim() !== "") {
+        if (
+          typeof emailaddresses === "string" &&
+          emailaddresses.trim() !== ""
+        ) {
           cleanedEmails = [emailaddresses.trim()];
         }
       }
     }
-
 
     // ---------- Normalize Phone Numbers ----------
     // let parsedPhones = [];
@@ -133,8 +142,7 @@ const addEditContact = async (req, res) => {
 
     // ✅ Case 1: apiType = "mobile" (phonenumber & countryCode come separately)
     if (apiType === "mobile") {
-      hasPhoneInput =
-        hasPhoneInput =
+      hasPhoneInput = hasPhoneInput =
         Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
         Object.prototype.hasOwnProperty.call(req.body, "countryCode");
       console.log(hasPhoneInput, phonenumber, countryCode);
@@ -142,12 +150,8 @@ const addEditContact = async (req, res) => {
       if (hasPhoneInput) {
         console.log("Phone input detected:", phonenumber, countryCode);
 
-        const cleanedCC = (countryCode ?? "")
-          .toString()
-          .replace(/[^\d]/g, ""); // remove all non-digits
-        const cleanedNum = (phonenumber ?? "")
-          .toString()
-          .replace(/[^\d]/g, "");
+        const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, ""); // remove all non-digits
+        const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
         if (cleanedCC && cleanedNum) {
           parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
         }
@@ -185,7 +189,10 @@ const addEditContact = async (req, res) => {
     // Treat presence of the phonenumber field (even if empty) as an instruction
     else if (apiType === "web" || apiType === "scan") {
       // Consider the field present if client sent it at all
-      hasPhoneInput = Object.prototype.hasOwnProperty.call(req.body, "phonenumber");
+      hasPhoneInput = Object.prototype.hasOwnProperty.call(
+        req.body,
+        "phonenumber"
+      );
 
       // If client provided a non-empty value, parse it into countryCode/number
       if (hasPhoneInput && phonenumber && String(phonenumber).trim() !== "") {
@@ -195,8 +202,14 @@ const addEditContact = async (req, res) => {
         console.log(phoneObj);
 
         if (phoneObj) {
-          const cleanedCC = String(phoneObj.countryCallingCode ?? "").replace(/[^\d]/g, "");
-          const cleanedNum = String(phoneObj.nationalNumber ?? "").replace(/[^\d]/g, "");
+          const cleanedCC = String(phoneObj.countryCallingCode ?? "").replace(
+            /[^\d]/g,
+            ""
+          );
+          const cleanedNum = String(phoneObj.nationalNumber ?? "").replace(
+            /[^\d]/g,
+            ""
+          );
 
           if (cleanedCC && cleanedNum) {
             parsedPhones.push({
@@ -210,7 +223,6 @@ const addEditContact = async (req, res) => {
       // Later the code `if (hasPhoneInput) updateFields.phonenumbers = parsedPhones;`
       // will set phonenumbers to [] and thus remove phone(s) from DB on edit.
     }
-
 
     // console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
@@ -237,14 +249,14 @@ const addEditContact = async (req, res) => {
 
       if (phoneList.length) {
         // duplicateQuery.$or.push({ phonenumbers: { $in: phoneList } });
-        phoneList.forEach(p => {
+        phoneList.forEach((p) => {
           duplicateQuery.$or.push({
             phonenumbers: {
               $elemMatch: {
                 countryCode: p.countryCode,
-                number: p.number
-              }
-            }
+                number: p.number,
+              },
+            },
           });
         });
       }
@@ -255,7 +267,11 @@ const addEditContact = async (req, res) => {
         if (existingContacts.length > 0) {
           for (const contact of existingContacts) {
             if (!duplicateEmail && emailList.length) {
-              if (contact.emailaddresses.some(email => emailList.includes(email))) {
+              if (
+                contact.emailaddresses.some((email) =>
+                  emailList.includes(email)
+                )
+              ) {
                 duplicateEmail = true;
               }
             }
@@ -268,14 +284,17 @@ const addEditContact = async (req, res) => {
 
             if (!duplicatePhone && phoneList.length) {
               if (
-                contact.phonenumbers.some(phone =>
-                  phoneList.some(p => p.countryCode === phone.countryCode && p.number === phone.number)
+                contact.phonenumbers.some((phone) =>
+                  phoneList.some(
+                    (p) =>
+                      p.countryCode === phone.countryCode &&
+                      p.number === phone.number
+                  )
                 )
               ) {
                 duplicatePhone = true;
               }
             }
-
 
             // If both found, stop checking
             if (duplicateEmail && duplicatePhone) break;
@@ -283,7 +302,8 @@ const addEditContact = async (req, res) => {
 
           let message = "";
           if (duplicateEmail && duplicatePhone) {
-            message = "Email address and phone number are already used in another contact.";
+            message =
+              "Email address and phone number are already used in another contact.";
           } else if (duplicateEmail) {
             message = "Email address is already used in another contact.";
           } else if (duplicatePhone) {
@@ -363,9 +383,6 @@ const addEditContact = async (req, res) => {
     //   }
     // }
 
-
-
-
     if (req.body.tags) {
       try {
         const tagsArray = JSON.parse(req.body.tags);
@@ -417,7 +434,8 @@ const addEditContact = async (req, res) => {
         if (!Array.isArray(tagsArray)) {
           return res.status(400).json({
             status: "error",
-            message: "Tags must be a valid JSON array of objects with tag/emoji",
+            message:
+              "Tags must be a valid JSON array of objects with tag/emoji",
           });
         }
 
@@ -461,8 +479,6 @@ const addEditContact = async (req, res) => {
 
           matchedTags.push(tagObj);
         }
-
-
       } catch (err) {
         return res.status(400).json({
           status: "error",
@@ -471,10 +487,7 @@ const addEditContact = async (req, res) => {
       }
     }
 
-
-
     // ---------- Upload Image ----------
-
 
     const uploadImageToS3 = async (file) => {
       const ext = path.extname(file.originalname);
@@ -512,7 +525,11 @@ const addEditContact = async (req, res) => {
       typeof taskIsCompleted === "boolean" ||
       taskIsCompleted === "true" ||
       taskIsCompleted === "false";
-    if (isCreating && taskProvided && (taskIsCompleted === true || taskIsCompleted === "true")) {
+    if (
+      isCreating &&
+      taskProvided &&
+      (taskIsCompleted === true || taskIsCompleted === "true")
+    ) {
       return res.status(400).json({
         status: "error",
         message: "Task complete status cannot be set when creating a contact.",
@@ -543,7 +560,8 @@ const addEditContact = async (req, res) => {
       if (isCreating) {
         taskObj.taskIsCompleted = false;
       } else if (typeof taskIsCompleted !== "undefined") {
-        taskObj.taskIsCompleted = taskIsCompleted === true || taskIsCompleted === "true";
+        taskObj.taskIsCompleted =
+          taskIsCompleted === true || taskIsCompleted === "true";
       }
 
       if (!isCreating && task_id) {
@@ -552,9 +570,14 @@ const addEditContact = async (req, res) => {
     }
 
     // ---------- Handle Meeting ----------
-    const timezone = req.body.timezone || 'UTC';  // ✅ Get timezone from user if provided
-    const meetingProvided = meetingTitle || meetingDescription || meetingStartDate || meetingStartTime || meetingType;
-    let meetingObj = null;  // ✅ This line fixes your error
+    const timezone = req.body.timezone || "UTC"; // ✅ Get timezone from user if provided
+    const meetingProvided =
+      meetingTitle ||
+      meetingDescription ||
+      meetingStartDate ||
+      meetingStartTime ||
+      meetingType;
+    let meetingObj = null; // ✅ This line fixes your error
 
     if (meetingProvided) {
       // ✅ For online meeting: Check Google connection
@@ -562,7 +585,8 @@ const addEditContact = async (req, res) => {
         if (!user.googleAccessToken || !user.googleRefreshToken) {
           return res.status(400).json({
             status: "error",
-            message: "To create an online meeting, please first connect your Google account.",
+            message:
+              "To create an online meeting, please first connect your Google account.",
           });
         }
       }
@@ -573,17 +597,26 @@ const addEditContact = async (req, res) => {
 
         // ✅ Handle edit logic for existing meeting
         const existingMeeting = await Contact.findOne(
-          { _id: contact_id, createdBy: req.user._id, "meetings.meeting_id": meeting_id },
+          {
+            _id: contact_id,
+            createdBy: req.user._id,
+            "meetings.meeting_id": meeting_id,
+          },
           { "meetings.$": 1 }
         );
 
-        if (existingMeeting && existingMeeting.meetings && existingMeeting.meetings.length > 0) {
+        if (
+          existingMeeting &&
+          existingMeeting.meetings &&
+          existingMeeting.meetings.length > 0
+        ) {
           const oldMeeting = existingMeeting.meetings[0];
           const oldType = oldMeeting.meetingType;
 
           // ✅ Step 1: Fill meetingObj with incoming request body values BEFORE type change check
           if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
-          if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
+          if (meetingDescription)
+            meetingObj.meetingDescription = meetingDescription;
           if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
           if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
           // if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
@@ -598,22 +631,31 @@ const addEditContact = async (req, res) => {
           if (oldType === "offline" && meetingType === "online") {
             try {
               if (!meetingObj.meetingStartDate) {
-                console.error("Start Date missing during offline → online type change");
+                console.error(
+                  "Start Date missing during offline → online type change"
+                );
               } else {
-                const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
+                const generatedLink = await createGoogleMeetEvent(
+                  user,
+                  meetingObj,
+                  timezone
+                );
                 if (generatedLink) {
                   meetingObj.meetingLink = generatedLink;
                 }
               }
             } catch (error) {
-              console.error("Failed to create Google Meet link during type change:", error);
+              console.error(
+                "Failed to create Google Meet link during type change:",
+                error
+              );
             }
-            meetingObj.meetingLocation = undefined;  // Clear location
+            meetingObj.meetingLocation = undefined; // Clear location
           }
 
           // ✅ ---- Type change: Online → Offline ----
           if (oldType === "online" && meetingType === "offline") {
-            meetingObj.meetingLink = undefined;  // Remove Google Meet link
+            meetingObj.meetingLink = undefined; // Remove Google Meet link
             if (meetingLocation) {
               meetingObj.meetingLocation = meetingLocation;
             }
@@ -630,7 +672,6 @@ const addEditContact = async (req, res) => {
             meetingObj.meetingLocation = meetingLocation || ""; // ✅ Store blank instead of skipping
           }
         }
-
       } else {
         // ✅ New meeting creation
         meetingObj.meeting_id = new mongoose.Types.ObjectId();
@@ -638,7 +679,8 @@ const addEditContact = async (req, res) => {
 
         // ✅ Fill meetingObj with new values
         if (meetingTitle) meetingObj.meetingTitle = meetingTitle;
-        if (meetingDescription) meetingObj.meetingDescription = meetingDescription;
+        if (meetingDescription)
+          meetingObj.meetingDescription = meetingDescription;
         if (meetingStartDate) meetingObj.meetingStartDate = meetingStartDate;
         if (meetingStartTime) meetingObj.meetingStartTime = meetingStartTime;
         // if (meetingEndTime) meetingObj.meetingEndTime = meetingEndTime;
@@ -652,43 +694,54 @@ const addEditContact = async (req, res) => {
         if (meetingType === "online") {
           try {
             if (!meetingObj.meetingStartDate) {
-              console.error("Meeting Start Date missing for new Google Meet creation!");
+              console.error(
+                "Meeting Start Date missing for new Google Meet creation!"
+              );
             } else {
-              const generatedLink = await createGoogleMeetEvent(user, meetingObj, timezone);
+              const generatedLink = await createGoogleMeetEvent(
+                user,
+                meetingObj,
+                timezone
+              );
               if (generatedLink) {
                 meetingObj.meetingLink = generatedLink;
               }
             }
           } catch (error) {
-            console.error("Failed to create Google Meet link for new meeting:", error);
+            console.error(
+              "Failed to create Google Meet link for new meeting:",
+              error
+            );
           }
         }
       }
     }
 
-
     let contactData;
     if (isCreating) {
-
-      const planName = user.plan?.name?.toLowerCase() || "Starter";
+      const planName = currentPlan?.name?.toLowerCase() || "starter";
       let contactLimit = 1000; // default for Free
       if (planName === "pro") {
         contactLimit = Infinity; // unlimited
       }
-      const currentContactCount = await Contact.countDocuments({ createdBy: user._id });
+      const currentContactCount = await Contact.countDocuments({
+        createdBy: user._id,
+      });
       if (currentContactCount >= contactLimit) {
         return res.status(403).json({
           status: "error",
-          message: planName === "pro"
-            ? "You have reached your contact limit. Please contact support."
-            : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
+          message:
+            planName === "pro"
+              ? "You have reached your contact limit. Please contact support."
+              : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
         });
       }
 
       if (taskProvided && task_id) {
         return res.status(400).json({
           status: "error",
-          message: "Task ID should not be provided when creating a contact with a task.",
+          message:
+            "Task ID should not be provided when creating a contact with a task.",
         });
       }
 
@@ -728,11 +781,7 @@ const addEditContact = async (req, res) => {
         title: `Contact Created`,
         description: ` ${firstname} ${lastname}`,
       });
-
-
-
-    }
-    else {
+    } else {
       const updateFields = {
         firstname,
         lastname,
@@ -750,7 +799,6 @@ const addEditContact = async (req, res) => {
         website,
       };
 
-
       // if (req.body.phonenumbers !== undefined && Array.isArray(parsedPhones)) {
       //   updateFields.phonenumbers = parsedPhones;
       // }
@@ -763,24 +811,28 @@ const addEditContact = async (req, res) => {
         updateFields.phonenumbers = parsedPhones;
       }
 
-
-      if (req.body.emailaddresses !== undefined && Array.isArray(cleanedEmails)) {
+      if (
+        req.body.emailaddresses !== undefined &&
+        Array.isArray(cleanedEmails)
+      ) {
         updateFields.emailaddresses = cleanedEmails;
       }
-
 
       if (contactImage) updateFields.contactImageURL = contactImage;
       if (tagsProvided) updateFields.tags = matchedTags;
 
       // ---------- ✅ Activity Logging for Tag Changes ----------
       if (tagsProvided) {
-        const existing = await Contact.findOne({ _id: contact_id, createdBy: req.user._id });
+        const existing = await Contact.findOne({
+          _id: contact_id,
+          createdBy: req.user._id,
+        });
 
-        const oldTags = existing.tags?.map(t => t.tag) || [];
-        const newTags = matchedTags.map(t => t.tag);
+        const oldTags = existing.tags?.map((t) => t.tag) || [];
+        const newTags = matchedTags.map((t) => t.tag);
 
-        const addedTags = newTags.filter(tag => !oldTags.includes(tag));
-        const removedTags = oldTags.filter(tag => !newTags.includes(tag));
+        const addedTags = newTags.filter((tag) => !oldTags.includes(tag));
+        const removedTags = oldTags.filter((tag) => !newTags.includes(tag));
 
         // if (addedTags.length || removedTags.length) {
         //   let titleParts = [];
@@ -793,8 +845,6 @@ const addEditContact = async (req, res) => {
         //     titleParts.push(`Removed tags`);
         //     descriptionParts.push(`${removedTags.join(", ")}`);
         //   }
-
-
 
         //   await logActivityToContact(contact_id, {
         //     action: "tags_updated",
@@ -825,7 +875,6 @@ const addEditContact = async (req, res) => {
         }
       }
 
-
       contactData = await Contact.findOneAndUpdate(
         { _id: contact_id, createdBy: req.user._id },
         updateFields,
@@ -841,14 +890,17 @@ const addEditContact = async (req, res) => {
 
       // ----- Update or Add Task -----
       if (taskObj) {
-        const taskIndex = contactData.tasks.findIndex((task) => task?.task_id?.toString() === taskObj.task_id.toString());
+        const taskIndex = contactData.tasks.findIndex(
+          (task) => task?.task_id?.toString() === taskObj.task_id.toString()
+        );
 
         if (taskIndex >= 0) {
           Object.assign(contactData.tasks[taskIndex], {
             ...taskObj,
-            taskIsCompleted: taskObj.taskIsCompleted !== undefined
-              ? taskObj.taskIsCompleted
-              : contactData.tasks[taskIndex].taskIsCompleted,
+            taskIsCompleted:
+              taskObj.taskIsCompleted !== undefined
+                ? taskObj.taskIsCompleted
+                : contactData.tasks[taskIndex].taskIsCompleted,
           });
           contactData.markModified("tasks");
         } else {
@@ -873,12 +925,16 @@ const addEditContact = async (req, res) => {
           title: task_id ? "Note Updated" : "Note Created",
           description: `${taskDescription}`,
         });
-
       }
 
       // ----- Update or Add Meeting -----
       if (meetingObj) {
-        const meetingIndex = contactData.meetings?.findIndex((meeting) => meeting?.meeting_id?.toString() === meetingObj.meeting_id.toString()) ?? -1;
+        const meetingIndex =
+          contactData.meetings?.findIndex(
+            (meeting) =>
+              meeting?.meeting_id?.toString() ===
+              meetingObj.meeting_id.toString()
+          ) ?? -1;
 
         if (meetingIndex >= 0) {
           Object.assign(contactData.meetings[meetingIndex], meetingObj);
@@ -901,7 +957,6 @@ const addEditContact = async (req, res) => {
           title: meeting_id ? "Meeting Updated" : "Meeting Scheduled",
           description: `${meetingTitle}`,
         });
-
       }
 
       await contactData.save();
@@ -922,10 +977,6 @@ const addEditContact = async (req, res) => {
           description: `${contactData.firstname} ${contactData.lastname}`,
         });
       }
-
-
-
-
     }
 
     // ---------- Format Response ----------
@@ -975,8 +1026,11 @@ const addEditContact = async (req, res) => {
               return String(p).replace(/^\+/, "").replace(/[^\d]/g, "");
             }
             const cc = String(p.countryCode ?? "").replace(/[^\d]/g, "");
-            const num = String(p.number ?? p.nationalNumber ?? "").replace(/[^\d]/g, "");
-            return (cc && num) ? cc + num : (cc || num) ? (cc + num) : "";
+            const num = String(p.number ?? p.nationalNumber ?? "").replace(
+              /[^\d]/g,
+              ""
+            );
+            return cc && num ? cc + num : cc || num ? cc + num : "";
           })
           .filter(Boolean); // remove empty strings
       } else {
@@ -989,22 +1043,30 @@ const addEditContact = async (req, res) => {
             const parsed = parsePhoneNumberFromString(raw);
             if (parsed) {
               return {
-                countryCode: String(parsed.countryCallingCode).replace(/[^\d]/g, ""),
+                countryCode: String(parsed.countryCallingCode).replace(
+                  /[^\d]/g,
+                  ""
+                ),
                 number: String(parsed.nationalNumber).replace(/[^\d]/g, ""),
               };
             }
             // fallback: return cleaned string (no plus)
-            return { countryCode: "", number: String(p).replace(/^\+/, "").replace(/[^\d]/g, "") };
+            return {
+              countryCode: "",
+              number: String(p).replace(/^\+/, "").replace(/[^\d]/g, ""),
+            };
           }
           // already an object — ensure digits-only strings
           return {
             countryCode: String(p.countryCode ?? "").replace(/[^\d]/g, ""),
-            number: String(p.number ?? p.nationalNumber ?? "").replace(/[^\d]/g, ""),
+            number: String(p.number ?? p.nationalNumber ?? "").replace(
+              /[^\d]/g,
+              ""
+            ),
           };
         });
       }
     }
-
 
     delete responseData.createdBy;
     delete responseData._id;
@@ -1022,7 +1084,9 @@ const addEditContact = async (req, res) => {
     } else if (taskProvided) {
       message = "Note created successfully";
     } else {
-      message = isCreating ? "Contact created successfully" : "Contact updated successfully";
+      message = isCreating
+        ? "Contact created successfully"
+        : "Contact updated successfully";
     }
 
     return res.status(isCreating ? 201 : 200).json({
@@ -1032,7 +1096,9 @@ const addEditContact = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ status: "error", message: "An error occurred" });
+    return res
+      .status(500)
+      .json({ status: "error", message: "An error occurred" });
   }
 };
 

@@ -35,7 +35,6 @@
 //             isVerified: true,
 //             signupMethod: "email",
 //             role: "superadmin", // ✅ Super Admin role
-//             isPremium: true,
 //             trialStart: now,
 //             trialEnd: trialEnds,
 //             referralCode: "SUPERADMIN123",
