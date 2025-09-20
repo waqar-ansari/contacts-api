@@ -708,7 +708,9 @@ const previewUpgrade = async (req, res) => {
         },
         period: {
           daysRemaining: Math.max(1, Math.ceil(timeRemaining / (24 * 60 * 60))),
-          percentUsed: Math.round(((totalPeriodTime - timeRemaining) / totalPeriodTime) * 100),
+          percentUsed: Math.round(
+            ((totalPeriodTime - timeRemaining) / totalPeriodTime) * 100
+          ),
         },
       },
     });
