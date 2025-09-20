@@ -870,56 +870,12 @@ const upgradeSubscription = async (req, res) => {
       }
     );
 
-    // Update user with new plan
-    await User.findByIdAndUpdate(userId, {
-      plan: plan._id,
-      stripeSubscriptionId: upgradedSubscription.id,
-      hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
-    });
-
     // Get the latest invoice for proration amount
     const latestInvoice = await stripe.invoices.retrieve(
       upgradedSubscription.latest_invoice
     );
 
-    // Create payment record for the upgrade
-    // await Payment.create({
-    //   userId: userId,
-    //   planId: plan._id,
-    //   paymentMethod: "stripe",
-    //   amounts: {
-    //     totalAmount: latestInvoice.amount_paid, // Amount in cents
-    //     creditUsed: 0,
-    //     stripeAmount: latestInvoice.amount_paid,
-    //     upgradeCost: latestInvoice.amount_paid,
-    //     remainingValue: 0,
-    //   },
-    //   stripe: {
-    //     paymentIntentId: latestInvoice.payment_intent,
-    //     paymentStatus: "succeeded",
-    //     transactionId: latestInvoice.id,
-    //   },
-    //   isUpgrade: true,
-    //   isRenewal: false,
-    //   isAutoRenewal: autoRenewal,
-    //   previousPlan: {
-    //     planId: currentPlan?._id || null,
-    //   },
-    //   newPlan: {
-    //     activatedAt: new Date(upgradedSubscription.current_period_start * 1000),
-    //     expiresAt: new Date(upgradedSubscription.current_period_end * 1000),
-    //     autoRenewal: autoRenewal,
-    //   },
-    //   status: "completed",
-    //   processedAt: new Date(),
-    //   completedAt: new Date(),
-    //   metadata: {
-    //     currency: latestInvoice.currency.toUpperCase(),
-    //     notes: `Subscription upgrade from ${
-    //       currentPlan?.name || "unknown"
-    //     } to ${plan.name}`,
-    //   },
-    // });
+  
 
     console.log(
       `Successfully upgraded user ${userId} from ${
