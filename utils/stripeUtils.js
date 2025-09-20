@@ -365,18 +365,36 @@ async function getUserStripeSubscriptionData(user) {
       id: subscription.id,
       status: subscription.status,
       isTrialing: subscription.status === "trialing",
-      activatedAt: new Date(subscription.current_period_start * 1000),
-      expiresAt: new Date(subscription.current_period_end * 1000),
+      activatedAt: new Date(subscription.start_date * 1000),
+      expiresAt: new Date(
+        (subscription.cancel_at ||
+          subscription.current_period_end ||
+          subscription.billing_cycle_anchor) * 1000
+      ),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      cancelAt: subscription.cancel_at
+        ? new Date(subscription.cancel_at * 1000)
+        : null,
+      canceledAt: subscription.canceled_at
+        ? new Date(subscription.canceled_at * 1000)
+        : null,
+      isScheduledToCancel: !!subscription.cancel_at,
+      isCanceled:
+        !!subscription.canceled_at || subscription.status === "canceled",
       trialStart: subscription.trial_start
         ? new Date(subscription.trial_start * 1000)
         : null,
       trialEnd: subscription.trial_end
         ? new Date(subscription.trial_end * 1000)
         : null,
-      priceId: subscription.items.data[0]?.price?.id,
-      amount: subscription.items.data[0]?.price?.unit_amount,
-      currency: subscription.items.data[0]?.price?.currency,
+      priceId: subscription.items.data[0]?.price?.id || subscription.plan?.id,
+      amount:
+        subscription.items.data[0]?.price?.unit_amount ||
+        subscription.plan?.amount,
+      currency:
+        subscription.items.data[0]?.price?.currency ||
+        subscription.plan?.currency ||
+        subscription.currency,
     };
   } catch (error) {
     console.error(

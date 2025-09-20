@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const {
   createSubscription,
-  // purchaseWithCredits,
+  purchaseWithCredits,
+  getCreditBalance,
   toggleAutoRenewal,
   getPaymentStatus,
   createCheckoutSession,
@@ -13,6 +14,9 @@ const {
 
 // GET user payment status and plan information
 router.get("/status", getPaymentStatus);
+
+// GET user's Stripe credit balance
+router.get("/credit-balance", getCreditBalance);
 
 // POST create subscription for plan purchase/upgrade
 router.post("/create-subscription", createSubscription);
@@ -29,10 +33,13 @@ router.post("/preview-upgrade", previewUpgrade);
 // POST upgrade existing subscription to new plan
 router.post("/upgrade-subscription", upgradeSubscription);
 
-// POST purchase plan using credits only
-// router.post("/purchase-with-credits", purchaseWithCredits);
+// POST purchase plan using credits only (for initial subscriptions)
+router.post("/purchase-with-credits", purchaseWithCredits);
 
 // PATCH toggle auto-renewal setting
 router.patch("/auto-renewal", toggleAutoRenewal);
+
+// POST toggle auto-renewal setting (alternative endpoint)
+router.post("/toggle-auto-renewal", toggleAutoRenewal);
 
 module.exports = router;
