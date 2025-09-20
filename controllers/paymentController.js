@@ -783,7 +783,7 @@ const previewUpgrade = async (req, res) => {
  */
 const upgradeSubscription = async (req, res) => {
   try {
-    const { planId, autoRenewal = true, paymentMethod = "auto", paymentMethodId = null } = req.body;
+    const { planId, autoRenewal = true } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -849,71 +849,25 @@ const upgradeSubscription = async (req, res) => {
       });
     }
 
-    // Handle payment method selection for upgrade
-    let upgradeOptions = {
-      items: [
-        {
-          id: existingSubscription.items.data[0].id,
-          price: plan.stripePriceId,
-        },
-      ],
-      metadata: {
-        ...existingSubscription.metadata,
-        upgradedAt: new Date().toISOString(),
-        upgradedFrom: currentPlan?._id?.toString() || "unknown",
-        newPlanId: planId,
-        newPlanName: plan.name,
-        paymentMethod: paymentMethod,
-      },
-    };
-    console.log(paymentMethod)
-    // Configure payment behavior based on selected method
-    if (paymentMethod === "credits") {
-      // Credits only - check if sufficient credits available
-      const customer = await getOrCreateStripeCustomer(user);
-      const availableCredits = Math.abs(await getStripeCreditBalance(customer.id));
-      
-      // Get upgrade preview to calculate cost
-      const preview = await stripe.invoices.retrieveUpcoming({
-        customer: customer.id,
-        subscription: activeSubInfo.subscriptionId,
-        subscription_items: [
+    // Upgrade the subscription with immediate proration
+    const upgradedSubscription = await stripe.subscriptions.update(
+      activeSubInfo.subscriptionId,
+      {
+        items: [
           {
             id: existingSubscription.items.data[0].id,
             price: plan.stripePriceId,
           },
         ],
-        subscription_proration_behavior: "create_prorations",
-      });
-
-      const upgradeCost = preview.amount_due;
-      
-      if (availableCredits < upgradeCost) {
-        return res.status(400).json({
-          success: false,
-          message: "Insufficient credits for this upgrade",
-          required: upgradeCost / 100,
-          available: availableCredits / 100,
-        });
+        proration_behavior: "always_invoice", // Create invoice immediately for proration
+        metadata: {
+          ...existingSubscription.metadata,
+          upgradedAt: new Date().toISOString(),
+          upgradedFrom: currentPlan?._id?.toString() || "unknown",
+          newPlanId: planId,
+          newPlanName: plan.name,
+        },
       }
-
-      upgradeOptions.proration_behavior = "create_prorations";
-      upgradeOptions.payment_behavior = "allow_incomplete";
-    } else if (paymentMethod === "card" && paymentMethodId) {
-      // Specific card - set as default payment method for this upgrade
-      upgradeOptions.proration_behavior = "always_invoice";
-      upgradeOptions.payment_behavior = "default_incomplete";
-      upgradeOptions.default_payment_method = paymentMethodId;
-    } else {
-      // Auto or default behavior
-      upgradeOptions.proration_behavior = "always_invoice";
-      upgradeOptions.payment_behavior = "default_incomplete";
-    }
-
-    // Upgrade the subscription
-    const upgradedSubscription = await stripe.subscriptions.update(
-      activeSubInfo.subscriptionId,
-      upgradeOptions
     );
 
     // Update user with new plan
@@ -1240,183 +1194,6 @@ const completeSubscription = async (req, res) => {
   }
 };
 
-/**
- * Get user's payment methods
- * @route GET /api/user/payment/payment-methods
- * @access Private
- */
-const getPaymentMethods = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.stripeCustomerId) {
-      return res.json({
-        success: true,
-        paymentMethods: [],
-        defaultPaymentMethod: null,
-      });
-    }
-
-    // Get payment methods from Stripe
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: user.stripeCustomerId,
-      type: "card",
-    });
-
-    // Get customer to check default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
-
-    const formattedPaymentMethods = paymentMethods.data.map((pm) => ({
-      id: pm.id,
-      type: pm.type,
-      card: {
-        brand: pm.card.brand,
-        last4: pm.card.last4,
-        exp_month: pm.card.exp_month,
-        exp_year: pm.card.exp_year,
-      },
-      isDefault: pm.id === customer.invoice_settings?.default_payment_method,
-    }));
-
-    res.json({
-      success: true,
-      paymentMethods: formattedPaymentMethods,
-      defaultPaymentMethod: customer.invoice_settings?.default_payment_method,
-    });
-  } catch (error) {
-    console.error("Error getting payment methods:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to get payment methods",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Add new payment method
- * @route POST /api/user/payment/add-payment-method
- * @access Private
- */
-const addPaymentMethod = async (req, res) => {
-  try {
-    const { paymentMethodId, setAsDefault = false } = req.body;
-    const userId = req.user._id;
-
-    if (!paymentMethodId) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment method ID is required",
-      });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
-
-    // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, {
-      customer: customer.id,
-    });
-
-    // Set as default if requested or if it's the first payment method
-    if (setAsDefault) {
-      await stripe.customers.update(customer.id, {
-        invoice_settings: {
-          default_payment_method: paymentMethodId,
-        },
-      });
-    }
-
-    // Get the updated payment method details
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
-
-    res.json({
-      success: true,
-      message: "Payment method added successfully",
-      paymentMethod: {
-        id: paymentMethod.id,
-        type: paymentMethod.type,
-        card: {
-          brand: paymentMethod.card.brand,
-          last4: paymentMethod.card.last4,
-          exp_month: paymentMethod.card.exp_month,
-          exp_year: paymentMethod.card.exp_year,
-        },
-        isDefault: setAsDefault,
-      },
-    });
-  } catch (error) {
-    console.error("Error adding payment method:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to add payment method",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Set default payment method
- * @route POST /api/user/payment/set-default-payment-method
- * @access Private
- */
-const setDefaultPaymentMethod = async (req, res) => {
-  try {
-    const { paymentMethodId } = req.body;
-    const userId = req.user._id;
-
-    if (!paymentMethodId) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment method ID is required",
-      });
-    }
-
-    const user = await User.findById(userId);
-    if (!user || !user.stripeCustomerId) {
-      return res.status(404).json({
-        success: false,
-        message: "User or Stripe customer not found",
-      });
-    }
-
-    // Update customer's default payment method
-    await stripe.customers.update(user.stripeCustomerId, {
-      invoice_settings: {
-        default_payment_method: paymentMethodId,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: "Default payment method updated successfully",
-    });
-  } catch (error) {
-    console.error("Error setting default payment method:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to set default payment method",
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   createSubscription,
   purchaseWithCredits,
@@ -1427,7 +1204,4 @@ module.exports = {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
-  getPaymentMethods,
-  addPaymentMethod,
-  setDefaultPaymentMethod,
 };

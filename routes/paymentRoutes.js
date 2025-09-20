@@ -10,9 +10,6 @@ const {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
-  getPaymentMethods,
-  addPaymentMethod,
-  setDefaultPaymentMethod,
 } = require("../controllers/paymentController");
 
 // GET user payment status and plan information
@@ -44,14 +41,5 @@ router.patch("/auto-renewal", toggleAutoRenewal);
 
 // POST toggle auto-renewal setting (alternative endpoint)
 router.post("/toggle-auto-renewal", toggleAutoRenewal);
-
-// GET user's payment methods
-router.get("/payment-methods", getPaymentMethods);
-
-// POST add new payment method
-router.post("/add-payment-method", addPaymentMethod);
-
-// POST set default payment method
-router.post("/set-default-payment-method", setDefaultPaymentMethod);
 
 module.exports = router;
