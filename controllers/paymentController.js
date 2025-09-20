@@ -599,7 +599,7 @@ const createCheckoutSession = async (req, res) => {
       mode: "subscription",
       return_url: `${
         process.env.FRONTEND_URL || "http://localhost:3000"
-      }/settings/upgrade-plan?session_id={CHECKOUT_SESSION_ID}`,
+      }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       metadata: {
         userId: userId.toString(),
         planId: plan._id.toString(),
@@ -698,29 +698,6 @@ const completeSubscription = async (req, res) => {
         message: "Plan or user not found",
       });
     }
-
-    // Update user with new plan and subscription info
-    await User.findByIdAndUpdate(userId, {
-      plan: plan._id,
-      stripeSubscriptionId: session.subscription.id,
-      hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
-    });
-
-    // Create payment record
-    await Payment.create({
-      userId: userId,
-      planId: plan._id,
-      amount: session.amount_total,
-      currency: session.currency,
-      status: "succeeded",
-      stripePaymentId: session.payment_intent,
-      stripeSubscriptionId: session.subscription.id,
-      metadata: {
-        autoRenewal: session.metadata.autoRenewal === "true",
-        paymentType: "subscription_purchase",
-        sessionId: sessionId,
-      },
-    });
 
     console.log(`Successfully upgraded user ${userId} to plan ${plan.name}`);
 
