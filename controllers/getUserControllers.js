@@ -474,6 +474,7 @@ const getUserData = async (req, res) => {
       plan: {
         _id: currentPlan?._id || null,
         name: currentPlan?.name || null,
+        price: currentPlan?.price || 0,
         subscriptionStatus: stripeData?.status || null,
         isTrialing: stripeData?.isTrialing || false,
         activatedAt: stripeData?.activatedAt || null,
