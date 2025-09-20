@@ -572,19 +572,8 @@ const createCheckoutSession = async (req, res) => {
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
 
-    // Cancel existing subscription if user is upgrading
-    if (activeSubInfo.hasActiveSubscription) {
-      try {
-        await stripe.subscriptions.cancel(activeSubInfo.subscriptionId);
-        console.log(
-          "Cancelled existing subscription:",
-          activeSubInfo.subscriptionId
-        );
-      } catch (cancelError) {
-        console.error("Error cancelling existing subscription:", cancelError);
-        // Continue with new subscription creation
-      }
-    }
+    // DON'T cancel existing subscription here - only after successful payment
+    // This prevents losing the current subscription if user abandons checkout
 
     // Create Stripe Checkout Session for embedded form
     const session = await stripe.checkout.sessions.create({
@@ -606,6 +595,8 @@ const createCheckoutSession = async (req, res) => {
         autoRenewal: autoRenewal.toString(),
         upgradeFrom: currentPlan?._id?.toString() || "none",
         type: "plan_upgrade",
+        hasExistingSubscription: activeSubInfo.hasActiveSubscription.toString(),
+        existingSubscriptionId: activeSubInfo.subscriptionId || "none",
       },
     });
 
@@ -684,7 +675,8 @@ const completeSubscription = async (req, res) => {
       });
     }
 
-    const { planId } = session.metadata;
+    const { planId, hasExistingSubscription, existingSubscriptionId } =
+      session.metadata;
 
     // Get plan and user
     const [plan, user] = await Promise.all([
@@ -699,16 +691,105 @@ const completeSubscription = async (req, res) => {
       });
     }
 
+    // Handle subscription upgrade/creation based on whether user had existing subscription
+    let finalSubscription = session.subscription;
+
+    if (
+      hasExistingSubscription === "true" &&
+      existingSubscriptionId !== "none"
+    ) {
+      try {
+        console.log(
+          "User had existing subscription, upgrading with prorations..."
+        );
+
+        // Get the existing subscription
+        const existingSubscription = await stripe.subscriptions.retrieve(
+          existingSubscriptionId
+        );
+
+        if (existingSubscription && existingSubscription.status === "active") {
+          // Upgrade the existing subscription with prorations
+          const upgradedSubscription = await stripe.subscriptions.update(
+            existingSubscriptionId,
+            {
+              items: [
+                {
+                  id: existingSubscription.items.data[0].id,
+                  price: plan.stripePriceId,
+                },
+              ],
+              proration_behavior: "create_prorations", // This will calculate prorations automatically
+              metadata: {
+                ...existingSubscription.metadata,
+                upgradedAt: new Date().toISOString(),
+                upgradedFrom: session.metadata.upgradeFrom,
+                newPlanId: planId,
+                newPlanName: plan.name,
+              },
+            }
+          );
+
+          // Cancel the new subscription created by checkout since we upgraded the existing one
+          await stripe.subscriptions.cancel(session.subscription.id);
+
+          finalSubscription = upgradedSubscription;
+          console.log(
+            "Successfully upgraded existing subscription:",
+            existingSubscriptionId
+          );
+        } else {
+          console.log(
+            "Existing subscription not active, keeping new subscription"
+          );
+          // If existing subscription is not active, keep the new one
+        }
+      } catch (upgradeError) {
+        console.error("Error upgrading existing subscription:", upgradeError);
+        // If upgrade fails, keep the new subscription
+        console.log("Keeping new subscription due to upgrade error");
+      }
+    } else {
+      console.log("No existing subscription, keeping new subscription");
+    }
+
+    // Update user with new plan and subscription info
+    await User.findByIdAndUpdate(userId, {
+      plan: plan._id,
+      stripeSubscriptionId: finalSubscription.id,
+      hasUsedProTrial: plan.name === "Pro" ? true : user.hasUsedProTrial,
+    });
+
+    // Create payment record
+    await Payment.create({
+      userId: userId,
+      planId: plan._id,
+      amount: session.amount_total,
+      currency: session.currency,
+      status: "succeeded",
+      stripePaymentId: session.payment_intent,
+      stripeSubscriptionId: finalSubscription.id,
+      metadata: {
+        autoRenewal: session.metadata.autoRenewal === "true",
+        paymentType:
+          hasExistingSubscription === "true"
+            ? "subscription_upgrade"
+            : "subscription_purchase",
+        sessionId: sessionId,
+        upgradeFrom: session.metadata.upgradeFrom,
+      },
+    });
+
     console.log(`Successfully upgraded user ${userId} to plan ${plan.name}`);
 
     res.json({
       success: true,
       message: `Successfully upgraded to ${plan.name}!`,
       subscription: {
-        id: session.subscription.id,
-        status: session.subscription.status,
-        currentPeriodStart: session.subscription.current_period_start,
-        currentPeriodEnd: session.subscription.current_period_end,
+        id: finalSubscription.id,
+        status: finalSubscription.status,
+        currentPeriodStart: finalSubscription.current_period_start,
+        currentPeriodEnd: finalSubscription.current_period_end,
       },
       plan: {
         id: plan._id,
