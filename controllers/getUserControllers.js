@@ -10,6 +10,7 @@ const {
   getUserCurrentPlan,
   getUserStripeSubscriptionData,
 } = require("../utils/stripeUtils");
+const { setupInitialPlan } = require("../utils/planUtils");
 
 const getUserData = async (req, res) => {
   try {
@@ -410,7 +411,6 @@ const getUserData = async (req, res) => {
     // Fetch Stripe subscription data if user has a subscription
     const stripeData = await getUserStripeSubscriptionData(user);
 
-    // If no specific favourite flags provided, return full data
 
     const data = {
       id: user._id,

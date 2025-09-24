@@ -875,8 +875,6 @@ const upgradeSubscription = async (req, res) => {
       upgradedSubscription.latest_invoice
     );
 
-  
-
     console.log(
       `Successfully upgraded user ${userId} from ${
         currentPlan?.name || "unknown"
@@ -1150,6 +1148,338 @@ const completeSubscription = async (req, res) => {
   }
 };
 
+/**
+ * Get user's payment methods
+ * @route GET /api/user/payment/payment-methods
+ * @access Private
+ */
+const getPaymentMethods = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!user.stripeCustomerId) {
+      return res.json({
+        success: true,
+        paymentMethods: [],
+        defaultPaymentMethod: null,
+      });
+    }
+
+    // Get payment methods from Stripe
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: user.stripeCustomerId,
+      type: "card",
+    });
+
+    // Get customer to check default payment method
+    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+
+    const formattedPaymentMethods = paymentMethods.data.map((pm) => ({
+      id: pm.id,
+      type: pm.type,
+      card: {
+        brand: pm.card.brand,
+        last4: pm.card.last4,
+        exp_month: pm.card.exp_month,
+        exp_year: pm.card.exp_year,
+      },
+      isDefault: pm.id === customer.invoice_settings?.default_payment_method,
+    }));
+
+    res.json({
+      success: true,
+      paymentMethods: formattedPaymentMethods,
+      defaultPaymentMethod: customer.invoice_settings?.default_payment_method,
+    });
+  } catch (error) {
+    console.error("Error getting payment methods:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get payment methods",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Add new payment method
+ * @route POST /api/user/payment/add-payment-method
+ * @access Private
+ */
+const addPaymentMethod = async (req, res) => {
+  try {
+    const { paymentMethodId, setAsDefault = false } = req.body;
+    const userId = req.user._id;
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method ID is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Get or create Stripe customer
+    const customer = await getOrCreateStripeCustomer(user);
+
+    // Attach payment method to customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customer.id,
+    });
+
+    // Set as default if requested or if it's the first payment method
+    if (setAsDefault) {
+      await stripe.customers.update(customer.id, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      });
+    }
+
+    // Get the updated payment method details
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+    res.json({
+      success: true,
+      message: "Payment method added successfully",
+      paymentMethod: {
+        id: paymentMethod.id,
+        type: paymentMethod.type,
+        card: {
+          brand: paymentMethod.card.brand,
+          last4: paymentMethod.card.last4,
+          exp_month: paymentMethod.card.exp_month,
+          exp_year: paymentMethod.card.exp_year,
+        },
+        isDefault: setAsDefault,
+      },
+    });
+  } catch (error) {
+    console.error("Error adding payment method:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to add payment method",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Set default payment method
+ * @route POST /api/user/payment/set-default-payment-method
+ * @access Private
+ */
+const setDefaultPaymentMethod = async (req, res) => {
+  try {
+    const { paymentMethodId } = req.body;
+    const userId = req.user._id;
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method ID is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.stripeCustomerId) {
+      return res.status(404).json({
+        success: false,
+        message: "User or Stripe customer not found",
+      });
+    }
+
+    // Update customer's default payment method
+    await stripe.customers.update(user.stripeCustomerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "Default payment method updated successfully",
+    });
+  } catch (error) {
+    console.error("Error setting default payment method:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to set default payment method",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update payment method (mainly for updating billing details)
+ * @route PUT /api/user/payment/update-payment-method
+ * @access Private
+ */
+const updatePaymentMethod = async (req, res) => {
+  try {
+    const { paymentMethodId, billingDetails } = req.body;
+    const userId = req.user._id;
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method ID is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.stripeCustomerId) {
+      return res.status(404).json({
+        success: false,
+        message: "User or Stripe customer not found",
+      });
+    }
+
+    // Verify that the payment method belongs to this customer
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentMethod.customer !== user.stripeCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: "Payment method does not belong to this user",
+      });
+    }
+
+    // Update payment method billing details
+    let updateData = {};
+    if (billingDetails) {
+      updateData.billing_details = billingDetails;
+    }
+
+    const updatedPaymentMethod = await stripe.paymentMethods.update(
+      paymentMethodId,
+      updateData
+    );
+
+    res.json({
+      success: true,
+      message: "Payment method updated successfully",
+      paymentMethod: {
+        id: updatedPaymentMethod.id,
+        type: updatedPaymentMethod.type,
+        card: {
+          brand: updatedPaymentMethod.card.brand,
+          last4: updatedPaymentMethod.card.last4,
+          exp_month: updatedPaymentMethod.card.exp_month,
+          exp_year: updatedPaymentMethod.card.exp_year,
+        },
+        billing_details: updatedPaymentMethod.billing_details,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating payment method:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update payment method",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete payment method
+ * @route DELETE /api/user/payment/delete-payment-method/:paymentMethodId
+ * @access Private
+ */
+const deletePaymentMethod = async (req, res) => {
+  try {
+    const { paymentMethodId } = req.params;
+    const userId = req.user._id;
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method ID is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.stripeCustomerId) {
+      return res.status(404).json({
+        success: false,
+        message: "User or Stripe customer not found",
+      });
+    }
+
+    // Verify that the payment method belongs to this customer
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentMethod.customer !== user.stripeCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: "Payment method does not belong to this user",
+      });
+    }
+
+    // Check if this is the default payment method
+    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const isDefaultPaymentMethod =
+      customer.invoice_settings?.default_payment_method === paymentMethodId;
+
+    if (isDefaultPaymentMethod) {
+      // Get all payment methods to check if there are others
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: user.stripeCustomerId,
+        type: "card",
+      });
+
+      // If there are other payment methods, set one as default
+      if (paymentMethods.data.length > 1) {
+        const otherPaymentMethod = paymentMethods.data.find(
+          (pm) => pm.id !== paymentMethodId
+        );
+        if (otherPaymentMethod) {
+          await stripe.customers.update(user.stripeCustomerId, {
+            invoice_settings: {
+              default_payment_method: otherPaymentMethod.id,
+            },
+          });
+        }
+      } else {
+        // This is the last payment method, clear the default
+        await stripe.customers.update(user.stripeCustomerId, {
+          invoice_settings: {
+            default_payment_method: null,
+          },
+        });
+      }
+    }
+
+    // Detach the payment method from the customer
+    await stripe.paymentMethods.detach(paymentMethodId);
+
+    res.json({
+      success: true,
+      message: "Payment method deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting payment method:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete payment method",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSubscription,
   purchaseWithCredits,
@@ -1160,4 +1490,9 @@ module.exports = {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
+  getPaymentMethods,
+  addPaymentMethod,
+  setDefaultPaymentMethod,
+  updatePaymentMethod,
+  deletePaymentMethod,
 };

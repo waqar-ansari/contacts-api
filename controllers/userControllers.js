@@ -210,7 +210,10 @@ const signupWithEmail = async (req, res) => {
       let planData = null;
       if (user.role !== "superadmin") {
         planData = await setupInitialPlan(user);
-        console.log("planData:", planData);
+        console.log(
+          "set up initial plan for user during sign up after verification:",
+          planData
+        );
       }
 
       // Activate user after email verification
@@ -1266,6 +1269,9 @@ const unifiedLogin = async (req, res) => {
           countryCode: normCountry,
           password,
         });
+        const customer = await getOrCreateStripeCustomer(user);
+        console.log("set up initial plan for user during login:");
+       
 
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;

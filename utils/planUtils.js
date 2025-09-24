@@ -69,7 +69,10 @@ async function getStarterPlan() {
  */
 async function getProPlan() {
   try {
-    const proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+    let proPlan = await Plan.findOne({ name: "Pro test plan", isActive: true });
+    if (!proPlan) {
+      proPlan = await Plan.findOne({ name: "Pro", isActive: true });
+    }
     return proPlan;
   } catch (error) {
     console.error("Error getting Pro plan:", error);
