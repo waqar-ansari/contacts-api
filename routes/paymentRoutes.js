@@ -9,12 +9,14 @@ const {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
+  previewNewSubscription,
   downgradeSubscription,
   getPaymentMethods,
   addPaymentMethod,
   setDefaultPaymentMethod,
   updatePaymentMethod,
   deletePaymentMethod,
+  createSubscriptionWithPaymentMethod,
 } = require("../controllers/paymentController");
 
 // GET user payment status and plan information
@@ -35,6 +37,9 @@ router.post("/complete-subscription", completeSubscription);
 // POST preview upgrade cost and proration details
 router.post("/preview-upgrade", previewUpgrade);
 
+// POST preview new subscription cost for users without active subscriptions
+router.post("/preview-new-subscription", previewNewSubscription);
+
 // POST upgrade existing subscription to new plan
 router.post("/upgrade-subscription", upgradeSubscription);
 
@@ -43,6 +48,12 @@ router.post("/downgrade-subscription", downgradeSubscription);
 
 // POST purchase plan using credits only (for initial subscriptions)
 router.post("/purchase-with-credits", purchaseWithCredits);
+
+// POST create new subscription with existing payment method
+router.post(
+  "/create-subscription-with-payment-method",
+  createSubscriptionWithPaymentMethod
+);
 
 // PATCH toggle auto-renewal setting
 router.patch("/auto-renewal", toggleAutoRenewal);

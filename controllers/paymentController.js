@@ -478,6 +478,9 @@ const previewUpgrade = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "No active subscription found. Cannot preview upgrade.",
+        code: "NO_ACTIVE_SUBSCRIPTION",
+        suggestion:
+          "Use create-checkout-session or purchase-with-credits for new subscriptions",
       });
     }
 
@@ -836,6 +839,46 @@ const upgradeSubscription = async (req, res) => {
       });
     }
 
+    // Check if there are any scheduled subscriptions for this customer
+    let hasScheduledSubscriptions = false;
+    let scheduledSubscriptions = [];
+
+    try {
+      const schedules = await stripe.subscriptionSchedules.list({
+        customer: user.stripeCustomerId,
+        limit: 10,
+      });
+
+      // Filter for active schedules that are not released
+      scheduledSubscriptions = schedules.data.filter(
+        (schedule) => schedule.status === "not_started"
+      );
+
+      hasScheduledSubscriptions = scheduledSubscriptions.length > 0;
+
+      console.log("Found scheduled subscriptions:", {
+        count: scheduledSubscriptions.length,
+        schedules: scheduledSubscriptions.map((s) => ({
+          id: s.id,
+          status: s.status,
+          phases: s.phases?.length || 0,
+          end_behavior: s.end_behavior,
+        })),
+      });
+    } catch (scheduleError) {
+      console.error("Error checking scheduled subscriptions:", scheduleError);
+      // Continue with upgrade but log the error
+    }
+
+    console.log("Subscription upgrade context:", {
+      currentSubscriptionId: existingSubscription.id,
+      currentPlan: currentPlan?.name,
+      newPlan: plan.name,
+      hasScheduledSubscriptions,
+      scheduledCount: scheduledSubscriptions.length,
+      currentCancelAtPeriodEnd: existingSubscription.cancel_at_period_end,
+    });
+
     // Update payment method if provided
     let updateData = {
       items: [
@@ -845,7 +888,9 @@ const upgradeSubscription = async (req, res) => {
         },
       ],
       proration_behavior: "always_invoice", // Create invoice immediately for proration
-      cancel_at_period_end: false,
+      // Only set cancel_at_period_end to false if there are no scheduled subscriptions
+      // This prevents conflicting scheduled changes
+      cancel_at_period_end: hasScheduledSubscriptions ? true : false,
       metadata: {
         ...existingSubscription.metadata,
         upgradedAt: new Date().toISOString(),
@@ -871,15 +916,38 @@ const upgradeSubscription = async (req, res) => {
       upgradedSubscription.latest_invoice
     );
 
+    // Cancel any scheduled subscriptions since we're upgrading immediately
+    // if (hasScheduledSubscriptions) {
+    //   for (const schedule of scheduledSubscriptions) {
+    //     try {
+    //       await stripe.subscriptionSchedules.cancel(schedule.id);
+    //       console.log(`Cancelled scheduled subscription: ${schedule.id}`);
+    //     } catch (cancelError) {
+    //       console.error(
+    //         `Failed to cancel scheduled subscription ${schedule.id}:`,
+    //         cancelError
+    //       );
+    //     }
+    //   }
+    // }
+
     console.log(
       `Successfully upgraded user ${userId} from ${
         currentPlan?.name || "unknown"
-      } to ${plan.name}`
+      } to ${plan.name}${
+        hasScheduledSubscriptions
+          ? ` (cancelled ${scheduledSubscriptions.length} scheduled subscription(s))`
+          : ""
+      }`
     );
+
+    const successMessage = hasScheduledSubscriptions
+      ? `Successfully upgraded to ${plan.name}! Your scheduled subscription changes have been cancelled.`
+      : `Successfully upgraded to ${plan.name}!`;
 
     res.json({
       success: true,
-      message: `Successfully upgraded to ${plan.name}!`,
+      message: successMessage,
       subscription: {
         id: upgradedSubscription.id,
         status: upgradedSubscription.status,
@@ -894,6 +962,11 @@ const upgradeSubscription = async (req, res) => {
       billing: {
         prorationAmount: latestInvoice.amount_paid / 100, // Convert to dollars
         nextInvoiceDate: upgradedSubscription.current_period_end,
+      },
+      scheduledSubscriptions: {
+        hadScheduledSubscriptions: hasScheduledSubscriptions,
+        cancelledCount: scheduledSubscriptions.length,
+        cancelledSchedules: scheduledSubscriptions.map((s) => s.id),
       },
     });
   } catch (error) {
@@ -1646,6 +1719,319 @@ const downgradeSubscription = async (req, res) => {
   }
 };
 
+/**
+ * Preview new subscription cost for users without active subscriptions (e.g., Starter plan users)
+ * @route POST /api/user/payment/preview-new-subscription
+ * @access Private
+ */
+const previewNewSubscription = async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const userId = req.user._id;
+
+    // Validate plan
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found or inactive",
+      });
+    }
+
+    // Check if plan has a Stripe price ID
+    if (!plan.stripePriceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan is not properly configured with Stripe",
+      });
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check that user doesn't have an active subscription (this is for new subscriptions only)
+    const activeSubInfo = await checkActiveSubscription(user);
+    if (activeSubInfo.hasActiveSubscription) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "User already has an active subscription. Use preview-upgrade endpoint instead.",
+        code: "ACTIVE_SUBSCRIPTION_EXISTS",
+      });
+    }
+
+    // Get or create Stripe customer (we'll need this for credit balance)
+    const customer = await getOrCreateStripeCustomer(user);
+
+    // Get Stripe credit balance for the user
+    const availableCredits = Math.abs(
+      await getStripeCreditBalance(customer.id)
+    );
+    console.log(
+      "Available Stripe credits for new subscription:",
+      availableCredits
+    );
+
+    // Convert plan price from cents to cents (it should already be in cents from DB)
+    const planPriceInCents = plan.price;
+    const planPriceInDollars = planPriceInCents / 100;
+
+    // Calculate how much credits will be used (up to the plan price)
+    const creditsToUse = Math.min(availableCredits, planPriceInCents);
+    const finalChargeAfterCredits = Math.max(
+      0,
+      planPriceInCents - creditsToUse
+    );
+    const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
+
+    console.log("New subscription credit calculation:", {
+      planPriceInCents,
+      planPriceInDollars,
+      availableCredits: availableCredits / 100,
+      creditsToUse: creditsToUse / 100,
+      finalChargeAfterCredits: finalChargeAfterCredits / 100,
+      remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100,
+    });
+
+    // Calculate next billing date (30 days from now)
+    const nextBillingDate = new Date();
+    nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+
+    res.json({
+      success: true,
+      message: "New subscription preview calculated successfully",
+      preview: {
+        plan: {
+          id: plan._id,
+          name: plan.name,
+          price: planPriceInDollars,
+        },
+        credits: {
+          availableCredits: availableCredits / 100, // Convert to dollars
+          creditsToUse: creditsToUse / 100, // Convert to dollars
+          finalChargeAfterCredits: finalChargeAfterCredits / 100, // Convert to dollars
+          remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
+        },
+        billing: {
+          immediateCharge: finalChargeAfterCredits / 100, // Convert to dollars
+          nextBillingDate: nextBillingDate.toISOString(),
+          nextBillingAmount: planPriceInDollars,
+        },
+        isNewSubscription: true,
+        customerInfo: {
+          customerId: customer.id,
+          hasStripeCustomer: true,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error previewing new subscription:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to preview new subscription",
+      error: error.message,
+    });
+  }
+};
+
+// Create new subscription with existing payment method
+const createSubscriptionWithPaymentMethod = async (req, res) => {
+  try {
+    const { planId, paymentMethodId, autoRenewal = true } = req.body;
+    const userId = req.user._id;
+
+    if (!planId || !paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan ID and payment method ID are required",
+      });
+    }
+
+    // Validate plan
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found or inactive",
+      });
+    }
+
+    // Check if plan has a Stripe price ID
+    if (!plan.stripePriceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan is not properly configured with Stripe",
+      });
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check if user already has an active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
+    if (activeSubInfo.hasActiveSubscription) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "User already has an active subscription. Use upgrade endpoint instead.",
+        redirectToUpgrade: true,
+      });
+    }
+
+    // Get or create Stripe customer
+    let stripeCustomerId = user.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: user.firstName
+          ? `${user.firstName} ${user.lastName || ""}`.trim()
+          : user.email,
+        metadata: {
+          userId: userId.toString(),
+        },
+      });
+      stripeCustomerId = customer.id;
+
+      // Update user with Stripe customer ID
+      await User.findByIdAndUpdate(userId, {
+        stripeCustomerId: stripeCustomerId,
+      });
+    }
+
+    // Verify payment method belongs to customer
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentMethod.customer !== stripeCustomerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method does not belong to this customer",
+      });
+    }
+
+    // Get user's credit balance from Stripe
+    const availableCreditsInCents = Math.abs(
+      await getStripeCreditBalance(stripeCustomerId)
+    );
+    const planPriceInCents = plan.price;
+
+    // Calculate final charge after applying credits
+    const finalChargeAfterCredits = Math.max(
+      0,
+      planPriceInCents - availableCreditsInCents
+    );
+    const creditsUsed = Math.min(availableCreditsInCents, planPriceInCents);
+
+    // Create subscription
+    const subscriptionData = {
+      customer: stripeCustomerId,
+      items: [
+        {
+          price: plan.stripePriceId,
+        },
+      ],
+      payment_behavior: "allow_incomplete",
+      payment_settings: {
+        save_default_payment_method: "on_subscription",
+      },
+      expand: ["latest_invoice.payment_intent"],
+      metadata: {
+        userId: userId.toString(),
+        planId: planId.toString(),
+      },
+    };
+
+    // Set default payment method
+    subscriptionData.default_payment_method = paymentMethodId;
+
+    // Handle auto-renewal setting
+    if (!autoRenewal) {
+      subscriptionData.cancel_at_period_end = true;
+    }
+
+    const subscription = await stripe.subscriptions.create(subscriptionData);
+
+    // Get the latest invoice and payment intent
+    let finalSubscription = subscription;
+
+    // If there's a payment intent, confirm it
+    if (
+      subscription.latest_invoice &&
+      subscription.latest_invoice.payment_intent
+    ) {
+      const paymentIntent = subscription.latest_invoice.payment_intent;
+
+      if (
+        paymentIntent.status === "requires_payment_method" ||
+        paymentIntent.status === "requires_confirmation"
+      ) {
+        try {
+          const confirmedPI = await stripe.paymentIntents.confirm(
+            paymentIntent.id,
+            {
+              payment_method: paymentMethodId,
+            }
+          );
+
+          console.log("Payment intent confirmed:", confirmedPI.status);
+
+          // Retrieve updated subscription after payment confirmation
+          finalSubscription = await stripe.subscriptions.retrieve(
+            subscription.id
+          );
+        } catch (confirmError) {
+          console.error("Error confirming payment intent:", confirmError);
+          // If payment fails, cancel the subscription
+          await stripe.subscriptions.cancel(subscription.id);
+          throw new Error(
+            `Payment confirmation failed: ${confirmError.message}`
+          );
+        }
+      }
+    }
+
+    // Update user plan
+    await User.findByIdAndUpdate(userId, {
+      plan: planId,
+      stripeSubscriptionId: finalSubscription.id,
+      subscriptionStatus: finalSubscription.status,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully subscribed to ${plan.name}!`,
+      subscription: {
+        id: finalSubscription.id,
+        status: finalSubscription.status,
+        current_period_end: finalSubscription.current_period_end,
+        cancel_at_period_end: finalSubscription.cancel_at_period_end,
+      },
+      billing: {
+        planPrice: planPriceInCents,
+        creditsAvailable: availableCreditsInCents,
+        finalCharge: finalChargeAfterCredits,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating subscription with payment method:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create subscription",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   purchaseWithCredits,
   getCreditBalance,
@@ -1655,10 +2041,12 @@ module.exports = {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
+  previewNewSubscription,
   downgradeSubscription,
   getPaymentMethods,
   addPaymentMethod,
   setDefaultPaymentMethod,
   updatePaymentMethod,
   deletePaymentMethod,
+  createSubscriptionWithPaymentMethod,
 };
