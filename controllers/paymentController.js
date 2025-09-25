@@ -783,7 +783,7 @@ const previewUpgrade = async (req, res) => {
  */
 const upgradeSubscription = async (req, res) => {
   try {
-    const { planId, autoRenewal = true } = req.body;
+    const { planId, autoRenewal = true, paymentMethodId } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -849,25 +849,34 @@ const upgradeSubscription = async (req, res) => {
       });
     }
 
+    // Update payment method if provided
+    let updateData = {
+      items: [
+        {
+          id: existingSubscription.items.data[0].id,
+          price: plan.stripePriceId,
+        },
+      ],
+      proration_behavior: "always_invoice", // Create invoice immediately for proration
+      cancel_at_period_end: false,
+      metadata: {
+        ...existingSubscription.metadata,
+        upgradedAt: new Date().toISOString(),
+        upgradedFrom: currentPlan?._id?.toString() || "unknown",
+        newPlanId: planId,
+        newPlanName: plan.name,
+      },
+    };
+
+    // Add payment method if provided
+    if (paymentMethodId) {
+      updateData.default_payment_method = paymentMethodId;
+    }
+
     // Upgrade the subscription with immediate proration
     const upgradedSubscription = await stripe.subscriptions.update(
       activeSubInfo.subscriptionId,
-      {
-        items: [
-          {
-            id: existingSubscription.items.data[0].id,
-            price: plan.stripePriceId,
-          },
-        ],
-        proration_behavior: "always_invoice", // Create invoice immediately for proration
-        metadata: {
-          ...existingSubscription.metadata,
-          upgradedAt: new Date().toISOString(),
-          upgradedFrom: currentPlan?._id?.toString() || "unknown",
-          newPlanId: planId,
-          newPlanName: plan.name,
-        },
-      }
+      updateData
     );
 
     // Get the latest invoice for proration amount
