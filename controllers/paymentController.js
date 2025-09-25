@@ -502,8 +502,9 @@ const previewUpgrade = async (req, res) => {
     console.log("Subscription data:", {
       id: existingSubscription.id,
       status: existingSubscription.status,
-      current_period_start: existingSubscription.current_period_start,
-      current_period_end: existingSubscription.current_period_end,
+      current_period_start:
+        existingSubscription.items.data[0].current_period_start,
+      current_period_end: existingSubscription.items.data[0].current_period_end,
       items: existingSubscription.items?.data?.length || 0,
     });
 
@@ -545,7 +546,8 @@ const previewUpgrade = async (req, res) => {
       let immediateCharge = 0;
 
       // Get current period end to filter out future billing cycles
-      let currentBillingPeriodEnd = existingSubscription.current_period_end;
+      let currentBillingPeriodEnd =
+        existingSubscription.items.data[0].current_period_end;
       if (!currentBillingPeriodEnd && invoiceLines.length > 0) {
         const lineWithPeriod = invoiceLines.find((line) => line.period);
         if (lineWithPeriod) {
@@ -614,8 +616,10 @@ const previewUpgrade = async (req, res) => {
 
       // Calculate period information from invoice lines (more reliable)
       const now = Math.floor(Date.now() / 1000);
-      let currentPeriodEnd = existingSubscription.current_period_end;
-      let currentPeriodStart = existingSubscription.current_period_start;
+      let currentPeriodEnd =
+        existingSubscription.items.data[0].current_period_end;
+      let currentPeriodStart =
+        existingSubscription.items.data[0].current_period_start;
 
       // If subscription periods are undefined, get from invoice line periods
       if (!currentPeriodEnd && invoiceLines.length > 0) {
@@ -640,6 +644,28 @@ const previewUpgrade = async (req, res) => {
         console.error("Date conversion error:", error);
         nextBillingDate = new Date().toISOString(); // Fallback
       }
+
+      // Get Stripe credit balance for the user
+      const availableCredits = Math.abs(
+        await getStripeCreditBalance(user.stripeCustomerId)
+      );
+      console.log("Available Stripe credits:", availableCredits);
+
+      // Calculate how much credits will be used (up to the immediate charge amount)
+      const creditsToUse = Math.min(availableCredits, immediateCharge);
+      const finalChargeAfterCredits = Math.max(
+        0,
+        immediateCharge - creditsToUse
+      );
+      const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
+
+      console.log("Credit calculation:", {
+        availableCredits: availableCredits / 100,
+        immediateCharge: immediateCharge / 100,
+        creditsToUse: creditsToUse / 100,
+        finalChargeAfterCredits: finalChargeAfterCredits / 100,
+        remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100,
+      });
 
       console.log("Processed preview data:", {
         currentAmount,
@@ -676,6 +702,12 @@ const previewUpgrade = async (req, res) => {
             netAmount: immediateCharge / 100, // Convert to dollars
             nextBillingDate: nextBillingDate,
             nextBillingAmount: newAmount,
+          },
+          credits: {
+            availableCredits: availableCredits / 100, // Convert to dollars
+            creditsToUse: creditsToUse / 100, // Convert to dollars
+            finalChargeAfterCredits: finalChargeAfterCredits / 100, // Convert to dollars
+            remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
           },
           period: {
             daysRemaining: Math.max(
@@ -1499,7 +1531,7 @@ const downgradeSubscription = async (req, res) => {
     const existingSubscription = await stripe.subscriptions.retrieve(
       activeSubInfo.subscriptionId
     );
-
+    console.log("Existing subscription:", existingSubscription);
     if (!existingSubscription || existingSubscription.status !== "active") {
       return res.status(400).json({
         success: false,
@@ -1507,11 +1539,30 @@ const downgradeSubscription = async (req, res) => {
       });
     }
 
+    // Check if there's already a scheduled downgrade and cancel it
+    if (existingSubscription.metadata?.scheduledDowngradeId) {
+      try {
+        await stripe.subscriptionSchedules.cancel(
+          existingSubscription.metadata.scheduledDowngradeId
+        );
+        console.log(
+          `Cancelled previous downgrade schedule: ${existingSubscription.metadata.scheduledDowngradeId}`
+        );
+      } catch (cancelError) {
+        console.log(
+          "Previous schedule already cancelled or not found:",
+          cancelError.message
+        );
+      }
+    }
+
     // Schedule the downgrade to take effect at period end
-    // We use subscription schedules for this
+    // We use subscription schedules for this - create from scratch instead of from_subscription
     try {
       const subscriptionSchedule = await stripe.subscriptionSchedules.create({
-        from_subscription: activeSubInfo.subscriptionId,
+        customer: user.stripeCustomerId,
+        start_date: existingSubscription.items.data[0].current_period_end,
+        end_behavior: "release",
         phases: [
           {
             items: [
@@ -1520,7 +1571,6 @@ const downgradeSubscription = async (req, res) => {
                 quantity: 1,
               },
             ],
-            start_date: existingSubscription.current_period_end,
             metadata: {
               userId: userId.toString(),
               planId: planId.toString(),
@@ -1530,6 +1580,17 @@ const downgradeSubscription = async (req, res) => {
             },
           },
         ],
+      });
+
+      // Cancel the current subscription at period end
+      await stripe.subscriptions.update(activeSubInfo.subscriptionId, {
+        cancel_at_period_end: true,
+        metadata: {
+          ...existingSubscription.metadata,
+          scheduledDowngradeId: subscriptionSchedule.id,
+          downgradeTo: plan.name,
+          downgradeScheduledAt: new Date().toISOString(),
+        },
       });
 
       console.log(
@@ -1543,7 +1604,7 @@ const downgradeSubscription = async (req, res) => {
         message: `Successfully scheduled downgrade to ${
           plan.name
         }. The change will take effect on ${new Date(
-          existingSubscription.current_period_end * 1000
+          existingSubscription.items.data[0].current_period_end * 1000
         ).toLocaleDateString()}.`,
         downgrade: {
           scheduleId: subscriptionSchedule.id,
@@ -1555,8 +1616,10 @@ const downgradeSubscription = async (req, res) => {
             id: plan._id,
             name: plan.name,
           },
-          effectiveDate: existingSubscription.current_period_end,
-          currentPeriodEnd: existingSubscription.current_period_end,
+          effectiveDate: existingSubscription.items.data[0].current_period_end,
+          currentPeriodEnd:
+            existingSubscription.items.data[0].current_period_end,
+          cancelAtPeriodEnd: true,
         },
       });
     } catch (scheduleError) {
