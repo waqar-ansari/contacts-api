@@ -360,16 +360,15 @@ async function getUserStripeSubscriptionData(user) {
     if (!subscription) {
       return null;
     }
-
     return {
       id: subscription.id,
       status: subscription.status,
       isTrialing: subscription.status === "trialing",
-      activatedAt: new Date(subscription.start_date * 1000),
+      activatedAt: new Date(
+        subscription.items.data[0].current_period_start * 1000 || null
+      ),
       expiresAt: new Date(
-        (subscription.cancel_at ||
-          subscription.current_period_end ||
-          subscription.billing_cycle_anchor) * 1000
+        subscription.items.data[0].current_period_end * 1000 || null
       ),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       cancelAt: subscription.cancel_at

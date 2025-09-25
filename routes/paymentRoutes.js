@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createSubscription,
   purchaseWithCredits,
   getCreditBalance,
   toggleAutoRenewal,
@@ -24,7 +23,7 @@ router.get("/status", getPaymentStatus);
 router.get("/credit-balance", getCreditBalance);
 
 // POST create subscription for plan purchase/upgrade
-router.post("/create-subscription", createSubscription);
+// router.post("/create-subscription", createSubscription);
 
 // POST create checkout session for NEW subscription purchase
 router.post("/create-checkout-session", createCheckoutSession);
