@@ -386,6 +386,11 @@ const getPaymentStatus = async (req, res) => {
       try {
         const stripeData = await getUserStripeSubscriptionData(user);
         if (stripeData) {
+          // Get the full Stripe subscription to access metadata
+          const fullSubscription = await stripe.subscriptions.retrieve(
+            activeSubInfo.subscriptionId
+          );
+
           subscriptionDetails = {
             id: activeSubInfo.subscriptionId,
             status: stripeData.status,
@@ -395,6 +400,7 @@ const getPaymentStatus = async (req, res) => {
             isTrialing: stripeData.isTrialing,
             trialStart: stripeData.trialStart,
             trialEnd: stripeData.trialEnd,
+            metadata: fullSubscription.metadata || {},
           };
         }
       } catch (error) {
