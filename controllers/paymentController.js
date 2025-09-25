@@ -49,10 +49,9 @@ const validatePlanUpgrade = (currentPlan, newPlan) => {
     validation.isUpgrade = true;
     validation.message = `Upgrading from ${currentPlan.name} to ${newPlan.name}`;
   } else if (newPrice < currentPrice) {
-    // This is a downgrade - not allowed
-    validation.isValid = false;
+    // This is a downgrade - allow but schedule for period end
     validation.isDowngrade = true;
-    validation.message = `Cannot downgrade from ${currentPlan.name} (${currentPrice}) to ${newPlan.name} (${newPrice}). Downgrades are not allowed.`;
+    validation.message = `Downgrading from ${currentPlan.name} to ${newPlan.name}. Change will take effect at the end of current billing period.`;
   } else {
     // Same price different plan
     validation.message = `Changing from ${currentPlan.name} to ${newPlan.name}`;
@@ -427,7 +426,7 @@ const getPaymentStatus = async (req, res) => {
 };
 
 /**
- * Preview upgrade cost and proration details before actual upgrade
+ * Preview upgrade cost and proration details before actual upgrade using Stripe's Upcoming Invoice API
  * @route POST /api/user/payment/preview-upgrade
  * @access Private
  */
@@ -485,24 +484,13 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Get the existing subscription to preview the upgrade
+    // Get the existing subscription
     const existingSubscription = await stripe.subscriptions.retrieve(
       activeSubInfo.subscriptionId,
       {
         expand: ["items.data.price"],
       }
     );
-
-    // Debug subscription data
-    console.log("Subscription data:", {
-      id: existingSubscription.id,
-      status: existingSubscription.status,
-      current_period_start: existingSubscription.current_period_start,
-      current_period_end: existingSubscription.current_period_end,
-      items: existingSubscription.items?.data?.length || 0,
-      billing_cycle_anchor: existingSubscription.billing_cycle_anchor,
-      created: existingSubscription.created,
-    });
 
     if (!existingSubscription || existingSubscription.status !== "active") {
       return res.status(400).json({
@@ -511,118 +499,222 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Create a preview of the subscription upgrade to get proration details
-    const currentPrice = existingSubscription.items.data[0].price;
-    let currentPeriodEnd = existingSubscription.current_period_end;
-    let currentPeriodStart = existingSubscription.current_period_start;
-
-    console.log("Current price data:", {
-      unit_amount: currentPrice?.unit_amount,
-      currency: currentPrice?.currency,
+    console.log("Subscription data:", {
+      id: existingSubscription.id,
+      status: existingSubscription.status,
+      current_period_start: existingSubscription.current_period_start,
+      current_period_end: existingSubscription.current_period_end,
+      items: existingSubscription.items?.data?.length || 0,
     });
 
-    // Validate price data
-    if (!currentPrice || !currentPrice.unit_amount) {
-      return res.status(400).json({
+    // Use Stripe's Upcoming Invoice Preview API for accurate calculation
+    // This simulates what would happen if we change the subscription
+    const subscriptionItem = existingSubscription.items.data[0];
+
+    try {
+      // Preview the upcoming invoice with the subscription change
+      const upcomingInvoice = await stripe.invoices.createPreview({
+        customer: user.stripeCustomerId,
+        subscription: activeSubInfo.subscriptionId,
+        subscription_details: {
+          items: [
+            {
+              id: subscriptionItem.id,
+              price: plan.stripePriceId, // Change to new price
+            },
+          ],
+          proration_behavior: "create_prorations", // Enable proration
+        },
+      });
+
+      console.log("Stripe upcoming invoice preview:", {
+        amount_due: upcomingInvoice.amount_due,
+        amount_paid: upcomingInvoice.amount_paid,
+        amount_remaining: upcomingInvoice.amount_remaining,
+        subtotal: upcomingInvoice.subtotal,
+        total: upcomingInvoice.total,
+        lines_count: upcomingInvoice.lines?.data?.length || 0,
+      });
+
+      // Parse the invoice line items to understand the charges
+      const invoiceLines = upcomingInvoice.lines.data;
+
+      // Find proration credit (negative amount) and new charge (positive amount)
+      let prorationCredit = 0;
+      let newPlanCharge = 0;
+      let immediateCharge = 0;
+
+      // Get current period end to filter out future billing cycles
+      let currentBillingPeriodEnd = existingSubscription.current_period_end;
+      if (!currentBillingPeriodEnd && invoiceLines.length > 0) {
+        const lineWithPeriod = invoiceLines.find((line) => line.period);
+        if (lineWithPeriod) {
+          currentBillingPeriodEnd = lineWithPeriod.period.end;
+        }
+      }
+
+      invoiceLines.forEach((line, index) => {
+        console.log(`Invoice line ${index + 1}:`, {
+          description: line.description,
+          amount: line.amount,
+          amount_in_dollars: (line.amount / 100).toFixed(2),
+          proration: line.proration,
+          period: line.period
+            ? {
+                start: new Date(line.period.start * 1000).toISOString(),
+                end: new Date(line.period.end * 1000).toISOString(),
+              }
+            : null,
+          isCurrentPeriod: line.period
+            ? line.period.end <= currentBillingPeriodEnd
+            : "unknown",
+        });
+
+        // Only include charges from the current billing period (exclude future billing cycles)
+        const isCurrentPeriodCharge =
+          !line.period || line.period.end <= currentBillingPeriodEnd;
+
+        if (line.amount < 0) {
+          // This is a proration credit for unused time (negative amount)
+          prorationCredit += Math.abs(line.amount);
+          console.log(
+            `  -> Adding credit: $${(Math.abs(line.amount) / 100).toFixed(2)}`
+          );
+        } else if (line.amount > 0 && isCurrentPeriodCharge) {
+          // Only include positive charges from current period (exclude next month's full charge)
+          newPlanCharge += line.amount;
+          console.log(
+            `  -> Adding current period charge: $${(line.amount / 100).toFixed(
+              2
+            )}`
+          );
+        } else if (line.amount > 0 && !isCurrentPeriodCharge) {
+          console.log(
+            `  -> Skipping future period charge: $${(line.amount / 100).toFixed(
+              2
+            )} (next billing cycle)`
+          );
+        }
+      });
+
+      // Calculate the actual immediate charge for current period only
+      immediateCharge = Math.max(0, newPlanCharge - prorationCredit);
+
+      console.log("Proration summary:", {
+        totalCredit: (prorationCredit / 100).toFixed(2),
+        totalCurrentPeriodCharge: (newPlanCharge / 100).toFixed(2),
+        calculatedImmediateCharge: (immediateCharge / 100).toFixed(2),
+        stripeRawAmountDue: (upcomingInvoice.amount_due / 100).toFixed(2),
+      });
+
+      // Get current plan details
+      const currentPrice = existingSubscription.items.data[0].price;
+      const currentAmount = currentPrice.unit_amount / 100; // Convert to dollars
+      const newAmount = plan.price / 100; // Convert to dollars
+
+      // Calculate period information from invoice lines (more reliable)
+      const now = Math.floor(Date.now() / 1000);
+      let currentPeriodEnd = existingSubscription.current_period_end;
+      let currentPeriodStart = existingSubscription.current_period_start;
+
+      // If subscription periods are undefined, get from invoice line periods
+      if (!currentPeriodEnd && invoiceLines.length > 0) {
+        const lineWithPeriod = invoiceLines.find((line) => line.period);
+        if (lineWithPeriod) {
+          currentPeriodEnd = lineWithPeriod.period.end;
+          currentPeriodStart = lineWithPeriod.period.start;
+        }
+      }
+
+      const timeRemaining = Math.max(0, currentPeriodEnd - now);
+      const totalPeriodTime = currentPeriodEnd - currentPeriodStart;
+
+      // Safe date conversion with validation
+      let nextBillingDate;
+      try {
+        nextBillingDate =
+          currentPeriodEnd && !isNaN(currentPeriodEnd)
+            ? new Date(currentPeriodEnd * 1000).toISOString()
+            : new Date().toISOString(); // Fallback to current date
+      } catch (error) {
+        console.error("Date conversion error:", error);
+        nextBillingDate = new Date().toISOString(); // Fallback
+      }
+
+      console.log("Processed preview data:", {
+        currentAmount,
+        newAmount,
+        prorationCredit: prorationCredit / 100,
+        immediateCharge: immediateCharge / 100,
+        nextBillingDate,
+        periodInfo: {
+          currentPeriodStart,
+          currentPeriodEnd,
+          timeRemaining: `${Math.ceil(timeRemaining / (24 * 60 * 60))} days`,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Upgrade preview calculated successfully using Stripe",
+        preview: {
+          currentPlan: {
+            id: currentPlan?._id,
+            name: currentPlan?.name,
+            price: currentAmount,
+            remainingValue: prorationCredit / 100, // Convert to dollars
+          },
+          newPlan: {
+            id: plan._id,
+            name: plan.name,
+            price: newAmount,
+            proRatedAmount: newAmount,
+          },
+          billing: {
+            immediateCharge: immediateCharge / 100, // Convert to dollars
+            creditApplied: prorationCredit / 100, // Convert to dollars
+            netAmount: immediateCharge / 100, // Convert to dollars
+            nextBillingDate: nextBillingDate,
+            nextBillingAmount: newAmount,
+          },
+          period: {
+            daysRemaining: Math.max(
+              1,
+              Math.ceil(timeRemaining / (24 * 60 * 60))
+            ),
+            percentUsed: Math.round(
+              ((totalPeriodTime - timeRemaining) / totalPeriodTime) * 100
+            ),
+          },
+          stripeInvoicePreview: {
+            invoiceId: upcomingInvoice.id,
+            amountDue: upcomingInvoice.amount_due / 100,
+            subtotal: upcomingInvoice.subtotal / 100,
+            total: upcomingInvoice.total / 100,
+            currency: upcomingInvoice.currency,
+          },
+        },
+      });
+    } catch (stripeError) {
+      console.error("Stripe upcoming invoice error:", stripeError);
+
+      // Fallback to basic calculation if Stripe preview fails
+      const currentPrice = existingSubscription.items.data[0].price;
+      const currentAmount = currentPrice.unit_amount / 100;
+      const newAmount = plan.price / 100;
+
+      return res.status(500).json({
         success: false,
-        message: "Unable to retrieve current subscription pricing",
+        message:
+          "Unable to preview upgrade costs using Stripe. Please try again.",
+        error: stripeError.message,
+        fallback: {
+          currentPlanPrice: currentAmount,
+          newPlanPrice: newAmount,
+          estimatedChange: newAmount - currentAmount,
+        },
       });
     }
-
-    // Fallback for missing period data - use billing cycle or create estimates
-    if (!currentPeriodEnd || !currentPeriodStart) {
-      console.log("Missing period data, using fallbacks");
-      const now = Math.floor(Date.now() / 1000);
-
-      if (existingSubscription.billing_cycle_anchor) {
-        currentPeriodStart = existingSubscription.billing_cycle_anchor;
-        // Assume monthly billing (30 days)
-        currentPeriodEnd = currentPeriodStart + 30 * 24 * 60 * 60;
-      } else {
-        // Use created date as start and estimate end
-        currentPeriodStart = existingSubscription.created;
-        currentPeriodEnd = currentPeriodStart + 30 * 24 * 60 * 60;
-      }
-
-      // If the estimated end is in the past, move it to the future
-      while (currentPeriodEnd <= now) {
-        currentPeriodStart = currentPeriodEnd;
-        currentPeriodEnd = currentPeriodStart + 30 * 24 * 60 * 60;
-      }
-    }
-
-    // Calculate proration manually
-    const now = Math.floor(Date.now() / 1000);
-    const timeRemaining = Math.max(0, currentPeriodEnd - now);
-    const totalPeriodTime = currentPeriodEnd - currentPeriodStart;
-    const prorationFactor =
-      totalPeriodTime > 0 ? timeRemaining / totalPeriodTime : 0;
-
-    // Get current and new plan amounts
-    const currentAmount = currentPrice.unit_amount / 100; // Convert from cents
-    const newAmount = plan.price / 100; // Convert from cents to dollars
-
-    // Calculate proration credit and new charge
-    const prorationCredit = currentAmount * prorationFactor;
-    const immediateCharge = newAmount - prorationCredit;
-
-    // Create next billing date safely
-    let nextBillingDate;
-    try {
-      nextBillingDate = new Date(currentPeriodEnd * 1000).toISOString();
-    } catch (error) {
-      console.error("Invalid date for currentPeriodEnd:", currentPeriodEnd);
-      // Fallback to 30 days from now
-      nextBillingDate = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString();
-    }
-
-    const previewData = {
-      current_plan_amount: Number(currentAmount) || 0,
-      new_plan_amount: Number(newAmount) || 0,
-      proration_credit: Number(Math.max(0, prorationCredit)) || 0,
-      immediate_charge: Number(Math.max(0, immediateCharge)) || 0,
-      next_billing_date: nextBillingDate,
-    };
-
-    console.log("Preview data:", previewData);
-
-    console.log(
-      `Preview upgrade from ${currentPlan?.name || "unknown"} to ${plan.name}`
-    );
-
-    res.json({
-      success: true,
-      message: "Upgrade preview calculated successfully",
-      preview: {
-        currentPlan: {
-          id: currentPlan?._id,
-          name: currentPlan?.name,
-          price: previewData.current_plan_amount || 0,
-          remainingValue: previewData.proration_credit || 0,
-        },
-        newPlan: {
-          id: plan._id,
-          name: plan.name,
-          price: previewData.new_plan_amount || 0,
-          proRatedAmount: previewData.new_plan_amount || 0,
-        },
-        billing: {
-          immediateCharge: previewData.immediate_charge || 0,
-          creditApplied: previewData.proration_credit || 0,
-          netAmount: previewData.immediate_charge || 0,
-          nextBillingDate: previewData.next_billing_date,
-          nextBillingAmount: previewData.new_plan_amount || 0,
-        },
-        period: {
-          daysRemaining: Math.max(1, Math.ceil(timeRemaining / (24 * 60 * 60))),
-          percentUsed: Math.round(
-            ((totalPeriodTime - timeRemaining) / totalPeriodTime) * 100
-          ),
-        },
-      },
-    });
   } catch (error) {
     console.error("Error previewing upgrade:", error);
     res.status(500).json({
@@ -1346,6 +1438,145 @@ const deletePaymentMethod = async (req, res) => {
   }
 };
 
+/**
+ * Handle plan downgrade by scheduling the change at period end
+ * @route POST /api/user/payment/downgrade-subscription
+ * @access Private
+ */
+const downgradeSubscription = async (req, res) => {
+  try {
+    const { planId } = req.body;
+    const userId = req.user._id;
+
+    // Validate plan
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found or inactive",
+      });
+    }
+
+    // Get user and current plan from subscription
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Get current plan from active subscription
+    const currentPlan = await getUserCurrentPlan(user);
+
+    // Check for active subscription
+    const activeSubInfo = await checkActiveSubscription(user);
+
+    if (!activeSubInfo.hasActiveSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: "No active subscription found.",
+      });
+    }
+
+    // Validate plan change
+    const validation = validatePlanUpgrade(currentPlan, plan);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
+
+    if (!validation.isDowngrade) {
+      return res.status(400).json({
+        success: false,
+        message: "This is not a downgrade. Use the upgrade endpoint instead.",
+      });
+    }
+
+    // Get the existing subscription
+    const existingSubscription = await stripe.subscriptions.retrieve(
+      activeSubInfo.subscriptionId
+    );
+
+    if (!existingSubscription || existingSubscription.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        message: "Current subscription is not active",
+      });
+    }
+
+    // Schedule the downgrade to take effect at period end
+    // We use subscription schedules for this
+    try {
+      const subscriptionSchedule = await stripe.subscriptionSchedules.create({
+        from_subscription: activeSubInfo.subscriptionId,
+        phases: [
+          {
+            items: [
+              {
+                price: plan.stripePriceId,
+                quantity: 1,
+              },
+            ],
+            start_date: existingSubscription.current_period_end,
+            metadata: {
+              userId: userId.toString(),
+              planId: planId.toString(),
+              planName: plan.name,
+              downgradedFrom: currentPlan?._id?.toString() || "unknown",
+              downgradedAt: new Date().toISOString(),
+            },
+          },
+        ],
+      });
+
+      console.log(
+        `Successfully scheduled downgrade for user ${userId} from ${
+          currentPlan?.name || "unknown"
+        } to ${plan.name} at period end`
+      );
+
+      res.json({
+        success: true,
+        message: `Successfully scheduled downgrade to ${
+          plan.name
+        }. The change will take effect on ${new Date(
+          existingSubscription.current_period_end * 1000
+        ).toLocaleDateString()}.`,
+        downgrade: {
+          scheduleId: subscriptionSchedule.id,
+          currentPlan: {
+            id: currentPlan?._id,
+            name: currentPlan?.name,
+          },
+          newPlan: {
+            id: plan._id,
+            name: plan.name,
+          },
+          effectiveDate: existingSubscription.current_period_end,
+          currentPeriodEnd: existingSubscription.current_period_end,
+        },
+      });
+    } catch (scheduleError) {
+      console.error("Error creating subscription schedule:", scheduleError);
+      res.status(500).json({
+        success: false,
+        message: "Failed to schedule downgrade",
+        error: scheduleError.message,
+      });
+    }
+  } catch (error) {
+    console.error("Error processing downgrade:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to process downgrade",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   purchaseWithCredits,
   getCreditBalance,
@@ -1355,6 +1586,7 @@ module.exports = {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
+  downgradeSubscription,
   getPaymentMethods,
   addPaymentMethod,
   setDefaultPaymentMethod,

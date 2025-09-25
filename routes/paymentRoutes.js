@@ -9,6 +9,7 @@ const {
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
+  downgradeSubscription,
   getPaymentMethods,
   addPaymentMethod,
   setDefaultPaymentMethod,
@@ -36,6 +37,9 @@ router.post("/preview-upgrade", previewUpgrade);
 
 // POST upgrade existing subscription to new plan
 router.post("/upgrade-subscription", upgradeSubscription);
+
+// POST downgrade existing subscription to lower plan (scheduled at period end)
+router.post("/downgrade-subscription", downgradeSubscription);
 
 // POST purchase plan using credits only (for initial subscriptions)
 router.post("/purchase-with-credits", purchaseWithCredits);
