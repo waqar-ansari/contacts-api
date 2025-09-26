@@ -84,7 +84,8 @@ async function getProPlan() {
  * Setup initial plan for new user with 14-day Pro trial via Stripe subscription
  * @param {Object} user - User object (required for creating Stripe subscription)
  * @param {Object} plan - Plan to assign (optional, will use Pro plan for trial)
- * @returns {Object} Updated user data with plan details
+ * @returns {Object} Updated user data with plan details and Stripe customer info
+ * @returns {Object} {plan: ObjectId|null, stripeCustomer: Object|null}
  */
 async function setupInitialPlan(user, plan = null) {
   try {
@@ -106,6 +107,7 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: starterPlan ? starterPlan._id : null,
+        stripeCustomer: null,
         // No need to track hasUsedProTrial anymore
       };
     }
@@ -144,6 +146,7 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: proPlan._id,
+        stripeCustomer: customer,
         // No need to track hasUsedProTrial anymore
       };
     } catch (stripeError) {
@@ -154,6 +157,7 @@ async function setupInitialPlan(user, plan = null) {
 
       return {
         plan: starterPlan ? starterPlan._id : null,
+        stripeCustomer: null,
         // No need to track hasUsedProTrial anymore
       };
     }
@@ -161,6 +165,7 @@ async function setupInitialPlan(user, plan = null) {
     console.error("Error setting up initial plan:", error);
     return {
       plan: null,
+      stripeCustomer: null,
       // No need to track hasUsedProTrial anymore
     };
   }

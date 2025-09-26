@@ -15,18 +15,10 @@ const getMyReferrals = async (req, res) => {
         .json({ status: "error", message: "User not found" });
     }
 
-    // Get Stripe credit balance
-    let creditBalance = 0;
-    try {
-      const customer = await getOrCreateStripeCustomer(user);
-      const stripeCreditBalance = await getStripeCreditBalance(customer.id);
-      creditBalance = Math.abs(stripeCreditBalance) / 100; // Convert to dollars
-    } catch (error) {
-      console.error("Error getting Stripe credit balance:", error);
-      creditBalance = 0;
-    }
-
-    const referralCount = user.myReferrals.length;
+    // Calculate referral earnings: number of referrals × $10 bonus
+    const referralBonus = 10; // $10 per referral
+    const referralCount = (user.myReferrals || []).length;
+    const creditBalance = referralCount * referralBonus;
     const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
     if (!user.myReferrals || user.myReferrals.length === 0) {
@@ -230,6 +222,59 @@ const getMyReferrals = async (req, res) => {
   }
 };
 
+const getReferralData = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const user = await User.findById(currentUserId).lean();
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
+
+    // Get referrals from myReferrals array
+    const referrals = user.myReferrals || [];
+    const referralCount = referrals.length;
+    const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
+
+    // Calculate referral earnings: number of referrals × $10 bonus
+    const referralBonus = 10; // $10 per referral
+    const creditBalance = referralCount * referralBonus;
+
+    // Format referrals data for frontend
+    const formattedReferrals = referrals.map((referral) => ({
+      _id: referral._id,
+      firstname: referral.firstname || "N/A",
+      lastname: referral.lastname || "",
+      email: referral.email || null,
+      phonenumbers: referral.phonenumbers || [],
+      signupDate: referral.signupDate || new Date(),
+      status: "Completed", // Since they're in myReferrals, they've completed signup
+    }));
+
+    return res.status(200).json({
+      status: "success",
+      message: "Referral data retrieved successfully",
+      data: {
+        referrals: formattedReferrals,
+        creditBalance,
+        referralCount,
+        referralUrl,
+        totalEarned: creditBalance, // Alias for frontend compatibility
+      },
+    });
+  } catch (err) {
+    console.error("Get referral data error:", err.message);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve referral data",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   getMyReferrals,
+  getReferralData,
 };

@@ -63,7 +63,7 @@ async function addOrUpdateReferral(referrerId, referredUser) {
 
   let now = new Date();
   let needSaveReferrer = false;
-
+  console.log("referrer index is", index);
   if (index !== -1) {
     // Update missing fields on existing entry
     const entry = referrer.myReferrals[index];
@@ -104,41 +104,42 @@ async function addOrUpdateReferral(referrerId, referredUser) {
       phonenumbers: phoneObjs,
       signupDate: referredUser.createdAt || now,
     };
+    console.log("new referral entry is", newEntry);
     referrer.myReferrals = referrer.myReferrals || [];
     referrer.myReferrals.push(newEntry);
     needSaveReferrer = true;
   }
 
-  if (needSaveReferrer) {
-    // Add credits to referrer using Stripe billing credits
-    try {
-      const referrerCustomer = await getOrCreateStripeCustomer(referrer);
-      await addStripeCredits(
-        referrerCustomer.id,
-        1000,
-        "Referral bonus - new user signup"
-      ); // $10 in cents
-      console.log(
-        `Added $10 credit to referrer ${referrer._id} for referring ${referredUser._id}`
-      );
-    } catch (error) {
-      console.error("Error adding Stripe credits to referrer:", error);
-    }
-    await referrer.save();
-  }
+  // if (needSaveReferrer) {
+  //   // Add credits to referrer using Stripe billing credits
+  //   try {
+  //     const referrerCustomer = await getOrCreateStripeCustomer(referrer);
+  //     await addStripeCredits(
+  //       referrerCustomer.id,
+  //       1000,
+  //       "Referral bonus - new user signup"
+  //     ); // $10 in cents
+  //     console.log(
+  //       `Added $10 credit to referrer ${referrer._id} for referring ${referredUser._id}`
+  //     );
+  //   } catch (error) {
+  //     console.error("Error adding Stripe credits to referrer:", error);
+  //   }
+  //   await referrer.save();
+  // }
 
-  // Also add credit to referredUser
-  try {
-    const referredCustomer = await getOrCreateStripeCustomer(referredUser);
-    await addStripeCredits(
-      referredCustomer.id,
-      1000,
-      "Welcome bonus - signup with referral"
-    ); // $10 in cents
-    console.log(`Added $10 welcome credit to new user ${referredUser._id}`);
-  } catch (error) {
-    console.error("Error adding Stripe credits to referred user:", error);
-  }
+  // // Also add credit to referredUser
+  // try {
+  //   const referredCustomer = await getOrCreateStripeCustomer(referredUser);
+  //   await addStripeCredits(
+  //     referredCustomer.id,
+  //     1000,
+  //     "Welcome bonus - signup with referral"
+  //   ); // $10 in cents
+  //   console.log(`Added $10 welcome credit to new user ${referredUser._id}`);
+  // } catch (error) {
+  //   console.error("Error adding Stripe credits to referred user:", error);
+  // }
 
   // Create ReferralLog if not exists (by email or phone)
   try {
@@ -214,6 +215,52 @@ const signupWithEmail = async (req, res) => {
           "set up initial plan for user during sign up after verification:",
           planData
         );
+
+        // Add $10 welcome credits to the current user
+        // Reuse the Stripe customer created by setupInitialPlan to avoid race condition
+        try {
+          let currentUserCustomer = planData?.stripeCustomer;
+          if (!currentUserCustomer) {
+            // Fallback to getOrCreateStripeCustomer if setupInitialPlan didn't create one
+            currentUserCustomer = await getOrCreateStripeCustomer(user);
+          }
+
+          await addStripeCredits(
+            currentUserCustomer.id,
+            1000, // $10 in cents
+            "Welcome bonus - email verification completed"
+          );
+          console.log(`Added $10 welcome credit to user ${user._id}`);
+        } catch (error) {
+          console.error("Error adding welcome credits to current user:", error);
+        }
+
+        // Add $10 referral credits to the referring user if exists
+        if (user.referredBy) {
+          try {
+            const referringUser = await User.findById(user.referredBy);
+            if (referringUser) {
+              const referrerCustomer = await getOrCreateStripeCustomer(
+                referringUser
+              );
+              await addStripeCredits(
+                referrerCustomer.id,
+                1000, // $10 in cents
+                `Referral bonus - ${
+                  user.firstname || "User"
+                } verified their email`
+              );
+              console.log(
+                `Added $10 referral credit to referring user ${user.referredBy}`
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Error adding referral credits to referring user:",
+              error
+            );
+          }
+        }
       }
 
       // Activate user after email verification
@@ -397,7 +444,6 @@ const signupWithEmail = async (req, res) => {
       const referringUser = await User.findOne({
         referralCode: referralCodeParam,
       });
-      console.log(referringUser);
 
       // if (referringUser) {
       // const previouslyReferred = await User.findOne({
@@ -489,6 +535,7 @@ const signupWithEmail = async (req, res) => {
 
         // referrer.creditBalance = (referrer.creditBalance || 0) + 10;
         // await referrer.save();
+        console.log("calling add or upate referral")
         await addOrUpdateReferral(referredBy, newUser);
       }
       // newUser.creditBalance = (newUser.creditBalance || 0) + 10;
@@ -1271,7 +1318,6 @@ const unifiedLogin = async (req, res) => {
         });
         const customer = await getOrCreateStripeCustomer(user);
         console.log("set up initial plan for user during login:");
-       
 
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;

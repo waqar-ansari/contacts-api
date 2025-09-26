@@ -402,7 +402,7 @@ const userSchema = new Schema(
       sparse: true,
     },
 
-    referredBy: {
+    referredBy: {   /////user id of user who referred this user
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },

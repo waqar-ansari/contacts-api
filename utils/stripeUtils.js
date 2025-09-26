@@ -16,12 +16,11 @@ async function createStripeCustomer(user) {
         userId: user._id.toString(),
       },
     });
-
+    console.log("Created new Stripe customer:", customer.id);
     // Update user with Stripe customer ID
     await User.findByIdAndUpdate(user._id, {
       stripeCustomerId: customer.id,
     });
-
     return customer;
   } catch (error) {
     console.error("Error creating Stripe customer:", error);
@@ -41,6 +40,7 @@ async function getOrCreateStripeCustomer(user) {
       try {
         const customer = await stripe.customers.retrieve(user.stripeCustomerId);
         if (!customer.deleted) {
+          console.log("Found existing Stripe customer:", customer.id);
           return customer;
         }
       } catch (error) {
