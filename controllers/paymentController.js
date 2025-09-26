@@ -391,6 +391,49 @@ const getPaymentStatus = async (req, res) => {
             activeSubInfo.subscriptionId
           );
 
+          // Check for scheduled subscriptions
+          let scheduledPlan = null;
+          try {
+            const schedules = await stripe.subscriptionSchedules.list({
+              customer: user.stripeCustomerId,
+              limit: 10,
+            });
+
+            // Filter for active schedules that are not released
+            const scheduledSubscriptions = schedules.data.filter(
+              (schedule) => schedule.status === "not_started"
+            );
+
+            if (scheduledSubscriptions.length > 0) {
+              const firstSchedule = scheduledSubscriptions[0];
+              // Get the plan from the first phase of the schedule
+              if (firstSchedule.phases && firstSchedule.phases.length > 0) {
+                const firstPhase = firstSchedule.phases[0];
+                if (firstPhase.items && firstPhase.items.length > 0) {
+                  const priceId = firstPhase.items[0].price;
+                  // Find the plan that matches this price ID
+                  const matchedPlan = await Plan.findOne({
+                    stripePriceId: priceId,
+                  });
+                  if (matchedPlan) {
+                    scheduledPlan = {
+                      id: matchedPlan._id,
+                      name: matchedPlan.name,
+                      price: matchedPlan.price,
+                      scheduleId: firstSchedule.id,
+                      startDate: firstSchedule.phases[0].start_date, // Add the start date
+                    };
+                  }
+                }
+              }
+            }
+          } catch (scheduleError) {
+            console.error(
+              "Error checking scheduled subscriptions:",
+              scheduleError
+            );
+          }
+
           subscriptionDetails = {
             id: activeSubInfo.subscriptionId,
             status: stripeData.status,
@@ -401,6 +444,7 @@ const getPaymentStatus = async (req, res) => {
             trialStart: stripeData.trialStart,
             trialEnd: stripeData.trialEnd,
             metadata: fullSubscription.metadata || {},
+            scheduledPlan: scheduledPlan, // Add scheduled plan info
           };
         }
       } catch (error) {
@@ -888,9 +932,7 @@ const upgradeSubscription = async (req, res) => {
         },
       ],
       proration_behavior: "always_invoice", // Create invoice immediately for proration
-      // Only set cancel_at_period_end to false if there are no scheduled subscriptions
-      // This prevents conflicting scheduled changes
-      cancel_at_period_end: hasScheduledSubscriptions ? true : false,
+      cancel_at_period_end: false,
       metadata: {
         ...existingSubscription.metadata,
         upgradedAt: new Date().toISOString(),
@@ -917,19 +959,19 @@ const upgradeSubscription = async (req, res) => {
     );
 
     // Cancel any scheduled subscriptions since we're upgrading immediately
-    // if (hasScheduledSubscriptions) {
-    //   for (const schedule of scheduledSubscriptions) {
-    //     try {
-    //       await stripe.subscriptionSchedules.cancel(schedule.id);
-    //       console.log(`Cancelled scheduled subscription: ${schedule.id}`);
-    //     } catch (cancelError) {
-    //       console.error(
-    //         `Failed to cancel scheduled subscription ${schedule.id}:`,
-    //         cancelError
-    //       );
-    //     }
-    //   }
-    // }
+    if (hasScheduledSubscriptions) {
+      for (const schedule of scheduledSubscriptions) {
+        try {
+          await stripe.subscriptionSchedules.cancel(schedule.id);
+          console.log(`Cancelled scheduled subscription: ${schedule.id}`);
+        } catch (cancelError) {
+          console.error(
+            `Failed to cancel scheduled subscription ${schedule.id}:`,
+            cancelError
+          );
+        }
+      }
+    }
 
     console.log(
       `Successfully upgraded user ${userId} from ${
@@ -1028,6 +1070,45 @@ const createCheckoutSession = async (req, res) => {
 
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
+
+    // Check for and cancel any scheduled subscriptions
+    let cancelledSchedules = [];
+    try {
+      const schedules = await stripe.subscriptionSchedules.list({
+        customer: customer.id,
+        limit: 10,
+      });
+
+      // Filter for active schedules that are not released
+      const activeSchedules = schedules.data.filter(
+        (schedule) => schedule.status === "not_started"
+      );
+
+      if (activeSchedules.length > 0) {
+        console.log(
+          `Found ${activeSchedules.length} scheduled subscriptions to cancel for checkout session`
+        );
+
+        for (const schedule of activeSchedules) {
+          try {
+            await stripe.subscriptionSchedules.cancel(schedule.id);
+            cancelledSchedules.push(schedule.id);
+            console.log(`Cancelled scheduled subscription: ${schedule.id}`);
+          } catch (cancelError) {
+            console.error(
+              `Failed to cancel scheduled subscription ${schedule.id}:`,
+              cancelError
+            );
+          }
+        }
+      }
+    } catch (scheduleError) {
+      console.error(
+        "Error checking/cancelling scheduled subscriptions:",
+        scheduleError
+      );
+      // Continue with checkout session creation but log the error
+    }
 
     // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
     const session = await stripe.checkout.sessions.create({
