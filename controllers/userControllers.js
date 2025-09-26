@@ -110,6 +110,12 @@ async function addOrUpdateReferral(referrerId, referredUser) {
     needSaveReferrer = true;
   }
 
+  // Save referrer if any changes were made to myReferrals
+  if (needSaveReferrer) {
+    await referrer.save();
+  }
+
+  // Credit logic is now handled in signupWithEmail to avoid race conditions
   // if (needSaveReferrer) {
   //   // Add credits to referrer using Stripe billing credits
   //   try {
@@ -535,7 +541,7 @@ const signupWithEmail = async (req, res) => {
 
         // referrer.creditBalance = (referrer.creditBalance || 0) + 10;
         // await referrer.save();
-        console.log("calling add or upate referral")
+        console.log("calling add or upate referral");
         await addOrUpdateReferral(referredBy, newUser);
       }
       // newUser.creditBalance = (newUser.creditBalance || 0) + 10;
