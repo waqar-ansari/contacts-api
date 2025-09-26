@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const {
-  purchaseWithCredits,
   getCreditBalance,
   toggleAutoRenewal,
   getPaymentStatus,
@@ -17,6 +16,7 @@ const {
   updatePaymentMethod,
   deletePaymentMethod,
   createSubscriptionWithPaymentMethod,
+  getBillingHistory,
 } = require("../controllers/paymentController");
 
 // GET user payment status and plan information
@@ -24,9 +24,6 @@ router.get("/status", getPaymentStatus);
 
 // GET user's Stripe credit balance
 router.get("/credit-balance", getCreditBalance);
-
-// POST create subscription for plan purchase/upgrade
-// router.post("/create-subscription", createSubscription);
 
 // POST create checkout session for NEW subscription purchase
 router.post("/create-checkout-session", createCheckoutSession);
@@ -46,17 +43,11 @@ router.post("/upgrade-subscription", upgradeSubscription);
 // POST downgrade existing subscription to lower plan (scheduled at period end)
 router.post("/downgrade-subscription", downgradeSubscription);
 
-// POST purchase plan using credits only (for initial subscriptions)
-router.post("/purchase-with-credits", purchaseWithCredits);
-
 // POST create new subscription with existing payment method
 router.post(
   "/create-subscription-with-payment-method",
   createSubscriptionWithPaymentMethod
 );
-
-// PATCH toggle auto-renewal setting
-router.patch("/auto-renewal", toggleAutoRenewal);
 
 // POST toggle auto-renewal setting (alternative endpoint)
 router.post("/toggle-auto-renewal", toggleAutoRenewal);
@@ -75,5 +66,8 @@ router.put("/update-payment-method", updatePaymentMethod);
 
 // DELETE remove payment method
 router.delete("/delete-payment-method/:paymentMethodId", deletePaymentMethod);
+
+// GET user's billing history
+router.get("/billing-history", getBillingHistory);
 
 module.exports = router;

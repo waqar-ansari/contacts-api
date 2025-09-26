@@ -463,6 +463,168 @@ async function updateSubscriptionForAdmin(customerId, newPriceId) {
   }
 }
 
+/**
+ * Get user's billing history including invoices and subscriptions
+ * @param {String} customerId - Stripe customer ID
+ * @param {Object} options - Options for filtering (limit, starting_after, etc.)
+ * @returns {Object} Billing history data
+ */
+async function getUserBillingHistory(customerId, options = {}) {
+  try {
+    const limit = options.limit || 50;
+
+    // Get invoices (past and upcoming)
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: limit,
+      ...options,
+    });
+
+    // Get all subscriptions (active, canceled, past)
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: limit,
+    });
+
+    // Get upcoming invoice if exists
+    let upcomingInvoice = null;
+    try {
+      upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+        customer: customerId,
+      });
+    } catch (error) {
+      // No upcoming invoice is fine
+      console.log("No upcoming invoice found");
+    }
+
+    return {
+      invoices: invoices.data,
+      subscriptions: subscriptions.data,
+      upcomingInvoice,
+      hasMore: invoices.has_more,
+    };
+  } catch (error) {
+    console.error("Error getting user billing history:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get formatted billing history for display
+ * @param {String} customerId - Stripe customer ID
+ * @returns {Array} Formatted billing history items
+ */
+async function getFormattedBillingHistory(customerId) {
+  try {
+    const billingData = await getUserBillingHistory(customerId);
+    const historyItems = [];
+
+    // Process past invoices only
+    billingData.invoices.forEach((invoice) => {
+      const item = {
+        id: invoice.id,
+        date: new Date(invoice.created * 1000),
+        description: getInvoiceDescription(invoice),
+        amount: invoice.total,
+        currency: invoice.currency,
+        status: invoice.status,
+        pdfUrl: invoice.invoice_pdf,
+        hostedUrl: invoice.hosted_invoice_url,
+        subscriptionId: invoice.subscription,
+        periodStart: invoice.period_start
+          ? new Date(invoice.period_start * 1000)
+          : null,
+        periodEnd: invoice.period_end
+          ? new Date(invoice.period_end * 1000)
+          : null,
+        paid: invoice.paid,
+        paymentMethod: getPaymentMethodFromInvoice(invoice),
+        invoiceNumber: invoice.number,
+      };
+      historyItems.push(item);
+    });
+
+    // Process upcoming invoice only if it exists
+    if (billingData.upcomingInvoice) {
+      const upcoming = billingData.upcomingInvoice;
+      const item = {
+        id: upcoming.id || `upcoming-${Date.now()}`,
+        date: new Date(upcoming.period_end * 1000),
+        description: getInvoiceDescription(upcoming),
+        amount: upcoming.total,
+        currency: upcoming.currency,
+        status: "upcoming",
+        subscriptionId: upcoming.subscription,
+        periodStart: new Date(upcoming.period_start * 1000),
+        periodEnd: new Date(upcoming.period_end * 1000),
+        paid: false,
+        invoiceNumber: null,
+      };
+      historyItems.push(item);
+    }
+
+    // Sort by date (newest first)
+    historyItems.sort((a, b) => b.date - a.date);
+
+    return historyItems;
+  } catch (error) {
+    console.error("Error getting formatted billing history:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get description for invoice
+ * @param {Object} invoice - Stripe invoice object
+ * @returns {String} Invoice description
+ */
+function getInvoiceDescription(invoice) {
+  if (invoice.lines && invoice.lines.data.length > 0) {
+    const line = invoice.lines.data[0];
+    if (line.description) {
+      return line.description;
+    }
+    if (line.price && line.price.nickname) {
+      return `${line.price.nickname} subscription`;
+    }
+    if (line.plan && line.plan.nickname) {
+      return `${line.plan.nickname} subscription`;
+    }
+  }
+
+  return `Invoice ${invoice.number || invoice.id}`;
+}
+
+/**
+ * Get payment method info from invoice
+ * @param {Object} invoice - Stripe invoice object
+ * @returns {Object} Payment method info
+ */
+function getPaymentMethodFromInvoice(invoice) {
+  if (invoice.charge && invoice.charge.payment_method_details) {
+    const pm = invoice.charge.payment_method_details;
+    if (pm.card) {
+      return {
+        type: "card",
+        brand: pm.card.brand,
+        last4: pm.card.last4,
+      };
+    }
+  }
+
+  if (invoice.default_payment_method) {
+    return {
+      type: "payment_method",
+      id: invoice.default_payment_method,
+    };
+  }
+
+  return {
+    type: "unknown",
+  };
+}
+
 module.exports = {
   createStripeCustomer,
   getOrCreateStripeCustomer,
@@ -481,4 +643,6 @@ module.exports = {
   getCustomerPrimarySubscription,
   getPlanFromPriceId,
   getUserCurrentPlan,
+  getUserBillingHistory,
+  getFormattedBillingHistory,
 };
