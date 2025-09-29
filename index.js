@@ -72,6 +72,7 @@ const myReferralsRoutes = require("./routes/getMyReferralsRoutes");
 const helpSupportRoutes = require("./routes/helpSupportRoutes");
 const planRoutes = require("./routes/planRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const apiKeyRoutes = require("./routes/apiKeyRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
 
@@ -192,6 +193,7 @@ app.use(
 );
 app.use("/plans", planRoutes); // Public route for getting plans
 app.use("/user/payment", checkForAuthentication(), paymentRoutes);
+app.use("/api-key", checkForAuthentication(), apiKeyRoutes);
 app.use(
   "/fetch-google-contacts",
   (req, res, next) => {
