@@ -5,6 +5,7 @@ const {
   toggleAutoRenewal,
   getPaymentStatus,
   createCheckoutSession,
+  createHostedCheckoutSession,
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
@@ -27,6 +28,9 @@ router.get("/credit-balance", getCreditBalance);
 
 // POST create checkout session for NEW subscription purchase
 router.post("/create-checkout-session", createCheckoutSession);
+
+// POST create hosted checkout session for NEW subscription purchase
+router.post("/create-hosted-checkout-session", createHostedCheckoutSession);
 
 // POST complete subscription after successful checkout
 router.post("/complete-subscription", completeSubscription);

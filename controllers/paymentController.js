@@ -1083,6 +1083,167 @@ const createCheckoutSession = async (req, res) => {
 };
 
 /**
+ * Create hosted checkout session for NEW subscription purchase only
+ * @route POST /api/user/payment/create-hosted-checkout-session
+ * @access Private
+ */
+const createHostedCheckoutSession = async (req, res) => {
+  try {
+    const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
+    const userId = req.user._id;
+
+    // Validate plan
+    const plan = await Plan.findById(planId);
+    if (!plan || !plan.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found or inactive",
+      });
+    }
+
+    // Check if plan has a Stripe price ID
+    if (!plan.stripePriceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan is not properly configured with Stripe",
+      });
+    }
+
+    // Get user and current plan from subscription
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check for active subscription - redirect to upgrade endpoint if exists
+    const activeSubInfo = await checkSubscriptionDetails(user);
+    if (activeSubInfo.hasActiveSubscription) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You already have an active subscription. Use the upgrade endpoint instead.",
+        redirectToUpgrade: true,
+      });
+    }
+
+    // Delete any trialing subscription before creating new one
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
+      );
+      try {
+        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        console.log(
+          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+        );
+      } catch (deleteError) {
+        console.error("Error deleting trialing subscription:", deleteError);
+        // Continue with creation even if delete fails
+      }
+    }
+
+    // Get or create Stripe customer
+    const customer = await getOrCreateStripeCustomer(user);
+
+    // Check for and cancel any scheduled subscriptions
+    let cancelledSchedules = [];
+    try {
+      const schedules = await stripe.subscriptionSchedules.list({
+        customer: customer.id,
+        limit: 10,
+      });
+
+      // Filter for active schedules that are not released
+      const activeSchedules = schedules.data.filter(
+        (schedule) => schedule.status === "not_started"
+      );
+
+      if (activeSchedules.length > 0) {
+        console.log(
+          `Found ${activeSchedules.length} scheduled subscriptions to cancel for hosted checkout session`
+        );
+
+        for (const schedule of activeSchedules) {
+          try {
+            await stripe.subscriptionSchedules.cancel(schedule.id);
+            cancelledSchedules.push(schedule.id);
+            console.log(`Cancelled scheduled subscription: ${schedule.id}`);
+          } catch (cancelError) {
+            console.error(
+              `Failed to cancel scheduled subscription ${schedule.id}:`,
+              cancelError
+            );
+          }
+        }
+      }
+    } catch (scheduleError) {
+      console.error(
+        "Error checking/cancelling scheduled subscriptions:",
+        scheduleError
+      );
+      // Continue with checkout session creation but log the error
+    }
+
+    // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      line_items: [
+        {
+          price: plan.stripePriceId,
+          quantity: 1,
+        },
+      ],
+      mode: "subscription",
+      success_url:
+        successUrl ||
+        `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:
+        cancelUrl ||
+        `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/payment-unsuccessful?error=Payment cancelled`,
+      metadata: {
+        userId: userId.toString(),
+        planId: plan._id.toString(),
+        autoRenewal: autoRenewal.toString(),
+        type: "new_subscription",
+      },
+    });
+
+    console.log("Created hosted checkout session for new subscription:", {
+      id: session.id,
+      status: session.status,
+      url: session.url ? "present" : "missing",
+    });
+
+    res.json({
+      success: true,
+      url: session.url,
+      sessionId: session.id,
+      planDetails: {
+        planId: plan._id,
+        planName: plan.name,
+        planPrice: plan.price,
+        autoRenewal: autoRenewal,
+      },
+      isNewSubscription: true,
+    });
+  } catch (error) {
+    console.error("Error creating hosted checkout session:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create hosted checkout session",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Complete subscription after successful Stripe checkout (NEW SUBSCRIPTIONS ONLY)
  * @route POST /api/user/payment/complete-subscription
  * @access Private
@@ -2124,6 +2285,7 @@ module.exports = {
   toggleAutoRenewal,
   getPaymentStatus,
   createCheckoutSession,
+  createHostedCheckoutSession,
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
