@@ -6,6 +6,9 @@ const {
   getStripeCreditBalance,
   getUserStripeSubscriptionData,
   getCustomerPrimarySubscription,
+  getCustomerActiveNonTrialingSubscription,
+  getCustomerTrialingSubscription,
+  deleteTrialingSubscription,
   getUserCurrentPlan,
   getFormattedBillingHistory,
 } = require("../utils/stripeUtils");
@@ -86,6 +89,52 @@ const checkActiveSubscription = async (user) => {
     }
   } catch (error) {
     console.log("Error checking active subscription:", error.message);
+  }
+
+  return result;
+};
+
+/**
+ * Check if user has any active non-trialing Stripe subscriptions and trialing subscriptions separately
+ * @param {Object} user - User object
+ * @returns {Object} Active subscription info with trialing details
+ */
+const checkSubscriptionDetails = async (user) => {
+  const result = {
+    hasActiveSubscription: false,
+    subscriptionId: null,
+    subscriptionStatus: null,
+    hasTrialingSubscription: false,
+    trialingSubscriptionId: null,
+  };
+
+  if (!user.stripeCustomerId) {
+    return result;
+  }
+
+  try {
+    // Check for active non-trialing subscription
+    const activeSubscription = await getCustomerActiveNonTrialingSubscription(
+      user.stripeCustomerId
+    );
+
+    if (activeSubscription) {
+      result.hasActiveSubscription = true;
+      result.subscriptionId = activeSubscription.id;
+      result.subscriptionStatus = activeSubscription.status;
+    }
+
+    // Check for trialing subscription
+    const trialingSubscription = await getCustomerTrialingSubscription(
+      user.stripeCustomerId
+    );
+
+    if (trialingSubscription) {
+      result.hasTrialingSubscription = true;
+      result.trialingSubscriptionId = trialingSubscription.id;
+    }
+  } catch (error) {
+    console.log("Error checking subscription details:", error.message);
   }
 
   return result;
@@ -318,6 +367,8 @@ const getPaymentStatus = async (req, res) => {
         subscription: subscriptionDetails,
         stripeCustomerId: user.stripeCustomerId,
         hasActiveSubscription: activeSubInfo.hasActiveSubscription,
+        // hasTrialingSubscription: activeSubInfo.hasTrialingSubscription,
+        // trialingSubscriptionId: activeSubInfo.trialingSubscriptionId,
       },
     });
   } catch (error) {
@@ -913,7 +964,7 @@ const createCheckoutSession = async (req, res) => {
     }
 
     // Check for active subscription - redirect to upgrade endpoint if exists
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkSubscriptionDetails(user);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -921,6 +972,22 @@ const createCheckoutSession = async (req, res) => {
           "You already have an active subscription. Use the upgrade endpoint instead.",
         redirectToUpgrade: true,
       });
+    }
+
+    // Delete any trialing subscription before creating new one
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
+      );
+      try {
+        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        console.log(
+          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+        );
+      } catch (deleteError) {
+        console.error("Error deleting trialing subscription:", deleteError);
+        // Continue with creation even if delete fails
+      }
     }
 
     // Get or create Stripe customer
@@ -1650,8 +1717,8 @@ const previewNewSubscription = async (req, res) => {
       });
     }
 
-    // Check that user doesn't have an active subscription (this is for new subscriptions only)
-    const activeSubInfo = await checkActiveSubscription(user);
+    // Check that user doesn't have an active non-trialing subscription (this is for new subscriptions only)
+    const activeSubInfo = await checkSubscriptionDetails(user);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -1659,6 +1726,13 @@ const previewNewSubscription = async (req, res) => {
           "User already has an active subscription. Use preview-upgrade endpoint instead.",
         code: "ACTIVE_SUBSCRIPTION_EXISTS",
       });
+    }
+
+    // Log if user has trialing subscription that will be replaced
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `User has trialing subscription ${activeSubInfo.trialingSubscriptionId} that will be replaced with new subscription`
+      );
     }
 
     // Get or create Stripe customer (we'll need this for credit balance)
@@ -1775,7 +1849,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     }
 
     // Check if user already has an active subscription
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkSubscriptionDetails(user);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -1783,6 +1857,22 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
           "User already has an active subscription. Use upgrade endpoint instead.",
         redirectToUpgrade: true,
       });
+    }
+
+    // Delete any trialing subscription before creating new one
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
+      );
+      try {
+        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        console.log(
+          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+        );
+      } catch (deleteError) {
+        console.error("Error deleting trialing subscription:", deleteError);
+        // Continue with creation even if delete fails
+      }
     }
 
     // Get or create Stripe customer

@@ -625,6 +625,96 @@ function getPaymentMethodFromInvoice(invoice) {
   };
 }
 
+/**
+ * Check if user has a trialing subscription
+ * @param {String} customerId - Stripe customer ID
+ * @returns {Object|null} Trialing subscription object or null
+ */
+async function getCustomerTrialingSubscription(customerId) {
+  try {
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "trialing",
+    });
+
+    if (subscriptions.data.length > 0) {
+      // Return the most recently created trialing subscription
+      return subscriptions.data.sort((a, b) => b.created - a.created)[0];
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error getting customer trialing subscription:", error);
+    return null;
+  }
+}
+
+/**
+ * Delete/cancel a trialing subscription
+ * @param {String} subscriptionId - Stripe subscription ID
+ * @returns {Object|null} Cancelled subscription object or null
+ */
+async function deleteTrialingSubscription(subscriptionId) {
+  try {
+    // Get subscription first to verify it's trialing
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    if (subscription.status !== "trialing") {
+      console.log(
+        `Subscription ${subscriptionId} is not trialing (status: ${subscription.status}), skipping deletion`
+      );
+      return null;
+    }
+
+    // Cancel trialing subscription immediately
+    const cancelledSubscription = await stripe.subscriptions.cancel(
+      subscriptionId
+    );
+    console.log(
+      `Successfully cancelled trialing subscription: ${subscriptionId}`
+    );
+
+    return cancelledSubscription;
+  } catch (error) {
+    console.error("Error deleting trialing subscription:", error);
+    throw error;
+  }
+}
+
+/**
+ * Check if customer has active non-trialing subscription
+ * @param {String} customerId - Stripe customer ID
+ * @returns {Object|null} Active non-trialing subscription object or null
+ */
+async function getCustomerActiveNonTrialingSubscription(customerId) {
+  try {
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+    });
+
+    // Filter for active or past_due subscriptions (excluding trialing)
+    const activeNonTrialingSubscriptions = subscriptions.data.filter(
+      (sub) => sub.status === "active" || sub.status === "past_due"
+    );
+
+    if (activeNonTrialingSubscriptions.length === 0) {
+      return null;
+    }
+
+    // Return the most recently created active non-trialing subscription
+    return activeNonTrialingSubscriptions.sort(
+      (a, b) => b.created - a.created
+    )[0];
+  } catch (error) {
+    console.error(
+      "Error getting customer active non-trialing subscription:",
+      error
+    );
+    return null;
+  }
+}
+
 module.exports = {
   createStripeCustomer,
   getOrCreateStripeCustomer,
@@ -641,6 +731,9 @@ module.exports = {
   customerHasPaymentMethod,
   getCustomerActiveSubscriptions,
   getCustomerPrimarySubscription,
+  getCustomerActiveNonTrialingSubscription,
+  getCustomerTrialingSubscription,
+  deleteTrialingSubscription,
   getPlanFromPriceId,
   getUserCurrentPlan,
   getUserBillingHistory,
