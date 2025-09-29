@@ -15,6 +15,7 @@ const {
   getCustomerPrimarySubscription,
   getUserCurrentPlan,
   customerHasPaymentMethod,
+  cancelAllCustomerSubscriptions,
 } = require("../../utils/stripeUtils");
 
 // GET all users
@@ -287,22 +288,23 @@ const editProfile = async (req, res) => {
     // 🔄 PLAN UPDATE - STRIPE INTEGRATED
     // =========================
     if (keys.includes("planId")) {
+      let selectedPlan = null; // Declare outside try block for catch access
       try {
         if (planId === "" || planId === "null" || planId === null) {
-          // Remove plan - cancel Stripe subscription
+          // Remove plan - cancel ALL Stripe subscriptions
           if (user.stripeCustomerId) {
-            const activeSubscription = await getCustomerPrimarySubscription(
+            const cancellationResults = await cancelAllCustomerSubscriptions(
               user.stripeCustomerId
             );
-            if (activeSubscription) {
-              await cancelStripeSubscription(activeSubscription.id);
-            }
+            console.log(
+              `Cancelled ${cancellationResults.length} subscriptions for user ${user._id} (plan removal)`
+            );
           }
 
           // No need to set plan in DB - it will be derived from subscription
         } else {
           // Validate plan exists
-          const selectedPlan = await Plan.findById(planId);
+          selectedPlan = await Plan.findById(planId);
           if (!selectedPlan) {
             return res.status(400).json({
               status: "error",
@@ -323,14 +325,14 @@ const editProfile = async (req, res) => {
             .includes("starter");
 
           if (isStarterPlan) {
-            // Cancel any existing subscription for starter plan
+            // Cancel ALL existing subscriptions for starter plan
             if (user.stripeCustomerId) {
-              const activeSubscription = await getCustomerPrimarySubscription(
+              const cancellationResults = await cancelAllCustomerSubscriptions(
                 user.stripeCustomerId
               );
-              if (activeSubscription) {
-                await cancelStripeSubscription(activeSubscription.id);
-              }
+              console.log(
+                `Cancelled ${cancellationResults.length} subscriptions for user ${user._id} (starter plan)`
+              );
             }
 
             // No need to set plan in DB - it will be derived from subscription
@@ -345,20 +347,8 @@ const editProfile = async (req, res) => {
               });
             }
 
-            // Check if customer has payment method - required for plan assignment
-            const hasPaymentMethod = await customerHasPaymentMethod(
-              stripeCustomer.id
-            );
-
-            if (!hasPaymentMethod) {
-              return res.status(400).json({
-                status: "error",
-                message:
-                  "User must have a payment method to be assigned a premium plan",
-              });
-            }
-
             // Create/update subscription using the admin function
+            // This will automatically check for payment methods and handle errors
             const newSubscription = await updateSubscriptionForAdmin(
               stripeCustomer.id,
               selectedPlan.stripePriceId
@@ -608,10 +598,59 @@ const getUsersCount = async (req, res) => {
   }
 };
 
+// GET user payment methods status
+const getUserPaymentMethods = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("Checking payment methods for user ID:", id);
+
+    const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Invalid user ID" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
+
+    let hasPaymentMethod = false;
+
+    // Check if user has Stripe customer ID and payment methods
+    if (user.stripeCustomerId) {
+      try {
+        hasPaymentMethod = await customerHasPaymentMethod(
+          user.stripeCustomerId
+        );
+      } catch (error) {
+        console.error("Error checking payment methods:", error);
+        hasPaymentMethod = false;
+      }
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Payment method status retrieved successfully",
+      data: {
+        hasPaymentMethod,
+        stripeCustomerId: user.stripeCustomerId || null,
+      },
+    });
+  } catch (error) {
+    console.error("Get User Payment Methods Error:", error);
+    return res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUser,
   editProfile,
   getAllPlans,
   getUsersCount,
+  getUserPaymentMethods,
 };

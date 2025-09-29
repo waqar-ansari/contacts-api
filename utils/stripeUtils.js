@@ -343,6 +343,118 @@ async function getCustomerPrimarySubscription(customerId) {
 }
 
 /**
+ * Cancel ALL customer subscriptions regardless of status
+ * @param {String} customerId - Stripe customer ID
+ * @param {String} excludeSubscriptionId - Subscription ID to exclude from cancellation
+ * @returns {Array} Array of cancellation results
+ */
+async function cancelAllCustomerSubscriptions(
+  customerId,
+  excludeSubscriptionId = null
+) {
+  try {
+    // Get ALL subscriptions for the customer (regardless of status)
+    const allSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all", // This gets all statuses: active, incomplete, trialing, past_due, canceled, etc.
+    });
+
+    // Get ALL subscription schedules for the customer
+    const allSchedules = await stripe.subscriptionSchedules.list({
+      customer: customerId,
+    });
+
+    const cancellationResults = [];
+
+    // Handle regular subscriptions
+    for (const subscription of allSubscriptions.data) {
+      // Skip if this is the subscription we want to exclude
+      if (excludeSubscriptionId && subscription.id === excludeSubscriptionId) {
+        continue;
+      }
+
+      // Skip if already canceled
+      if (subscription.status === "canceled") {
+        console.log(
+          `Subscription ${subscription.id} already canceled, skipping`
+        );
+        continue;
+      }
+
+      try {
+        // Cancel immediately (not at period end)
+        const canceledSubscription = await stripe.subscriptions.cancel(
+          subscription.id
+        );
+        console.log(
+          `Successfully canceled subscription: ${subscription.id} (was ${subscription.status})`
+        );
+        cancellationResults.push({
+          id: subscription.id,
+          status: "success",
+          previousStatus: subscription.status,
+          action: "canceled"
+        });
+      } catch (cancelError) {
+        console.error(
+          `Failed to cancel subscription ${subscription.id}:`,
+          cancelError
+        );
+        cancellationResults.push({
+          id: subscription.id,
+          status: "error",
+          error: cancelError.message,
+          previousStatus: subscription.status,
+        });
+      }
+    }
+
+    // Handle subscription schedules
+    for (const schedule of allSchedules.data) {
+      // Skip if already canceled or completed
+      if (schedule.status === "canceled" || schedule.status === "completed") {
+        console.log(
+          `Subscription schedule ${schedule.id} already ${schedule.status}, skipping`
+        );
+        continue;
+      }
+
+      try {
+        // Cancel the subscription schedule
+        const canceledSchedule = await stripe.subscriptionSchedules.cancel(
+          schedule.id
+        );
+        console.log(
+          `Successfully canceled subscription schedule: ${schedule.id} (was ${schedule.status})`
+        );
+        cancellationResults.push({
+          id: schedule.id,
+          status: "success",
+          previousStatus: schedule.status,
+          action: "schedule_canceled"
+        });
+      } catch (cancelError) {
+        console.error(
+          `Failed to cancel subscription schedule ${schedule.id}:`,
+          cancelError
+        );
+        cancellationResults.push({
+          id: schedule.id,
+          status: "error",
+          error: cancelError.message,
+          previousStatus: schedule.status,
+        });
+      }
+    }
+
+    return cancellationResults;
+  } catch (error) {
+    console.error("Error canceling all customer subscriptions:", error);
+    throw error;
+  }
+}
+
+/**
  * Get user's Stripe subscription data using customer ID only
  * @param {Object} user - User object with stripeCustomerId
  * @returns {Object} Subscription data or null
@@ -430,35 +542,55 @@ async function customerHasPaymentMethod(customerId) {
  */
 async function updateSubscriptionForAdmin(customerId, newPriceId) {
   try {
-    // Get current active subscription
-    const currentSubscription = await getCustomerPrimarySubscription(
-      customerId
-    );
-
-    if (currentSubscription) {
-      // Cancel current subscription immediately for admin updates
-      await stripe.subscriptions.cancel(currentSubscription.id);
+    // First, check if customer has payment methods
+    const hasPaymentMethod = await customerHasPaymentMethod(customerId);
+    if (!hasPaymentMethod) {
+      throw new Error(
+        "User must have a payment method to be assigned a premium plan"
+      );
     }
 
-    // Create new subscription - customer should already have payment method
+    // Create new subscription with immediate payment
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
-      proration_behavior: "none", // No proration/billing
-      payment_behavior: "default_incomplete",
+      payment_behavior: "error_if_incomplete", // Require immediate payment
       payment_settings: {
         save_default_payment_method: "on_subscription",
       },
       metadata: {
         adminUpdate: "true",
-        previousSubscription: currentSubscription?.id || "none",
         adminAssigned: new Date().toISOString(),
       },
     });
 
+    // If new subscription was created successfully, cancel ALL other subscriptions
+    if (newSubscription && newSubscription.status === "active") {
+      const cancellationResults = await cancelAllCustomerSubscriptions(
+        customerId,
+        newSubscription.id // Exclude the new subscription from cancellation
+      );
+
+      console.log(
+        `Cancelled ${cancellationResults.length} subscriptions/schedules for customer ${customerId}`
+      );
+      cancellationResults.forEach((result) => {
+        if (result.status === "success") {
+          const actionText = result.action === 'schedule_canceled' ? 'Cancelled schedule' : 'Cancelled subscription';
+          console.log(
+            `✓ ${actionText} ${result.id} (was ${result.previousStatus})`
+          );
+        } else {
+          console.log(
+            `✗ Failed to cancel subscription/schedule ${result.id}: ${result.error}`
+          );
+        }
+      });
+    }
+
     return newSubscription;
   } catch (error) {
-    console.error("Error updating subscription for admin:", error);
+    console.error("Error updating subscription by admin:", error);
     throw error;
   }
 }
@@ -738,4 +870,5 @@ module.exports = {
   getUserCurrentPlan,
   getUserBillingHistory,
   getFormattedBillingHistory,
+  cancelAllCustomerSubscriptions,
 };
