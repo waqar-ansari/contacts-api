@@ -221,28 +221,30 @@ const signupWithEmail = async (req, res) => {
           "set up initial plan for user during sign up after verification:",
           planData
         );
+        if (user.referredBy) {
+          // Add $10 referral credits to the current user
+          // Reuse the Stripe customer created by setupInitialPlan to avoid race condition
+          try {
+            let currentUserCustomer = planData?.stripeCustomer;
+            if (!currentUserCustomer) {
+              // Fallback to getOrCreateStripeCustomer if setupInitialPlan didn't create one
+              currentUserCustomer = await getOrCreateStripeCustomer(user);
+            }
 
-        // Add $10 welcome credits to the current user
-        // Reuse the Stripe customer created by setupInitialPlan to avoid race condition
-        try {
-          let currentUserCustomer = planData?.stripeCustomer;
-          if (!currentUserCustomer) {
-            // Fallback to getOrCreateStripeCustomer if setupInitialPlan didn't create one
-            currentUserCustomer = await getOrCreateStripeCustomer(user);
+            await addStripeCredits(
+              currentUserCustomer.id,
+              1000, // $10 in cents
+              "Referral bonus - email verification completed"
+            );
+            console.log(`Added $10 welcome credit to user ${user._id}`);
+          } catch (error) {
+            console.error(
+              "Error adding welcome Referral to current user:",
+              error
+            );
           }
 
-          await addStripeCredits(
-            currentUserCustomer.id,
-            1000, // $10 in cents
-            "Welcome bonus - email verification completed"
-          );
-          console.log(`Added $10 welcome credit to user ${user._id}`);
-        } catch (error) {
-          console.error("Error adding welcome credits to current user:", error);
-        }
-
-        // Add $10 referral credits to the referring user if exists
-        if (user.referredBy) {
+          // Add $10 referral credits to the referring user if exists
           try {
             const referringUser = await User.findById(user.referredBy);
             if (referringUser) {
