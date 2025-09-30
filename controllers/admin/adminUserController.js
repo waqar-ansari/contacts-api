@@ -735,7 +735,7 @@ const getUserBillingHistory = async (req, res) => {
       periodStart: item.periodStart ? item.periodStart.toISOString() : null,
       periodEnd: item.periodEnd ? item.periodEnd.toISOString() : null,
     }));
-
+    const revenueData = generateRevenueChartData(formattedHistory);
     res.status(200).json({
       status: "success",
       message: "Billing history retrieved successfully",
@@ -743,7 +743,7 @@ const getUserBillingHistory = async (req, res) => {
         history: formattedHistory,
         hasMore,
         summary,
-        revenueData: generateRevenueChartData(formattedHistory), // Add chart data
+        revenueData, // Add chart data
       },
     });
   } catch (error) {
@@ -936,7 +936,7 @@ const generateRevenueChartData = (billingHistory) => {
     .sort()
     .map((month) => ({
       month,
-      revenue: monthlyRevenue[month],
+      Revenue: monthlyRevenue[month].toFixed(2),
       date: new Date(month + "-01"),
     }));
 
