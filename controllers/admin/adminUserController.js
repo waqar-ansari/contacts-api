@@ -16,7 +16,9 @@ const {
   getUserCurrentPlan,
   customerHasPaymentMethod,
   cancelAllCustomerSubscriptions,
+  getFormattedBillingHistory,
 } = require("../../utils/stripeUtils");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // GET all users
 const getAllUsers = async (req, res) => {
@@ -646,6 +648,301 @@ const getUserPaymentMethods = async (req, res) => {
   }
 };
 
+// GET user billing history for admin
+const getUserBillingHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, startingAfter } = req.query;
+    console.log("Getting billing history for user ID:", id);
+
+    const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Invalid user ID" });
+    }
+
+    const user = await User.findById(userId).select("stripeCustomerId");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
+
+    // If user doesn't have a Stripe customer ID, return empty history
+    if (!user.stripeCustomerId) {
+      return res.status(200).json({
+        status: "success",
+        message: "Billing history retrieved successfully",
+        data: {
+          history: [],
+          hasMore: false,
+          summary: {
+            totalInvoices: 0,
+            totalPaid: 0,
+            totalOutstanding: 0,
+            currency: "usd",
+          },
+        },
+      });
+    }
+
+    // Get formatted billing history
+    const billingHistory = await getFormattedBillingHistory(
+      user.stripeCustomerId
+    );
+
+    // Calculate summary statistics
+    const summary = {
+      totalInvoices: 0,
+      totalPaid: 0,
+      totalOutstanding: 0,
+      currency: "usd",
+    };
+
+    billingHistory.forEach((item) => {
+      if (item.status !== "upcoming") {
+        summary.totalInvoices++;
+      }
+      if (item.status === "paid") {
+        summary.totalPaid += item.amount;
+      } else if (item.status === "open") {
+        summary.totalOutstanding += item.amount;
+      }
+      if (item.currency && summary.currency === "usd") {
+        summary.currency = item.currency;
+      }
+    });
+
+    // Convert from cents to dollars for summary
+    summary.totalPaid = summary.totalPaid / 100;
+    summary.totalOutstanding = summary.totalOutstanding / 100;
+
+    // Apply pagination if needed
+    let paginatedHistory = billingHistory;
+    let hasMore = false;
+
+    if (limit && billingHistory.length > limit) {
+      paginatedHistory = billingHistory.slice(0, limit);
+      hasMore = true;
+    }
+
+    // Format dates and amounts for frontend
+    const formattedHistory = paginatedHistory.map((item) => ({
+      ...item,
+      date: item.date.toISOString(),
+      amount: item.amount / 100, // Convert from cents to dollars
+      periodStart: item.periodStart ? item.periodStart.toISOString() : null,
+      periodEnd: item.periodEnd ? item.periodEnd.toISOString() : null,
+    }));
+
+    res.status(200).json({
+      status: "success",
+      message: "Billing history retrieved successfully",
+      data: {
+        history: formattedHistory,
+        hasMore,
+        summary,
+        revenueData: generateRevenueChartData(formattedHistory), // Add chart data
+      },
+    });
+  } catch (error) {
+    console.error("Get User Billing History Error:", error);
+    return res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+// GET user payment methods (detailed) for admin
+const getUserPaymentMethodsDetailed = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("Getting detailed payment methods for user ID:", id);
+
+    const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Invalid user ID" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
+
+    if (!user.stripeCustomerId) {
+      return res.status(200).json({
+        status: "success",
+        message: "Payment methods retrieved successfully",
+        data: {
+          paymentMethods: [],
+          defaultPaymentMethod: null,
+        },
+      });
+    }
+
+    // Get payment methods from Stripe
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: user.stripeCustomerId,
+      type: "card",
+    });
+
+    // Get customer to check default payment method
+    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+
+    const formattedPaymentMethods = paymentMethods.data.map((pm) => ({
+      id: pm.id,
+      type: pm.type,
+      card: {
+        brand: pm.card.brand,
+        last4: pm.card.last4,
+        exp_month: pm.card.exp_month,
+        exp_year: pm.card.exp_year,
+      },
+      isDefault: pm.id === customer.invoice_settings?.default_payment_method,
+      created: pm.created,
+    }));
+
+    res.status(200).json({
+      status: "success",
+      message: "Payment methods retrieved successfully",
+      data: {
+        paymentMethods: formattedPaymentMethods,
+        defaultPaymentMethod: customer.invoice_settings?.default_payment_method,
+      },
+    });
+  } catch (error) {
+    console.error("Get User Payment Methods Detailed Error:", error);
+    return res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+// DELETE user payment method for admin
+const deleteUserPaymentMethod = async (req, res) => {
+  try {
+    const { id, paymentMethodId } = req.params;
+    console.log(
+      "Admin deleting payment method:",
+      paymentMethodId,
+      "for user:",
+      id
+    );
+
+    const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Invalid user ID" });
+    }
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Payment method ID is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.stripeCustomerId) {
+      return res.status(404).json({
+        status: "error",
+        message: "User or Stripe customer not found",
+      });
+    }
+
+    // Verify that the payment method belongs to this customer
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentMethod.customer !== user.stripeCustomerId) {
+      return res.status(403).json({
+        status: "error",
+        message: "Payment method does not belong to this user",
+      });
+    }
+
+    // Check if this is the default payment method
+    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const isDefaultPaymentMethod =
+      customer.invoice_settings?.default_payment_method === paymentMethodId;
+
+    if (isDefaultPaymentMethod) {
+      // Get all payment methods to check if there are others
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: user.stripeCustomerId,
+        type: "card",
+      });
+
+      // If there are other payment methods, set one as default
+      if (paymentMethods.data.length > 1) {
+        const otherPaymentMethod = paymentMethods.data.find(
+          (pm) => pm.id !== paymentMethodId
+        );
+
+        if (otherPaymentMethod) {
+          await stripe.customers.update(user.stripeCustomerId, {
+            invoice_settings: {
+              default_payment_method: otherPaymentMethod.id,
+            },
+          });
+        }
+      } else {
+        // Clear default payment method if this is the last one
+        await stripe.customers.update(user.stripeCustomerId, {
+          invoice_settings: {
+            default_payment_method: null,
+          },
+        });
+      }
+    }
+
+    // Detach the payment method
+    await stripe.paymentMethods.detach(paymentMethodId);
+
+    res.status(200).json({
+      status: "success",
+      message: "Payment method deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete User Payment Method Error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to delete payment method",
+      error: error.message,
+    });
+  }
+};
+
+// Helper function to generate revenue chart data
+const generateRevenueChartData = (billingHistory) => {
+  const monthlyRevenue = {};
+
+  billingHistory.forEach((item) => {
+    if (item.status === "paid") {
+      const date = new Date(item.date);
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      if (!monthlyRevenue[monthKey]) {
+        monthlyRevenue[monthKey] = 0;
+      }
+      monthlyRevenue[monthKey] += item.amount;
+    }
+  });
+
+  // Convert to array format for chart
+  const chartData = Object.keys(monthlyRevenue)
+    .sort()
+    .map((month) => ({
+      month,
+      revenue: monthlyRevenue[month],
+      date: new Date(month + "-01"),
+    }));
+
+  return chartData;
+};
+
 module.exports = {
   getAllUsers,
   getUser,
@@ -653,4 +950,7 @@ module.exports = {
   getAllPlans,
   getUsersCount,
   getUserPaymentMethods,
+  getUserBillingHistory,
+  getUserPaymentMethodsDetailed,
+  deleteUserPaymentMethod,
 };
