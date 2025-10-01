@@ -4,6 +4,9 @@ const {
   createStripeCoupon,
   updateStripeCoupon,
   deleteStripeCoupon,
+  createStripePromotionCode,
+  updateStripePromotionCode,
+  deleteStripePromotionCode,
 } = require("../../utils/stripeUtils");
 
 // @desc    Get all coupons
@@ -187,6 +190,7 @@ const createCoupon = async (req, res) => {
     }
 
     let stripeCouponId = null;
+    let stripePromotionCodeId = null;
 
     // Create Stripe coupon first
     try {
@@ -200,6 +204,33 @@ const createCoupon = async (req, res) => {
       });
       stripeCouponId = stripeCoupon.id;
       console.log(`Created Stripe coupon: ${stripeCouponId}`);
+
+      // Create Stripe promotion code for hosted checkout
+      try {
+        const stripePromotionCode = await createStripePromotionCode(
+          stripeCouponId,
+          couponCode.toUpperCase(),
+          {
+            active: isActive,
+            max_redemptions: maxUsage || undefined,
+          }
+        );
+        stripePromotionCodeId = stripePromotionCode.id;
+        console.log(`Created Stripe promotion code: ${stripePromotionCodeId}`);
+      } catch (promoCodeError) {
+        console.error("Stripe promotion code creation error:", promoCodeError);
+        // If promotion code creation fails, clean up the coupon
+        try {
+          await deleteStripeCoupon(stripeCouponId);
+        } catch (cleanupError) {
+          console.error("Error cleaning up Stripe coupon:", cleanupError);
+        }
+        return res.status(500).json({
+          success: false,
+          message:
+            "Failed to create Stripe promotion code: " + promoCodeError.message,
+        });
+      }
     } catch (stripeError) {
       console.error("Stripe coupon creation error:", stripeError);
       return res.status(500).json({
@@ -217,6 +248,7 @@ const createCoupon = async (req, res) => {
       maxUsage: maxUsage || null,
       isActive,
       stripeCouponId,
+      stripePromotionCodeId,
       createdBy: req.user._id,
     });
 
@@ -230,13 +262,26 @@ const createCoupon = async (req, res) => {
         data: savedCoupon,
       });
     } catch (dbError) {
-      // If MongoDB save fails, clean up the Stripe coupon
+      // If MongoDB save fails, clean up both Stripe coupon and promotion code
       if (stripeCouponId) {
         try {
           await deleteStripeCoupon(stripeCouponId);
           console.log(`Cleaned up Stripe coupon: ${stripeCouponId}`);
         } catch (cleanupError) {
           console.error("Error cleaning up Stripe coupon:", cleanupError);
+        }
+      }
+      if (stripePromotionCodeId) {
+        try {
+          await deleteStripePromotionCode(stripePromotionCodeId);
+          console.log(
+            `Cleaned up Stripe promotion code: ${stripePromotionCodeId}`
+          );
+        } catch (cleanupError) {
+          console.error(
+            "Error cleaning up Stripe promotion code:",
+            cleanupError
+          );
         }
       }
       throw dbError;
@@ -343,6 +388,7 @@ const updateCoupon = async (req, res) => {
       (name && name !== coupon.name);
 
     let newStripeCouponId = coupon.stripeCouponId;
+    let newStripePromotionCodeId = coupon.stripePromotionCodeId;
 
     // Handle Stripe coupon update if needed
     if (needsStripeUpdate) {
@@ -365,11 +411,72 @@ const updateCoupon = async (req, res) => {
         );
         newStripeCouponId = newStripeCoupon.id;
         console.log(`Updated Stripe coupon: ${newStripeCouponId}`);
+
+        // Update promotion code with new coupon
+        try {
+          const newStripePromotionCode = await updateStripePromotionCode(
+            coupon.stripePromotionCodeId,
+            newStripeCouponId,
+            couponCode ? couponCode.toUpperCase() : coupon.couponCode,
+            {
+              active: isActive !== undefined ? isActive : coupon.isActive,
+              max_redemptions:
+                (maxUsage !== undefined ? maxUsage : coupon.maxUsage) ||
+                undefined,
+            }
+          );
+          newStripePromotionCodeId = newStripePromotionCode.id;
+          console.log(
+            `Updated Stripe promotion code: ${newStripePromotionCodeId}`
+          );
+        } catch (promoCodeError) {
+          console.error("Stripe promotion code update error:", promoCodeError);
+          // If promotion code update fails, clean up the new coupon and restore old one
+          try {
+            await deleteStripeCoupon(newStripeCouponId);
+          } catch (cleanupError) {
+            console.error("Error cleaning up new Stripe coupon:", cleanupError);
+          }
+          return res.status(500).json({
+            success: false,
+            message:
+              "Failed to update Stripe promotion code: " +
+              promoCodeError.message,
+          });
+        }
       } catch (stripeError) {
         console.error("Stripe coupon update error:", stripeError);
         return res.status(500).json({
           success: false,
           message: "Failed to update Stripe coupon: " + stripeError.message,
+        });
+      }
+    } else if (isActive !== undefined && isActive !== coupon.isActive) {
+      // If only status is changing, just update the promotion code status
+      try {
+        const updatedPromoCode = await updateStripePromotionCode(
+          coupon.stripePromotionCodeId,
+          coupon.stripeCouponId,
+          coupon.couponCode,
+          {
+            active: isActive,
+            max_redemptions: coupon.maxUsage || undefined,
+          }
+        );
+        newStripePromotionCodeId = updatedPromoCode.id;
+        console.log(
+          `Updated Stripe promotion code status: ${newStripePromotionCodeId}`
+        );
+      } catch (promoCodeError) {
+        console.error(
+          "Stripe promotion code status update error:",
+          promoCodeError
+        );
+        return res.status(500).json({
+          success: false,
+          message:
+            "Failed to update Stripe promotion code status: " +
+            promoCodeError.message,
         });
       }
     }
@@ -384,6 +491,8 @@ const updateCoupon = async (req, res) => {
     if (isActive !== undefined) coupon.isActive = isActive;
     if (newStripeCouponId !== coupon.stripeCouponId)
       coupon.stripeCouponId = newStripeCouponId;
+    if (newStripePromotionCodeId !== coupon.stripePromotionCodeId)
+      coupon.stripePromotionCodeId = newStripePromotionCodeId;
 
     const updatedCoupon = await coupon.save();
     await updatedCoupon.populate("createdBy", "firstName lastName email");
@@ -429,6 +538,19 @@ const deleteCoupon = async (req, res) => {
         success: false,
         message: "Coupon not found",
       });
+    }
+
+    // Delete Stripe promotion code if it exists
+    if (coupon.stripePromotionCodeId) {
+      try {
+        await deleteStripePromotionCode(coupon.stripePromotionCodeId);
+        console.log(
+          `Deleted Stripe promotion code: ${coupon.stripePromotionCodeId}`
+        );
+      } catch (stripeError) {
+        console.error("Stripe promotion code deletion error:", stripeError);
+        // Continue with coupon deletion even if promotion code deletion fails
+      }
     }
 
     // Delete Stripe coupon if it exists
@@ -504,9 +626,38 @@ const toggleCouponStatus = async (req, res) => {
           console.log(
             `Created Stripe coupon on activation: ${stripeCoupon.id}`
           );
+
+          // Create promotion code for the new coupon
+          try {
+            const stripePromotionCode = await createStripePromotionCode(
+              stripeCoupon.id,
+              coupon.couponCode,
+              {
+                active: true,
+                max_redemptions: coupon.maxUsage || undefined,
+              }
+            );
+            coupon.stripePromotionCodeId = stripePromotionCode.id;
+            console.log(
+              `Created Stripe promotion code on activation: ${stripePromotionCode.id}`
+            );
+          } catch (promoCodeError) {
+            console.error("Error creating promotion code:", promoCodeError);
+            // Clean up the coupon if promotion code creation fails
+            await deleteStripeCoupon(stripeCoupon.id);
+            throw promoCodeError;
+          }
         }
       } else if (!coupon.isActive && wasActive) {
-        // Deactivating coupon - delete Stripe coupon
+        // Deactivating coupon - delete Stripe promotion code and coupon
+        if (coupon.stripePromotionCodeId) {
+          await deleteStripePromotionCode(coupon.stripePromotionCodeId);
+          console.log(
+            `Deleted Stripe promotion code on deactivation: ${coupon.stripePromotionCodeId}`
+          );
+          coupon.stripePromotionCodeId = null;
+        }
+
         if (coupon.stripeCouponId) {
           await deleteStripeCoupon(coupon.stripeCouponId);
           console.log(

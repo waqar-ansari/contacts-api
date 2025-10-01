@@ -63,6 +63,12 @@ const couponSchema = new mongoose.Schema(
       sparse: true, // Allows multiple null values
       index: true,
     },
+    stripePromotionCodeId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values
+      index: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -866,11 +866,15 @@ async function createStripeCoupon(couponData) {
       name,
     } = couponData;
 
+    console.log(`Creating Stripe coupon with original code: ${couponCode}`);
+
     const stripeCouponData = {
-      id: couponCode, // Use our coupon code as Stripe coupon ID
+      id: couponCode.toLowerCase().replace(/[^a-z0-9_-]/g, "_"), // Make Stripe-compliant ID
       name: name,
       duration: "once", // We'll use 'once' as default since we handle expiry ourselves
     };
+
+    console.log(`Stripe coupon ID will be: ${stripeCouponData.id}`);
 
     // Set discount type and value
     if (discountType === "percentage") {
@@ -896,10 +900,13 @@ async function createStripeCoupon(couponData) {
     stripeCouponData.metadata = {
       createdBy: "admin-panel",
       mongoId: couponData.mongoId || "",
+      originalCouponCode: couponCode, // Store original code for reference
     };
 
     const stripeCoupon = await stripe.coupons.create(stripeCouponData);
-    console.log("Created Stripe coupon:", stripeCoupon.id);
+    console.log(
+      `Created Stripe coupon: ${stripeCoupon.id} for original code: ${couponCode}`
+    );
     return stripeCoupon;
   } catch (error) {
     console.error("Error creating Stripe coupon:", error);
@@ -970,6 +977,100 @@ async function listStripeCoupons(options = {}) {
     return coupons;
   } catch (error) {
     console.error("Error listing Stripe coupons:", error);
+    throw error;
+  }
+}
+
+/**
+ * Create a Stripe promotion code for a coupon
+ * @param {String} couponId - Stripe coupon ID
+ * @param {String} promoCode - Promotion code (usually same as coupon code)
+ * @param {Object} options - Additional options for promotion code
+ * @returns {Object} Stripe promotion code object
+ */
+async function createStripePromotionCode(couponId, promoCode, options = {}) {
+  try {
+    console.log(`Creating promotion code with params:`, {
+      couponId,
+      promoCode,
+      options,
+    });
+
+    const promotionCodeData = {
+      coupon: couponId,
+      code: promoCode,
+      active: true,
+      metadata: {
+        createdBy: "admin-panel",
+        couponId: couponId,
+      },
+      ...options,
+    };
+
+    console.log(`Promotion code data being sent to Stripe:`, promotionCodeData);
+
+    const promotionCode = await stripe.promotionCodes.create(promotionCodeData);
+    console.log(
+      `Created Stripe promotion code: ${promotionCode.code} (ID: ${promotionCode.id}) for coupon: ${couponId}`
+    );
+    return promotionCode;
+  } catch (error) {
+    console.error("Error creating Stripe promotion code:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update a Stripe promotion code (deactivate old, create new)
+ * @param {String} oldPromoCodeId - Old promotion code ID to deactivate
+ * @param {String} couponId - Stripe coupon ID
+ * @param {String} promoCode - New promotion code
+ * @param {Object} options - Additional options
+ * @returns {Object} New promotion code object
+ */
+async function updateStripePromotionCode(
+  oldPromoCodeId,
+  couponId,
+  promoCode,
+  options = {}
+) {
+  try {
+    // Deactivate old promotion code if it exists
+    if (oldPromoCodeId) {
+      try {
+        await stripe.promotionCodes.update(oldPromoCodeId, { active: false });
+        console.log("Deactivated old promotion code:", oldPromoCodeId);
+      } catch (error) {
+        console.error("Error deactivating old promotion code:", error);
+        // Continue with creating new one
+      }
+    }
+
+    // Create new promotion code
+    return await createStripePromotionCode(couponId, promoCode, options);
+  } catch (error) {
+    console.error("Error updating Stripe promotion code:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete/Deactivate a Stripe promotion code
+ * @param {String} promoCodeId - Promotion code ID
+ * @returns {Object} Updated promotion code object
+ */
+async function deleteStripePromotionCode(promoCodeId) {
+  try {
+    const deactivatedPromoCode = await stripe.promotionCodes.update(
+      promoCodeId,
+      {
+        active: false,
+      }
+    );
+    console.log("Deactivated Stripe promotion code:", promoCodeId);
+    return deactivatedPromoCode;
+  } catch (error) {
+    console.error("Error deactivating Stripe promotion code:", error);
     throw error;
   }
 }
@@ -1169,4 +1270,8 @@ module.exports = {
   listStripeCoupons,
   validateCoupon,
   calculateCouponDiscount,
+  // Promotion code functions
+  createStripePromotionCode,
+  updateStripePromotionCode,
+  deleteStripePromotionCode,
 };
