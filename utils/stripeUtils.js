@@ -974,6 +974,169 @@ async function listStripeCoupons(options = {}) {
   }
 }
 
+/**
+ * Validate and get coupon from both MongoDB and Stripe
+ * @param {String} couponCode - Coupon code to validate
+ * @returns {Object} Validation result with coupon data
+ */
+async function validateCoupon(couponCode) {
+  try {
+    const Coupon = require("../models/couponModel");
+
+    // Check MongoDB first
+    const mongoCoupon = await Coupon.findOne({
+      couponCode: couponCode.toUpperCase(),
+    });
+
+    if (!mongoCoupon) {
+      return {
+        isValid: false,
+        error: "Coupon not found",
+        coupon: null,
+      };
+    }
+
+    // Check if coupon is active
+    if (!mongoCoupon.isActive) {
+      return {
+        isValid: false,
+        error: "Coupon is not active",
+        coupon: null,
+      };
+    }
+
+    // Check if coupon is expired
+    if (mongoCoupon.isExpired) {
+      return {
+        isValid: false,
+        error: "Coupon has expired",
+        coupon: null,
+      };
+    }
+
+    // Check if coupon has reached usage limit
+    if (!mongoCoupon.isAvailable) {
+      return {
+        isValid: false,
+        error: "Coupon usage limit reached",
+        coupon: null,
+      };
+    }
+
+    // Validate with Stripe if stripeCouponId exists
+    if (mongoCoupon.stripeCouponId) {
+      try {
+        const stripeCoupon = await getStripeCoupon(mongoCoupon.stripeCouponId);
+        if (!stripeCoupon || stripeCoupon.valid === false) {
+          return {
+            isValid: false,
+            error: "Coupon is not valid in payment system",
+            coupon: null,
+          };
+        }
+
+        // Check Stripe-specific validations
+        if (
+          stripeCoupon.max_redemptions &&
+          stripeCoupon.times_redeemed >= stripeCoupon.max_redemptions
+        ) {
+          return {
+            isValid: false,
+            error: "Coupon usage limit reached",
+            coupon: null,
+          };
+        }
+
+        if (
+          stripeCoupon.redeem_by &&
+          new Date() > new Date(stripeCoupon.redeem_by * 1000)
+        ) {
+          return {
+            isValid: false,
+            error: "Coupon has expired",
+            coupon: null,
+          };
+        }
+      } catch (stripeError) {
+        console.error("Error validating Stripe coupon:", stripeError);
+        return {
+          isValid: false,
+          error: "Error validating coupon",
+          coupon: null,
+        };
+      }
+    }
+
+    return {
+      isValid: true,
+      error: null,
+      coupon: {
+        _id: mongoCoupon._id,
+        name: mongoCoupon.name,
+        couponCode: mongoCoupon.couponCode,
+        discountType: mongoCoupon.discountType,
+        discountValue: mongoCoupon.discountValue,
+        stripeCouponId: mongoCoupon.stripeCouponId,
+        expiryDate: mongoCoupon.expiryDate,
+        maxUsage: mongoCoupon.maxUsage,
+        usageCount: mongoCoupon.usageCount,
+      },
+    };
+  } catch (error) {
+    console.error("Error validating coupon:", error);
+    return {
+      isValid: false,
+      error: "Error validating coupon",
+      coupon: null,
+    };
+  }
+}
+
+/**
+ * Calculate discount amount for a given subtotal and coupon
+ * @param {Number} subtotal - Subtotal amount in cents
+ * @param {Object} coupon - Coupon object from MongoDB
+ * @returns {Object} Discount calculation result
+ */
+function calculateCouponDiscount(subtotal, coupon) {
+  try {
+    let discountAmount = 0;
+
+    if (coupon.discountType === "percentage") {
+      discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
+    } else if (coupon.discountType === "fixed") {
+      // Convert fixed discount to cents if it's in dollars
+      const fixedAmountInCents =
+        coupon.discountValue > 100
+          ? coupon.discountValue
+          : Math.round(coupon.discountValue * 100);
+      discountAmount = Math.min(fixedAmountInCents, subtotal);
+    }
+
+    const finalAmount = Math.max(0, subtotal - discountAmount);
+
+    return {
+      subtotal,
+      discountAmount,
+      finalAmount,
+      discountPercentage:
+        subtotal > 0 ? Math.round((discountAmount / subtotal) * 100) : 0,
+      couponCode: coupon.couponCode,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+    };
+  } catch (error) {
+    console.error("Error calculating coupon discount:", error);
+    return {
+      subtotal,
+      discountAmount: 0,
+      finalAmount: subtotal,
+      discountPercentage: 0,
+      error: "Error calculating discount",
+    };
+  }
+}
+
 module.exports = {
   createStripeCustomer,
   getOrCreateStripeCustomer,
@@ -1004,4 +1167,6 @@ module.exports = {
   deleteStripeCoupon,
   getStripeCoupon,
   listStripeCoupons,
+  validateCoupon,
+  calculateCouponDiscount,
 };

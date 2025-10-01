@@ -11,6 +11,9 @@ const {
   deleteTrialingSubscription,
   getUserCurrentPlan,
   getFormattedBillingHistory,
+  validateCoupon,
+  calculateCouponDiscount,
+  applyCouponToSession,
 } = require("../utils/stripeUtils");
 
 /**
@@ -388,7 +391,7 @@ const getPaymentStatus = async (req, res) => {
  */
 const previewUpgrade = async (req, res) => {
   try {
-    const { planId } = req.body;
+    const { planId, couponCode } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -472,8 +475,24 @@ const previewUpgrade = async (req, res) => {
     const subscriptionItem = existingSubscription.items.data[0];
 
     try {
-      // Preview the upcoming invoice with the subscription change
-      const upcomingInvoice = await stripe.invoices.createPreview({
+      // Validate coupon if provided
+      let couponData = null;
+      let couponDiscountCalculation = null;
+
+      if (couponCode) {
+        const couponValidation = await validateCoupon(couponCode.trim());
+        if (!couponValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: couponValidation.error,
+            code: "INVALID_COUPON",
+          });
+        }
+        couponData = couponValidation.coupon;
+      }
+
+      // Create invoice preview parameters
+      const invoicePreviewParams = {
         customer: user.stripeCustomerId,
         subscription: activeSubInfo.subscriptionId,
         subscription_details: {
@@ -485,7 +504,21 @@ const previewUpgrade = async (req, res) => {
           ],
           proration_behavior: "create_prorations", // Enable proration
         },
-      });
+      };
+
+      // Add coupon to preview if valid
+      if (couponData && couponData.stripeCouponId) {
+        invoicePreviewParams.discounts = [
+          {
+            coupon: couponData.stripeCouponId,
+          },
+        ];
+      }
+
+      // Preview the upcoming invoice with the subscription change
+      const upcomingInvoice = await stripe.invoices.createPreview(
+        invoicePreviewParams
+      );
 
       console.log("Stripe upcoming invoice preview:", {
         amount_due: upcomingInvoice.amount_due,
@@ -668,6 +701,19 @@ const previewUpgrade = async (req, res) => {
             finalChargeAfterCredits: finalChargeAfterCredits / 100, // Convert to dollars
             remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
           },
+          coupon: couponData
+            ? {
+                isApplied: true,
+                couponCode: couponData.couponCode,
+                name: couponData.name,
+                discountType: couponData.discountType,
+                discountValue: couponData.discountValue,
+                // Note: Stripe applies coupon discount directly to the invoice preview
+                // The actual discount amount is reflected in the invoice total
+              }
+            : {
+                isApplied: false,
+              },
           period: {
             daysRemaining: Math.max(
               1,
@@ -683,6 +729,7 @@ const previewUpgrade = async (req, res) => {
             subtotal: upcomingInvoice.subtotal / 100,
             total: upcomingInvoice.total / 100,
             currency: upcomingInvoice.currency,
+            // Coupon discount is already applied to these Stripe amounts
           },
         },
       });
@@ -723,7 +770,12 @@ const previewUpgrade = async (req, res) => {
  */
 const upgradeSubscription = async (req, res) => {
   try {
-    const { planId, autoRenewal = true, paymentMethodId } = req.body;
+    const {
+      planId,
+      autoRenewal = true,
+      paymentMethodId,
+      couponCode,
+    } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -775,6 +827,21 @@ const upgradeSubscription = async (req, res) => {
         success: false,
         message: validation.message,
       });
+    }
+
+    // Validate coupon if provided
+    let couponData = null;
+
+    if (couponCode) {
+      const couponValidation = await validateCoupon(couponCode.trim());
+      if (!couponValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: couponValidation.error,
+          code: "INVALID_COUPON",
+        });
+      }
+      couponData = couponValidation.coupon;
     }
 
     // Get the existing subscription
@@ -845,12 +912,26 @@ const upgradeSubscription = async (req, res) => {
         upgradedFrom: currentPlan?._id?.toString() || "unknown",
         newPlanId: planId,
         newPlanName: plan.name,
+        ...(couponData && {
+          appliedCoupon: couponData.couponCode,
+          couponId: couponData._id.toString(),
+        }),
       },
     };
 
     // Add payment method if provided
     if (paymentMethodId) {
       updateData.default_payment_method = paymentMethodId;
+    }
+
+    // Add coupon to the update if valid (Note: Stripe applies coupons to subscriptions via discounts)
+    if (couponData && couponData.stripeCouponId) {
+      // For subscription upgrades, we'll apply the coupon as discount
+      updateData.discounts = [
+        {
+          coupon: couponData.stripeCouponId,
+        },
+      ];
     }
 
     // Upgrade the subscription with immediate proration
@@ -1089,7 +1170,13 @@ const createCheckoutSession = async (req, res) => {
  */
 const createHostedCheckoutSession = async (req, res) => {
   try {
-    const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
+    const {
+      planId,
+      autoRenewal = true,
+      successUrl,
+      cancelUrl,
+      couponCode,
+    } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -1188,7 +1275,7 @@ const createHostedCheckoutSession = async (req, res) => {
     }
 
     // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams = {
       customer: customer.id,
       line_items: [
         {
@@ -1207,13 +1294,17 @@ const createHostedCheckoutSession = async (req, res) => {
         `${
           process.env.FRONTEND_URL || "http://localhost:3000"
         }/payment-unsuccessful?error=Payment cancelled`,
+      // Enable coupon entry on Stripe's hosted page
+      allow_promotion_codes: true,
       metadata: {
         userId: userId.toString(),
         planId: plan._id.toString(),
         autoRenewal: autoRenewal.toString(),
         type: "new_subscription",
       },
-    });
+    };
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     console.log("Created hosted checkout session for new subscription:", {
       id: session.id,
@@ -1849,7 +1940,7 @@ const downgradeSubscription = async (req, res) => {
  */
 const previewNewSubscription = async (req, res) => {
   try {
-    const { planId } = req.body;
+    const { planId, couponCode } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -1899,6 +1990,22 @@ const previewNewSubscription = async (req, res) => {
     // Get or create Stripe customer (we'll need this for credit balance)
     const customer = await getOrCreateStripeCustomer(user);
 
+    // Validate coupon if provided
+    let couponData = null;
+    let couponDiscountCalculation = null;
+
+    if (couponCode) {
+      const couponValidation = await validateCoupon(couponCode.trim());
+      if (!couponValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: couponValidation.error,
+          code: "INVALID_COUPON",
+        });
+      }
+      couponData = couponValidation.coupon;
+    }
+
     // Get Stripe credit balance for the user
     const availableCredits = Math.abs(
       await getStripeCreditBalance(customer.id)
@@ -1910,19 +2017,35 @@ const previewNewSubscription = async (req, res) => {
 
     // Convert plan price from cents to cents (it should already be in cents from DB)
     const planPriceInCents = plan.price;
-    const planPriceInDollars = planPriceInCents / 100;
+    let finalPriceAfterCoupon = planPriceInCents;
 
-    // Calculate how much credits will be used (up to the plan price)
-    const creditsToUse = Math.min(availableCredits, planPriceInCents);
+    // Apply coupon discount if valid
+    if (couponData) {
+      couponDiscountCalculation = calculateCouponDiscount(
+        planPriceInCents,
+        couponData
+      );
+      finalPriceAfterCoupon = couponDiscountCalculation.finalAmount;
+    }
+
+    const planPriceInDollars = planPriceInCents / 100;
+    const finalPriceAfterCouponInDollars = finalPriceAfterCoupon / 100;
+
+    // Calculate how much credits will be used (up to the discounted plan price)
+    const creditsToUse = Math.min(availableCredits, finalPriceAfterCoupon);
     const finalChargeAfterCredits = Math.max(
       0,
-      planPriceInCents - creditsToUse
+      finalPriceAfterCoupon - creditsToUse
     );
     const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
 
     console.log("New subscription credit calculation:", {
       planPriceInCents,
       planPriceInDollars,
+      finalPriceAfterCoupon: finalPriceAfterCoupon / 100,
+      couponDiscount: couponDiscountCalculation
+        ? couponDiscountCalculation.discountAmount / 100
+        : 0,
       availableCredits: availableCredits / 100,
       creditsToUse: creditsToUse / 100,
       finalChargeAfterCredits: finalChargeAfterCredits / 100,
@@ -1941,7 +2064,22 @@ const previewNewSubscription = async (req, res) => {
           id: plan._id,
           name: plan.name,
           price: planPriceInDollars,
+          originalPrice: planPriceInDollars,
+          finalPrice: finalPriceAfterCouponInDollars,
         },
+        coupon: couponData
+          ? {
+              isApplied: true,
+              couponCode: couponData.couponCode,
+              name: couponData.name,
+              discountType: couponData.discountType,
+              discountValue: couponData.discountValue,
+              discountAmount: couponDiscountCalculation.discountAmount / 100,
+              discountPercentage: couponDiscountCalculation.discountPercentage,
+            }
+          : {
+              isApplied: false,
+            },
         credits: {
           availableCredits: availableCredits / 100, // Convert to dollars
           creditsToUse: creditsToUse / 100, // Convert to dollars
@@ -1949,9 +2087,15 @@ const previewNewSubscription = async (req, res) => {
           remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
         },
         billing: {
+          subtotal: planPriceInDollars,
+          couponDiscount: couponDiscountCalculation
+            ? couponDiscountCalculation.discountAmount / 100
+            : 0,
+          afterCouponDiscount: finalPriceAfterCouponInDollars,
+          creditDiscount: creditsToUse / 100,
           immediateCharge: finalChargeAfterCredits / 100, // Convert to dollars
           nextBillingDate: nextBillingDate.toISOString(),
-          nextBillingAmount: planPriceInDollars,
+          nextBillingAmount: planPriceInDollars, // Full price for next billing
         },
         isNewSubscription: true,
         customerInfo: {
@@ -1973,7 +2117,12 @@ const previewNewSubscription = async (req, res) => {
 // Create new subscription with existing payment method
 const createSubscriptionWithPaymentMethod = async (req, res) => {
   try {
-    const { planId, paymentMethodId, autoRenewal = true } = req.body;
+    const {
+      planId,
+      paymentMethodId,
+      autoRenewal = true,
+      couponCode,
+    } = req.body;
     const userId = req.user._id;
 
     if (!planId || !paymentMethodId) {
@@ -2056,6 +2205,30 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       });
     }
 
+    // Validate coupon if provided
+    let couponData = null;
+    let originalPlanPrice = plan.price;
+    let finalPlanPrice = originalPlanPrice;
+
+    if (couponCode) {
+      const couponValidation = await validateCoupon(couponCode.trim());
+      if (!couponValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: couponValidation.error,
+          code: "INVALID_COUPON",
+        });
+      }
+      couponData = couponValidation.coupon;
+
+      // Calculate discount
+      const discountCalculation = calculateCouponDiscount(
+        originalPlanPrice,
+        couponData
+      );
+      finalPlanPrice = discountCalculation.finalAmount;
+    }
+
     // Verify payment method belongs to customer
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
     if (paymentMethod.customer !== stripeCustomerId) {
@@ -2069,9 +2242,9 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     const availableCreditsInCents = Math.abs(
       await getStripeCreditBalance(stripeCustomerId)
     );
-    const planPriceInCents = plan.price;
+    const planPriceInCents = finalPlanPrice; // Use discounted price
 
-    // Calculate final charge after applying credits
+    // Calculate final charge after applying credits to discounted price
     const finalChargeAfterCredits = Math.max(
       0,
       planPriceInCents - availableCreditsInCents
@@ -2094,8 +2267,23 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       metadata: {
         userId: userId.toString(),
         planId: planId.toString(),
+        ...(couponData && {
+          appliedCoupon: couponData.couponCode,
+          couponId: couponData._id.toString(),
+          originalPrice: originalPlanPrice.toString(),
+          discountedPrice: finalPlanPrice.toString(),
+        }),
       },
     };
+
+    // Add coupon if valid
+    if (couponData && couponData.stripeCouponId) {
+      subscriptionData.discounts = [
+        {
+          coupon: couponData.stripeCouponId,
+        },
+      ];
+    }
 
     // Set default payment method
     subscriptionData.default_payment_method = paymentMethodId;

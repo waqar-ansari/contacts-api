@@ -20,6 +20,11 @@ const {
   getBillingHistory,
 } = require("../controllers/paymentController");
 
+const {
+  validateCouponCode,
+  previewCouponDiscount,
+} = require("../controllers/couponController");
+
 // GET user payment status and plan information
 router.get("/status", getPaymentStatus);
 
@@ -73,5 +78,11 @@ router.delete("/delete-payment-method/:paymentMethodId", deletePaymentMethod);
 
 // GET user's billing history
 router.get("/billing-history", getBillingHistory);
+
+// POST validate coupon code
+router.post("/validate-coupon", validateCouponCode);
+
+// POST preview coupon discount for given amount
+router.post("/preview-coupon-discount", previewCouponDiscount);
 
 module.exports = router;
