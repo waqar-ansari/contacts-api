@@ -488,9 +488,10 @@ const previewUpgrade = async (req, res) => {
             code: "INVALID_COUPON",
           });
         }
+        console.log("Coupon data for preview:", couponValidation);
         couponData = couponValidation.coupon;
       }
-
+      console.log("Coupon data for preview:", couponData);
       // Create invoice preview parameters
       const invoicePreviewParams = {
         customer: user.stripeCustomerId,
@@ -708,6 +709,9 @@ const previewUpgrade = async (req, res) => {
                 name: couponData.name,
                 discountType: couponData.discountType,
                 discountValue: couponData.discountValue,
+                discountAmount: couponData.discountType === "percentage"
+                  ? (newAmount * couponData.discountValue) / 100
+                  : couponData.discountValue,
                 // Note: Stripe applies coupon discount directly to the invoice preview
                 // The actual discount amount is reflected in the invoice total
               }
