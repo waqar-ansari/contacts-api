@@ -393,7 +393,7 @@ async function cancelAllCustomerSubscriptions(
           id: subscription.id,
           status: "success",
           previousStatus: subscription.status,
-          action: "canceled"
+          action: "canceled",
         });
       } catch (cancelError) {
         console.error(
@@ -431,7 +431,7 @@ async function cancelAllCustomerSubscriptions(
           id: schedule.id,
           status: "success",
           previousStatus: schedule.status,
-          action: "schedule_canceled"
+          action: "schedule_canceled",
         });
       } catch (cancelError) {
         console.error(
@@ -576,7 +576,10 @@ async function updateSubscriptionForAdmin(customerId, newPriceId) {
       );
       cancellationResults.forEach((result) => {
         if (result.status === "success") {
-          const actionText = result.action === 'schedule_canceled' ? 'Cancelled schedule' : 'Cancelled subscription';
+          const actionText =
+            result.action === "schedule_canceled"
+              ? "Cancelled schedule"
+              : "Cancelled subscription";
           console.log(
             `✓ ${actionText} ${result.id} (was ${result.previousStatus})`
           );
@@ -847,6 +850,130 @@ async function getCustomerActiveNonTrialingSubscription(customerId) {
   }
 }
 
+/**
+ * Create a Stripe coupon
+ * @param {Object} couponData - Coupon data
+ * @returns {Object} Stripe coupon object
+ */
+async function createStripeCoupon(couponData) {
+  try {
+    const {
+      couponCode,
+      discountType,
+      discountValue,
+      expiryDate,
+      maxUsage,
+      name,
+    } = couponData;
+
+    const stripeCouponData = {
+      id: couponCode, // Use our coupon code as Stripe coupon ID
+      name: name,
+      duration: "once", // We'll use 'once' as default since we handle expiry ourselves
+    };
+
+    // Set discount type and value
+    if (discountType === "percentage") {
+      stripeCouponData.percent_off = discountValue;
+    } else if (discountType === "fixed") {
+      stripeCouponData.amount_off = Math.round(discountValue * 100); // Convert to cents
+      stripeCouponData.currency = "usd";
+    }
+
+    // Set expiry date if provided
+    if (expiryDate) {
+      stripeCouponData.redeem_by = Math.floor(
+        new Date(expiryDate).getTime() / 1000
+      );
+    }
+
+    // Set max redemptions if provided
+    if (maxUsage && maxUsage > 0) {
+      stripeCouponData.max_redemptions = maxUsage;
+    }
+
+    // Add metadata
+    stripeCouponData.metadata = {
+      createdBy: "admin-panel",
+      mongoId: couponData.mongoId || "",
+    };
+
+    const stripeCoupon = await stripe.coupons.create(stripeCouponData);
+    console.log("Created Stripe coupon:", stripeCoupon.id);
+    return stripeCoupon;
+  } catch (error) {
+    console.error("Error creating Stripe coupon:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update a Stripe coupon (creates new one since Stripe coupons are immutable)
+ * @param {String} oldCouponId - Old Stripe coupon ID to delete
+ * @param {Object} couponData - New coupon data
+ * @returns {Object} New Stripe coupon object
+ */
+async function updateStripeCoupon(oldCouponId, couponData) {
+  try {
+    // Delete old coupon first
+    if (oldCouponId) {
+      await deleteStripeCoupon(oldCouponId);
+    }
+
+    // Create new coupon with updated data
+    return await createStripeCoupon(couponData);
+  } catch (error) {
+    console.error("Error updating Stripe coupon:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a Stripe coupon
+ * @param {String} couponId - Stripe coupon ID
+ * @returns {Object} Deleted Stripe coupon object
+ */
+async function deleteStripeCoupon(couponId) {
+  try {
+    const deletedCoupon = await stripe.coupons.del(couponId);
+    console.log("Deleted Stripe coupon:", couponId);
+    return deletedCoupon;
+  } catch (error) {
+    console.error("Error deleting Stripe coupon:", error);
+    throw error;
+  }
+}
+
+/**
+ * Retrieve a Stripe coupon
+ * @param {String} couponId - Stripe coupon ID
+ * @returns {Object} Stripe coupon object
+ */
+async function getStripeCoupon(couponId) {
+  try {
+    const coupon = await stripe.coupons.retrieve(couponId);
+    return coupon;
+  } catch (error) {
+    console.error("Error retrieving Stripe coupon:", error);
+    throw error;
+  }
+}
+
+/**
+ * List all Stripe coupons
+ * @param {Object} options - Options for filtering (limit, starting_after, etc.)
+ * @returns {Object} List of Stripe coupons
+ */
+async function listStripeCoupons(options = {}) {
+  try {
+    const coupons = await stripe.coupons.list(options);
+    return coupons;
+  } catch (error) {
+    console.error("Error listing Stripe coupons:", error);
+    throw error;
+  }
+}
+
 module.exports = {
   createStripeCustomer,
   getOrCreateStripeCustomer,
@@ -871,4 +998,10 @@ module.exports = {
   getUserBillingHistory,
   getFormattedBillingHistory,
   cancelAllCustomerSubscriptions,
+  // Coupon functions
+  createStripeCoupon,
+  updateStripeCoupon,
+  deleteStripeCoupon,
+  getStripeCoupon,
+  listStripeCoupons,
 };

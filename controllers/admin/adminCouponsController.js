@@ -1,5 +1,10 @@
 // controllers/admin/adminCouponsController.js
 const Coupon = require("../../models/couponModel");
+const {
+  createStripeCoupon,
+  updateStripeCoupon,
+  deleteStripeCoupon,
+} = require("../../utils/stripeUtils");
 
 // @desc    Get all coupons
 // @route   GET /api/admin/coupons
@@ -181,6 +186,28 @@ const createCoupon = async (req, res) => {
       });
     }
 
+    let stripeCouponId = null;
+
+    // Create Stripe coupon first
+    try {
+      const stripeCoupon = await createStripeCoupon({
+        couponCode: couponCode.toUpperCase(),
+        discountType,
+        discountValue,
+        expiryDate,
+        maxUsage,
+        name,
+      });
+      stripeCouponId = stripeCoupon.id;
+      console.log(`Created Stripe coupon: ${stripeCouponId}`);
+    } catch (stripeError) {
+      console.error("Stripe coupon creation error:", stripeError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to create Stripe coupon: " + stripeError.message,
+      });
+    }
+
     const coupon = new Coupon({
       name,
       couponCode: couponCode.toUpperCase(),
@@ -189,17 +216,31 @@ const createCoupon = async (req, res) => {
       expiryDate,
       maxUsage: maxUsage || null,
       isActive,
+      stripeCouponId,
       createdBy: req.user._id,
     });
 
-    const savedCoupon = await coupon.save();
-    await savedCoupon.populate("createdBy", "firstName lastName email");
+    try {
+      const savedCoupon = await coupon.save();
+      await savedCoupon.populate("createdBy", "firstName lastName email");
 
-    res.status(201).json({
-      success: true,
-      message: "Coupon created successfully",
-      data: savedCoupon,
-    });
+      res.status(201).json({
+        success: true,
+        message: "Coupon created successfully",
+        data: savedCoupon,
+      });
+    } catch (dbError) {
+      // If MongoDB save fails, clean up the Stripe coupon
+      if (stripeCouponId) {
+        try {
+          await deleteStripeCoupon(stripeCouponId);
+          console.log(`Cleaned up Stripe coupon: ${stripeCouponId}`);
+        } catch (cleanupError) {
+          console.error("Error cleaning up Stripe coupon:", cleanupError);
+        }
+      }
+      throw dbError;
+    }
   } catch (error) {
     if (error.name === "ValidationError") {
       const errors = Object.values(error.errors).map((err) => err.message);
@@ -290,6 +331,49 @@ const updateCoupon = async (req, res) => {
       });
     }
 
+    // Check if significant fields are being changed that require Stripe update
+    const needsStripeUpdate =
+      (couponCode && couponCode.toUpperCase() !== coupon.couponCode) ||
+      (discountType && discountType !== coupon.discountType) ||
+      (discountValue !== undefined && discountValue !== coupon.discountValue) ||
+      (expiryDate &&
+        new Date(expiryDate).getTime() !==
+          new Date(coupon.expiryDate).getTime()) ||
+      (maxUsage !== undefined && maxUsage !== coupon.maxUsage) ||
+      (name && name !== coupon.name);
+
+    let newStripeCouponId = coupon.stripeCouponId;
+
+    // Handle Stripe coupon update if needed
+    if (needsStripeUpdate) {
+      try {
+        const newStripeCoupon = await updateStripeCoupon(
+          coupon.stripeCouponId,
+          {
+            couponCode: couponCode
+              ? couponCode.toUpperCase()
+              : coupon.couponCode,
+            discountType: discountType || coupon.discountType,
+            discountValue:
+              discountValue !== undefined
+                ? discountValue
+                : coupon.discountValue,
+            expiryDate: expiryDate || coupon.expiryDate,
+            maxUsage: maxUsage !== undefined ? maxUsage : coupon.maxUsage,
+            name: name || coupon.name,
+          }
+        );
+        newStripeCouponId = newStripeCoupon.id;
+        console.log(`Updated Stripe coupon: ${newStripeCouponId}`);
+      } catch (stripeError) {
+        console.error("Stripe coupon update error:", stripeError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update Stripe coupon: " + stripeError.message,
+        });
+      }
+    }
+
     // Update fields
     if (name) coupon.name = name;
     if (couponCode) coupon.couponCode = couponCode.toUpperCase();
@@ -298,6 +382,8 @@ const updateCoupon = async (req, res) => {
     if (expiryDate) coupon.expiryDate = expiryDate;
     if (maxUsage !== undefined) coupon.maxUsage = maxUsage || null;
     if (isActive !== undefined) coupon.isActive = isActive;
+    if (newStripeCouponId !== coupon.stripeCouponId)
+      coupon.stripeCouponId = newStripeCouponId;
 
     const updatedCoupon = await coupon.save();
     await updatedCoupon.populate("createdBy", "firstName lastName email");
@@ -345,6 +431,18 @@ const deleteCoupon = async (req, res) => {
       });
     }
 
+    // Delete Stripe coupon if it exists
+    if (coupon.stripeCouponId) {
+      try {
+        await deleteStripeCoupon(coupon.stripeCouponId);
+        console.log(`Deleted Stripe coupon: ${coupon.stripeCouponId}`);
+      } catch (stripeError) {
+        console.error("Stripe coupon deletion error:", stripeError);
+        // Continue with MongoDB deletion even if Stripe deletion fails
+        // This handles cases where the Stripe coupon might have been deleted manually
+      }
+    }
+
     await Coupon.findByIdAndDelete(req.params.id);
 
     res.json({
@@ -385,7 +483,49 @@ const toggleCouponStatus = async (req, res) => {
       });
     }
 
+    const wasActive = coupon.isActive;
     coupon.isActive = !coupon.isActive;
+
+    // Handle Stripe coupon status change
+    try {
+      if (coupon.isActive && !wasActive) {
+        // Activating coupon - create Stripe coupon if it doesn't exist
+        if (!coupon.stripeCouponId) {
+          const stripeCoupon = await createStripeCoupon({
+            couponCode: coupon.couponCode,
+            discountType: coupon.discountType,
+            discountValue: coupon.discountValue,
+            expiryDate: coupon.expiryDate,
+            maxUsage: coupon.maxUsage,
+            name: coupon.name,
+            mongoId: coupon._id.toString(),
+          });
+          coupon.stripeCouponId = stripeCoupon.id;
+          console.log(
+            `Created Stripe coupon on activation: ${stripeCoupon.id}`
+          );
+        }
+      } else if (!coupon.isActive && wasActive) {
+        // Deactivating coupon - delete Stripe coupon
+        if (coupon.stripeCouponId) {
+          await deleteStripeCoupon(coupon.stripeCouponId);
+          console.log(
+            `Deleted Stripe coupon on deactivation: ${coupon.stripeCouponId}`
+          );
+          coupon.stripeCouponId = null;
+        }
+      }
+    } catch (stripeError) {
+      console.error("Stripe coupon status change error:", stripeError);
+      // Revert the status change if Stripe operation fails
+      coupon.isActive = wasActive;
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to update Stripe coupon status: " + stripeError.message,
+      });
+    }
+
     await coupon.save();
     await coupon.populate("createdBy", "firstName lastName email");
 

@@ -30,6 +30,6 @@ router.put("/:id", updateCoupon);
 router.delete("/:id", deleteCoupon);
 
 // TOGGLE coupon status
-router.patch("/:id/status", toggleCouponStatus);
+// router.patch("/:id/status", toggleCouponStatus);
 
 module.exports = router;
