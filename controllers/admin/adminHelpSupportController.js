@@ -1,7 +1,10 @@
 const mongoose = require("mongoose");
 const HelpSupport = require("../../models/helpSupportModel");
 const User = require("../../models/userModel");
-const { sendHelpSupportReply } = require("../../utils/emailUtils");
+const {
+  sendHelpSupportReply,
+  sendHelpSupportReplyNotification,
+} = require("../../utils/emailUtils");
 
 // GET all help support tickets
 const getAllHelpSupportTickets = async (req, res) => {
@@ -15,6 +18,7 @@ const getAllHelpSupportTickets = async (req, res) => {
       sortBy = "createdAt",
       sortOrder = "desc",
       search,
+      adminReply,
     } = req.query;
 
     // Build filter query
@@ -24,13 +28,39 @@ const getAllHelpSupportTickets = async (req, res) => {
       filter.inquiryType = inquiryType;
     }
 
-    if (search) {
+    // Handle status filtering based on adminReply parameter
+    if (adminReply === "null") {
+      // Open tickets - either no adminReply or empty messages from admin
       filter.$or = [
+        { adminReply: { $exists: false } },
+        { adminReply: null },
+        { adminReply: "" },
+        { "messages.sender": { $ne: "admin" } },
+      ];
+    } else if (adminReply === "notnull") {
+      // Closed tickets - has adminReply or has admin messages
+      filter.$or = [
+        { adminReply: { $exists: true, $ne: null, $ne: "" } },
+        { "messages.sender": "admin" },
+      ];
+    }
+
+    if (search) {
+      const searchFilter = [
         { name: { $regex: search, $options: "i" } },
         { subject: { $regex: search, $options: "i" } },
         { message: { $regex: search, $options: "i" } },
         { emailaddresses: { $regex: search, $options: "i" } },
       ];
+
+      // If there's already a filter, combine with AND
+      if (filter.$or) {
+        filter = {
+          $and: [{ $or: filter.$or }, { $or: searchFilter }],
+        };
+      } else {
+        filter.$or = searchFilter;
+      }
     }
 
     // Calculate pagination
@@ -133,11 +163,11 @@ const getHelpSupportTicketById = async (req, res) => {
   }
 };
 
-// POST - Reply to help support ticket
+// POST - Reply to help support ticket (add message to chat)
 const replyToHelpSupportTicket = async (req, res) => {
   try {
     const { id } = req.params;
-    const { adminReply } = req.body;
+    const { message } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -146,10 +176,10 @@ const replyToHelpSupportTicket = async (req, res) => {
       });
     }
 
-    if (!adminReply || adminReply.trim() === "") {
+    if (!message || message.trim() === "") {
       return res.status(400).json({
         status: "error",
-        message: "Admin reply is required",
+        message: "Message is required",
       });
     }
 
@@ -166,6 +196,14 @@ const replyToHelpSupportTicket = async (req, res) => {
       });
     }
 
+    // Add new message to the chat
+    const newMessage = {
+      sender: "admin",
+      content: message.trim(),
+      timestamp: new Date(),
+      senderInfo: req.user._id,
+    };
+
     // Get user's primary email
     let userEmail = null;
     if (ticket.userId && ticket.userId.email) {
@@ -181,27 +219,29 @@ const replyToHelpSupportTicket = async (req, res) => {
       });
     }
 
-    // Send email reply
+    // Send email notification about new reply
     const userName = ticket.userId
       ? `${ticket.userId.firstname || ""} ${
           ticket.userId.lastname || ""
         }`.trim()
       : ticket.name || "Valued Customer";
 
-    await sendHelpSupportReply(
+    // Update this to use a new email template for chat notification
+    await sendHelpSupportReplyNotification(
       userEmail,
       userName,
-      ticket.message,
-      adminReply.trim(),
-      ticket.subject
+      ticket.subject,
+      message.trim(),
+      ticket._id
     );
 
-    // Update ticket with reply info (optional: you can add a replies array to the schema)
+    // Update ticket with new message
     await HelpSupport.findByIdAndUpdate(id, {
+      $push: { messages: newMessage },
       $set: {
+        lastMessageAt: new Date(),
         lastRepliedAt: new Date(),
-        adminReply: adminReply.trim(),
-        repliedBy: req.user._id, // Admin who replied
+        repliedBy: req.user._id,
       },
     });
 
@@ -212,6 +252,7 @@ const replyToHelpSupportTicket = async (req, res) => {
         sentTo: userEmail,
         userName,
         repliedAt: new Date(),
+        messageId: newMessage._id,
       },
     });
   } catch (error) {
@@ -296,9 +337,12 @@ const getHelpSupportStats = async (req, res) => {
       createdAt: { $gte: startOfMonth },
     });
 
-    // Get tickets with replies
+    // Get tickets with replies (both legacy adminReply and new messages system)
     const repliedTickets = await HelpSupport.countDocuments({
-      adminReply: { $exists: true, $ne: null },
+      $or: [
+        { adminReply: { $exists: true, $ne: null, $ne: "" } },
+        { "messages.sender": "admin" },
+      ],
     });
 
     const pendingTickets = totalTickets - repliedTickets;
