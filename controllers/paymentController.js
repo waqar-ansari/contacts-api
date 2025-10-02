@@ -709,9 +709,10 @@ const previewUpgrade = async (req, res) => {
                 name: couponData.name,
                 discountType: couponData.discountType,
                 discountValue: couponData.discountValue,
-                discountAmount: couponData.discountType === "percentage"
-                  ? (newAmount * couponData.discountValue) / 100
-                  : couponData.discountValue,
+                discountAmount:
+                  couponData.discountType === "percentage"
+                    ? (newAmount * couponData.discountValue) / 100
+                    : couponData.discountValue,
                 // Note: Stripe applies coupon discount directly to the invoice preview
                 // The actual discount amount is reflected in the invoice total
               }
@@ -2472,6 +2473,129 @@ const getBillingHistory = async (req, res) => {
   }
 };
 
+/**
+ * Get individual invoice details
+ */
+const getInvoiceDetails = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { invoiceId } = req.params;
+
+    const user = await User.findById(userId).select("stripeCustomerId");
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!user.stripeCustomerId) {
+      return res.status(404).json({
+        success: false,
+        message: "No billing account found",
+      });
+    }
+
+    // Retrieve the invoice from Stripe
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+
+    // Verify the invoice belongs to this customer
+    if (invoice.customer.id !== user.stripeCustomerId) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied to this invoice",
+      });
+    }
+
+    // Format the invoice data
+    const invoiceData = {
+      id: invoice.id,
+      number: invoice.number,
+      description: invoice.description || "Subscription",
+      status: invoice.status,
+      amount: invoice.total,
+      subtotal: invoice.subtotal,
+      tax: invoice.tax || 0,
+      currency: invoice.currency,
+      date: new Date(invoice.created * 1000),
+      dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : null,
+      periodStart: invoice.period_start
+        ? new Date(invoice.period_start * 1000)
+        : null,
+      periodEnd: invoice.period_end
+        ? new Date(invoice.period_end * 1000)
+        : null,
+      paid: invoice.paid,
+      paidAt: invoice.status_transitions?.paid_at
+        ? new Date(invoice.status_transitions.paid_at * 1000)
+        : null,
+      hostedUrl: invoice.hosted_invoice_url,
+      pdfUrl: invoice.invoice_pdf,
+
+      // Customer details
+      customer: {
+        email: invoice.customer_email,
+        name: invoice.customer_name,
+        address: invoice.customer_address,
+        phone: invoice.customer_phone,
+      },
+
+      // Payment method details
+      paymentMethod: invoice.payment_intent
+        ? {
+            brand:
+              invoice.payment_intent.charges?.data[0]?.payment_method_details
+                ?.card?.brand || "unknown",
+            last4:
+              invoice.payment_intent.charges?.data[0]?.payment_method_details
+                ?.card?.last4 || "****",
+          }
+        : null,
+
+      // Line items
+      lineItems: invoice.lines.data.map((item) => ({
+        id: item.id,
+        description: item.description,
+        amount: item.amount,
+        quantity: item.quantity,
+        unitAmount: item.price?.unit_amount || 0,
+        period: item.period
+          ? {
+              start: new Date(item.period.start * 1000),
+              end: new Date(item.period.end * 1000),
+            }
+          : null,
+      })),
+
+      // Company details (from your system)
+      company: {
+        name: "California Media INC",
+        mode: "TEST MODE", // You can make this dynamic based on environment
+      },
+    };
+
+    res.json({
+      success: true,
+      data: invoiceData,
+    });
+  } catch (error) {
+    console.error("Error getting invoice details:", error);
+
+    if (error.type === "StripeInvalidRequestError") {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to get invoice details",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getCreditBalance,
   toggleAutoRenewal,
@@ -2490,4 +2614,5 @@ module.exports = {
   deletePaymentMethod,
   createSubscriptionWithPaymentMethod,
   getBillingHistory,
+  getInvoiceDetails,
 };

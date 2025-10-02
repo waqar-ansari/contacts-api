@@ -18,6 +18,7 @@ const {
   deletePaymentMethod,
   createSubscriptionWithPaymentMethod,
   getBillingHistory,
+  getInvoiceDetails,
 } = require("../controllers/paymentController");
 
 const {
@@ -78,6 +79,9 @@ router.delete("/delete-payment-method/:paymentMethodId", deletePaymentMethod);
 
 // GET user's billing history
 router.get("/billing-history", getBillingHistory);
+
+// GET individual invoice details
+router.get("/invoice/:invoiceId", getInvoiceDetails);
 
 // POST validate coupon code
 router.post("/validate-coupon", validateCouponCode);
