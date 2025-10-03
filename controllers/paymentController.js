@@ -1320,6 +1320,8 @@ const createHostedCheckoutSession = async (req, res) => {
       // Continue with checkout session creation but log the error
     }
 
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
+
     // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
     const sessionParams = {
       customer: customer.id,
@@ -1347,6 +1349,7 @@ const createHostedCheckoutSession = async (req, res) => {
         planId: plan._id.toString(),
         autoRenewal: autoRenewal.toString(),
         type: "new_subscription",
+        isFirstPurchase: isFirstPurchase.toString(),
       },
     };
 
@@ -1452,11 +1455,12 @@ const completeSubscription = async (req, res) => {
       `Successfully completed the creation of new subscription for user ${userId} with plan ${plan.name}`
     );
 
-    // Check if this is user's first purchase and transfer cache credits if applicable
+    // Check if this was user's first purchase using metadata (set before session creation)
     try {
-      const isFirstPurchase = !(await hasUserMadeFirstPurchase(
-        session.customer
-      ));
+      const isFirstPurchase = session.metadata.isFirstPurchase === "true";
+      console.log(
+        `Processing first purchase logic for user ${userId}: ${isFirstPurchase}`
+      );
 
       if (isFirstPurchase) {
         if (user.cache_credits && user.cache_credits > 0) {
@@ -2359,7 +2363,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     if (!autoRenewal) {
       subscriptionData.cancel_at_period_end = true;
     }
-
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(stripeCustomerId));
     const subscription = await stripe.subscriptions.create(subscriptionData);
 
     // Get the latest invoice and payment intent
@@ -2408,11 +2412,8 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       subscriptionStatus: finalSubscription.status,
     });
 
-    // Check if this is user's first purchase and transfer cache credits if applicable
+    // Check if this was user's first purchase using metadata (set before session creation)
     try {
-      const isFirstPurchase = !(await hasUserMadeFirstPurchase(
-        stripeCustomerId
-      ));
       if (isFirstPurchase) {
         // Reload user to get latest cache_credits value
         const updatedUser = await User.findById(userId);
