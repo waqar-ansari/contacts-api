@@ -1262,63 +1262,63 @@ const createHostedCheckoutSession = async (req, res) => {
       });
     }
 
-    // Delete any trialing subscription before creating new one
-    if (activeSubInfo.hasTrialingSubscription) {
-      console.log(
-        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
-      );
-      try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
-        console.log(
-          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
-        );
-      } catch (deleteError) {
-        console.error("Error deleting trialing subscription:", deleteError);
-        // Continue with creation even if delete fails
-      }
-    }
+    // // Delete any trialing subscription before creating new one
+    // if (activeSubInfo.hasTrialingSubscription) {
+    //   console.log(
+    //     `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
+    //   );
+    //   try {
+    //     await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+    //     console.log(
+    //       `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+    //     );
+    //   } catch (deleteError) {
+    //     console.error("Error deleting trialing subscription:", deleteError);
+    //     // Continue with creation even if delete fails
+    //   }
+    // }
 
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
 
-    // Check for and cancel any scheduled subscriptions
-    let cancelledSchedules = [];
-    try {
-      const schedules = await stripe.subscriptionSchedules.list({
-        customer: customer.id,
-        limit: 10,
-      });
+    // // Check for and cancel any scheduled subscriptions
+    // let cancelledSchedules = [];
+    // try {
+    //   const schedules = await stripe.subscriptionSchedules.list({
+    //     customer: customer.id,
+    //     limit: 10,
+    //   });
 
-      // Filter for active schedules that are not released
-      const activeSchedules = schedules.data.filter(
-        (schedule) => schedule.status === "not_started"
-      );
+    //   // Filter for active schedules that are not released
+    //   const activeSchedules = schedules.data.filter(
+    //     (schedule) => schedule.status === "not_started"
+    //   );
 
-      if (activeSchedules.length > 0) {
-        console.log(
-          `Found ${activeSchedules.length} scheduled subscriptions to cancel for hosted checkout session`
-        );
+    //   if (activeSchedules.length > 0) {
+    //     console.log(
+    //       `Found ${activeSchedules.length} scheduled subscriptions to cancel for hosted checkout session`
+    //     );
 
-        for (const schedule of activeSchedules) {
-          try {
-            await stripe.subscriptionSchedules.cancel(schedule.id);
-            cancelledSchedules.push(schedule.id);
-            console.log(`Cancelled scheduled subscription: ${schedule.id}`);
-          } catch (cancelError) {
-            console.error(
-              `Failed to cancel scheduled subscription ${schedule.id}:`,
-              cancelError
-            );
-          }
-        }
-      }
-    } catch (scheduleError) {
-      console.error(
-        "Error checking/cancelling scheduled subscriptions:",
-        scheduleError
-      );
-      // Continue with checkout session creation but log the error
-    }
+    //     for (const schedule of activeSchedules) {
+    //       try {
+    //         await stripe.subscriptionSchedules.cancel(schedule.id);
+    //         cancelledSchedules.push(schedule.id);
+    //         console.log(`Cancelled scheduled subscription: ${schedule.id}`);
+    //       } catch (cancelError) {
+    //         console.error(
+    //           `Failed to cancel scheduled subscription ${schedule.id}:`,
+    //           cancelError
+    //         );
+    //       }
+    //     }
+    //   }
+    // } catch (scheduleError) {
+    //   console.error(
+    //     "Error checking/cancelling scheduled subscriptions:",
+    //     scheduleError
+    //   );
+    //   // Continue with checkout session creation but log the error
+    // }
 
     const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
 
@@ -1449,6 +1449,25 @@ const completeSubscription = async (req, res) => {
         success: false,
         message: "Plan or user not found",
       });
+    }
+
+    const activeSubInfo = await checkSubscriptionDetails(user);
+   
+
+    // Delete any trialing subscription before creating new one
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
+      );
+      try {
+        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        console.log(
+          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+        );
+      } catch (deleteError) {
+        console.error("Error deleting trialing subscription:", deleteError);
+        // Continue with creation even if delete fails
+      }
     }
 
     console.log(
