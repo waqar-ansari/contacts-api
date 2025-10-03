@@ -402,7 +402,8 @@ const userSchema = new Schema(
       sparse: true,
     },
 
-    referredBy: {   /////user id of user who referred this user
+    referredBy: {
+      /////user id of user who referred this user
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
@@ -466,6 +467,12 @@ const userSchema = new Schema(
         ), // avoid auto subdoc _id (we keep the _id field for referred user)
       ],
       default: [],
+    },
+
+    // Cache for referral credits before they're applied to Stripe
+    cache_credits: {
+      type: Number,
+      default: 0,
     },
 
     resetPasswordToken: { type: String },

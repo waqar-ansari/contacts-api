@@ -14,6 +14,8 @@ const {
   validateCoupon,
   calculateCouponDiscount,
   applyCouponToSession,
+  hasUserMadeFirstPurchase,
+  transferCacheCreditsToStripe,
 } = require("../utils/stripeUtils");
 
 /**
@@ -152,7 +154,9 @@ const getCreditBalance = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select(
+      "stripeCustomerId cache_credits"
+    );
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -160,16 +164,36 @@ const getCreditBalance = async (req, res) => {
       });
     }
 
-    // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
+    let creditBalance = 0;
 
-    // Get Stripe credit balance
-    const creditBalance = Math.abs(await getStripeCreditBalance(customer.id));
+    // Check if user has made their first purchase
+    if (user.stripeCustomerId) {
+      const hasFirstPurchase = await hasUserMadeFirstPurchase(
+        user.stripeCustomerId
+      );
+
+      if (hasFirstPurchase) {
+        // Get credit balance from Stripe
+        const customer = await getOrCreateStripeCustomer(user);
+        creditBalance = Math.abs(await getStripeCreditBalance(customer.id));
+      } else {
+        // Get credit balance from cache_credits (convert to cents)
+        creditBalance = Math.round((user.cache_credits || 0) * 100);
+      }
+    } else {
+      // No Stripe customer, get from cache_credits (convert to cents)
+      creditBalance = Math.round((user.cache_credits || 0) * 100);
+    }
 
     res.json({
       success: true,
       creditBalance: creditBalance,
-      customerId: customer.id,
+      customerId: user.stripeCustomerId,
+      source:
+        user.stripeCustomerId &&
+        (await hasUserMadeFirstPurchase(user.stripeCustomerId))
+          ? "stripe"
+          : "cache",
     });
   } catch (error) {
     console.error("Error getting credit balance:", error);
@@ -263,7 +287,9 @@ const getPaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId).select("stripeCustomerId");
+    const user = await User.findById(userId).select(
+      "stripeCustomerId cache_credits"
+    );
 
     if (!user) {
       return res.status(404).json({
@@ -272,17 +298,32 @@ const getPaymentStatus = async (req, res) => {
       });
     }
 
-    // Get Stripe credit balance
+    // Get credit balance based on first purchase status
     let creditBalance = 0;
     if (user.stripeCustomerId) {
       try {
-        const stripeCreditBalance = await getStripeCreditBalance(
+        const hasFirstPurchase = await hasUserMadeFirstPurchase(
           user.stripeCustomerId
         );
-        creditBalance = Math.abs(stripeCreditBalance) / 100; // Convert to dollars
+
+        if (hasFirstPurchase) {
+          // Get from Stripe and convert to dollars
+          const stripeCreditBalance = await getStripeCreditBalance(
+            user.stripeCustomerId
+          );
+          creditBalance = Math.abs(stripeCreditBalance) / 100;
+        } else {
+          // Get from cache_credits (already in dollars)
+          creditBalance = user.cache_credits || 0;
+        }
       } catch (error) {
-        console.error("Error getting Stripe credit balance:", error);
+        console.error("Error getting credit balance:", error);
+        // Fallback to cache_credits if Stripe check fails
+        creditBalance = user.cache_credits || 0;
       }
+    } else {
+      // No Stripe customer, get from cache_credits
+      creditBalance = user.cache_credits || 0;
     }
 
     // Check for active subscription
@@ -1408,8 +1449,29 @@ const completeSubscription = async (req, res) => {
     }
 
     console.log(
-      `Successfully created new subscription for user ${userId} with plan ${plan.name}`
+      `Successfully completed the creation of new subscription for user ${userId} with plan ${plan.name}`
     );
+
+    // Check if this is user's first purchase and transfer cache credits if applicable
+    try {
+      const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+        session.customer
+      ));
+
+      if (isFirstPurchase) {
+        if (user.cache_credits && user.cache_credits > 0) {
+          const transferResult = await transferCacheCreditsToStripe(user);
+          if (transferResult.success) {
+            console.log(
+              `Cache credits transfer result: ${transferResult.message}`
+            );
+          }
+        }
+      }
+    } catch (cacheError) {
+      console.error("Error processing cache credits transfer:", cacheError);
+      // Don't fail the subscription completion if cache credit transfer fails
+    }
 
     res.json({
       success: true,
@@ -2345,6 +2407,30 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       stripeSubscriptionId: finalSubscription.id,
       subscriptionStatus: finalSubscription.status,
     });
+
+    // Check if this is user's first purchase and transfer cache credits if applicable
+    try {
+      const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+        stripeCustomerId
+      ));
+      if (isFirstPurchase) {
+        // Reload user to get latest cache_credits value
+        const updatedUser = await User.findById(userId);
+        if (updatedUser.cache_credits && updatedUser.cache_credits > 0) {
+          const transferResult = await transferCacheCreditsToStripe(
+            updatedUser
+          );
+          if (transferResult.success) {
+            console.log(
+              `Cache credits transfer result: ${transferResult.message}`
+            );
+          }
+        }
+      }
+    } catch (cacheError) {
+      console.error("Error processing cache credits transfer:", cacheError);
+      // Don't fail the subscription creation if cache credit transfer fails
+    }
 
     res.status(200).json({
       success: true,

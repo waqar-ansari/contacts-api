@@ -9,6 +9,7 @@ const { sendVerificationEmail } = require("../utils/emailUtils");
 const {
   getOrCreateStripeCustomer,
   addStripeCredits,
+  hasUserMadeFirstPurchase,
 } = require("../utils/stripeUtils");
 const googleClient = new OAuth2Client(
   "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com"
@@ -222,45 +223,53 @@ const signupWithEmail = async (req, res) => {
           planData
         );
         if (user.referredBy) {
-          // Add $10 referral credits to the current user
-          // Reuse the Stripe customer created by setupInitialPlan to avoid race condition
+          // Add $10 referral credits to the current user's cache (will be applied to Stripe on first purchase)
           try {
-            let currentUserCustomer = planData?.stripeCustomer;
-            if (!currentUserCustomer) {
-              // Fallback to getOrCreateStripeCustomer if setupInitialPlan didn't create one
-              currentUserCustomer = await getOrCreateStripeCustomer(user);
-            }
-
-            await addStripeCredits(
-              currentUserCustomer.id,
-              1000, // $10 in cents
-              "Referral bonus - email verification completed"
+            // Update cache_credits instead of adding directly to Stripe
+            user.cache_credits = (user.cache_credits || 0) + 10;
+            console.log(
+              `Added $10 welcome credit to user cache for user ${user._id}`
             );
-            console.log(`Added $10 welcome credit to user ${user._id}`);
           } catch (error) {
-            console.error(
-              "Error adding welcome Referral to current user:",
-              error
-            );
+            console.error("Error adding welcome credit to user cache:", error);
           }
 
-          // Add $10 referral credits to the referring user if exists
+          // Add $10 referral credits to the referring user's cache if exists
           try {
             const referringUser = await User.findById(user.referredBy);
             if (referringUser) {
-              const referrerCustomer = await getOrCreateStripeCustomer(
-                referringUser
-              );
-              await addStripeCredits(
-                referrerCustomer.id,
-                1000, // $10 in cents
-                `Referral bonus - ${
-                  user.firstname || "User"
-                } verified their email`
-              );
-              console.log(
-                `Added $10 referral credit to referring user ${user.referredBy}`
-              );
+              // Check if referring user has made their first purchase
+              let hasFirstPurchase = false;
+              if (referringUser.stripeCustomerId) {
+                hasFirstPurchase = await hasUserMadeFirstPurchase(
+                  referringUser.stripeCustomerId
+                );
+              }
+
+              if (hasFirstPurchase) {
+                // Add directly to Stripe customer account
+                const referrerCustomer = await getOrCreateStripeCustomer(
+                  referringUser
+                );
+                await addStripeCredits(
+                  referrerCustomer.id,
+                  1000, // $10 in cents
+                  `Referral bonus - ${
+                    user.firstname || "User"
+                  } verified their email`
+                );
+                console.log(
+                  `Added $10 referral credit directly to Stripe for referring user ${user.referredBy}`
+                );
+              } else {
+                // Add to cache_credits
+                referringUser.cache_credits =
+                  (referringUser.cache_credits || 0) + 10;
+                await referringUser.save();
+                console.log(
+                  `Added $10 referral credit to referring user cache ${user.referredBy}`
+                );
+              }
             }
           } catch (error) {
             console.error(
@@ -850,6 +859,63 @@ const signupWithPhoneNumber = async (req, res) => {
     let planData = null;
     if (user.role !== "superadmin") {
       planData = await setupInitialPlan(user);
+
+      // // Handle referral credits if user was referred
+      // if (user.referredBy) {
+      //   // Add $10 referral credits to the current user's cache (will be applied to Stripe on first purchase)
+      //   try {
+      //     user.cache_credits = (user.cache_credits || 0) + 10;
+      //     console.log(
+      //       `Added $10 welcome credit to user cache for user ${user._id}`
+      //     );
+      //   } catch (error) {
+      //     console.error("Error adding welcome credit to user cache:", error);
+      //   }
+
+      //   // Add $10 referral credits to the referring user
+      //   try {
+      //     const referringUser = await User.findById(user.referredBy);
+      //     if (referringUser) {
+      //       // Check if referring user has made their first purchase
+      //       let hasFirstPurchase = false;
+      //       if (referringUser.stripeCustomerId) {
+      //         hasFirstPurchase = await hasUserMadeFirstPurchase(
+      //           referringUser.stripeCustomerId
+      //         );
+      //       }
+
+      //       if (hasFirstPurchase) {
+      //         // Add directly to Stripe customer account
+      //         const referrerCustomer = await getOrCreateStripeCustomer(
+      //           referringUser
+      //         );
+      //         await addStripeCredits(
+      //           referrerCustomer.id,
+      //           1000, // $10 in cents
+      //           `Referral bonus - ${
+      //             user.firstname || "User"
+      //           } verified phone number`
+      //         );
+      //         console.log(
+      //           `Added $10 referral credit directly to Stripe for referring user ${user.referredBy}`
+      //         );
+      //       } else {
+      //         // Add to cache_credits
+      //         referringUser.cache_credits =
+      //           (referringUser.cache_credits || 0) + 10;
+      //         await referringUser.save();
+      //         console.log(
+      //           `Added $10 referral credit to referring user cache ${user.referredBy}`
+      //         );
+      //       }
+      //     }
+      //   } catch (error) {
+      //     console.error(
+      //       "Error adding referral credits to referring user:",
+      //       error
+      //     );
+      //   }
+      // }
     }
 
     // Plan is now derived from subscription, no need to store in user
@@ -909,7 +975,7 @@ const signupWithPhoneNumber = async (req, res) => {
       // }
 
       if (referringUser) {
-        // user.referredBy = referringUser._id;
+        user.referredBy = referringUser._id;
 
         // referringUser.myReferrals.push({
         //   _id: user._id,

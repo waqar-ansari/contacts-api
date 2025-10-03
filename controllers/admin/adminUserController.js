@@ -17,6 +17,7 @@ const {
   customerHasPaymentMethod,
   cancelAllCustomerSubscriptions,
   getFormattedBillingHistory,
+  hasUserMadeFirstPurchase,
 } = require("../../utils/stripeUtils");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
@@ -48,7 +49,9 @@ const getAllUsers = async (req, res) => {
 
     // Fetch users with pagination - only basic fields, Stripe data fetched separately
     const users = await User.find(searchQuery)
-      .select("firstname lastname email phonenumbers stripeCustomerId")
+      .select(
+        "firstname lastname email phonenumbers stripeCustomerId cache_credits"
+      )
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -64,10 +67,22 @@ const getAllUsers = async (req, res) => {
         // Fetch Stripe subscription data if user has a subscription
         const stripeData = await getUserStripeSubscriptionData(user);
 
-        // Get Stripe credit balance
-        const stripeCreditBalance = await getStripeCreditBalance(
-          user.stripeCustomerId
-        );
+        // Get credit balance based on first purchase status
+        let creditBalance = 0;
+        if (user.stripeCustomerId) {
+          const hasFirstPurchase = await hasUserMadeFirstPurchase(
+            user.stripeCustomerId
+          );
+          if (hasFirstPurchase) {
+            creditBalance = await getStripeCreditBalance(user.stripeCustomerId);
+          } else {
+            // Convert cache_credits from dollars to cents
+            creditBalance = Math.round((user.cache_credits || 0) * 100);
+          }
+        } else {
+          // No Stripe customer, get from cache_credits (convert to cents)
+          creditBalance = Math.round((user.cache_credits || 0) * 100);
+        }
 
         // Create plan object with current plan and subscription info
         userObj.plan = {
@@ -83,7 +98,7 @@ const getAllUsers = async (req, res) => {
         };
 
         // Add credit balance to user object
-        userObj.creditBalance = stripeCreditBalance;
+        userObj.creditBalance = creditBalance;
 
         return userObj;
       })
@@ -142,7 +157,7 @@ const getUser = async (req, res) => {
     const { id } = req.params;
 
     const user = await User.findOne({ _id: id, role: "user" }).select(
-      "firstname lastname email role gender signupMethod isVerified referralCode profileImageURL designation createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram stripeCustomerId"
+      "firstname lastname email role gender signupMethod isVerified referralCode profileImageURL designation createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram stripeCustomerId cache_credits"
     );
 
     if (!user) {
@@ -163,10 +178,22 @@ const getUser = async (req, res) => {
     // Fetch Stripe subscription data if user has a subscription
     const stripeData = await getUserStripeSubscriptionData(user);
 
-    // Get Stripe credit balance
-    const stripeCreditBalance = await getStripeCreditBalance(
-      user.stripeCustomerId
-    );
+    // Get credit balance based on first purchase status
+    let creditBalance = 0;
+    if (user.stripeCustomerId) {
+      const hasFirstPurchase = await hasUserMadeFirstPurchase(
+        user.stripeCustomerId
+      );
+      if (hasFirstPurchase) {
+        creditBalance = Math.abs(await getStripeCreditBalance(user.stripeCustomerId)); 
+      } else {
+        // Convert cache_credits from dollars to cents
+        creditBalance = Math.round((user.cache_credits || 0));
+      }
+    } else {
+      // No Stripe customer, get from cache_credits (convert to cents)
+      creditBalance = Math.round((user.cache_credits || 0));
+    }
 
     // Create plan object with current plan and subscription info
     userData.plan = {
@@ -180,7 +207,7 @@ const getUser = async (req, res) => {
     };
 
     // Add credit balance to user data
-    userData.creditBalance = stripeCreditBalance;
+    userData.creditBalance = creditBalance;
 
     res.status(200).json({
       status: "success",
@@ -526,10 +553,27 @@ const editProfile = async (req, res) => {
     // Get current plan from Stripe subscription for response
     const currentPlan = await getUserCurrentPlan(user);
 
-    // Get Stripe credit balance
-    const stripeCreditBalance = await getStripeCreditBalance(
-      user.stripeCustomerId
-    );
+    // Get credit balance based on first purchase status
+    let creditBalance = 0;
+    if (user.stripeCustomerId) {
+      const hasFirstPurchase = await hasUserMadeFirstPurchase(
+        user.stripeCustomerId
+      );
+      if (hasFirstPurchase) {
+        creditBalance = await getStripeCreditBalance(user.stripeCustomerId);
+      } else {
+        // Get updated user data to get latest cache_credits
+        const updatedUser = await User.findById(user._id).select(
+          "cache_credits"
+        );
+        // Convert cache_credits from dollars to cents
+        creditBalance = Math.round((updatedUser.cache_credits || 0) * 100);
+      }
+    } else {
+      // No Stripe customer, get from cache_credits (convert to cents)
+      const updatedUser = await User.findById(user._id).select("cache_credits");
+      creditBalance = Math.round((updatedUser.cache_credits || 0) * 100);
+    }
 
     // Fetch Stripe subscription data dynamically
     const stripeData = await getUserStripeSubscriptionData(user);
@@ -546,7 +590,7 @@ const editProfile = async (req, res) => {
         signupMethod: user.signupMethod,
         isVerified: user.isVerified,
         referralCode: user.referralCode,
-        creditBalance: stripeCreditBalance,
+        creditBalance: creditBalance,
         profileImageURL: user.profileImageURL,
         designation: user.designation,
         // Plan dates from Stripe subscription (live data)

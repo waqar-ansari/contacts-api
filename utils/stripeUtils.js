@@ -203,6 +203,7 @@ async function getStripeCreditBalance(customerId) {
  */
 async function addStripeCredits(customerId, amount, description) {
   try {
+    console.log("adding stripe credits ", customerId, amount);
     const balanceTransaction = await stripe.customers.createBalanceTransaction(
       customerId,
       {
@@ -1238,6 +1239,88 @@ function calculateCouponDiscount(subtotal, coupon) {
   }
 }
 
+/**
+ * Check if user has made their first purchase (excluding the free trial $0 invoice)
+ * @param {String} customerId - Stripe customer ID
+ * @returns {Boolean} True if user has made their first purchase
+ */
+async function hasUserMadeFirstPurchase(customerId) {
+  try {
+    if (!customerId) {
+      return false;
+    }
+
+    // Get all invoices for the customer
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 100, // Should be enough for most cases
+    });
+
+    // Count invoices that are not free trial ($0 invoices)
+    const paidInvoices = invoices.data
+    console.log(
+      `Customer ${customerId} has ${paidInvoices.length} paid invoices`
+    );
+    // User has made first purchase if they have more than 0 paid invoices
+    return paidInvoices.length > 1;
+  } catch (error) {
+    console.error("Error checking if user made first purchase:", error);
+    return false;
+  }
+}
+
+/**
+ * Transfer cache_credits to Stripe credits and reset cache to 0
+ * @param {Object} user - User object with cache_credits
+ * @returns {Object} Result of the transfer operation
+ */
+async function transferCacheCreditsToStripe(user) {
+  try {
+    if (!user.cache_credits || user.cache_credits <= 0) {
+      return {
+        success: true,
+        message: "No cache credits to transfer",
+        transferred: 0,
+      };
+    }
+
+    // Get or create Stripe customer
+    const customer = await getOrCreateStripeCustomer(user);
+
+    // Convert cache_credits (assumed to be in dollars) to cents
+    const creditsInCents = Math.round(user.cache_credits * 100);
+
+    // Add credits to Stripe
+    await addStripeCredits(
+      customer.id,
+      creditsInCents,
+      "Referral bonus credits applied after first purchase"
+    );
+
+    // Reset cache_credits to 0 in database
+    await User.findByIdAndUpdate(user._id, {
+      cache_credits: 0,
+    });
+
+    console.log(
+      `Transferred $${user.cache_credits} from cache to Stripe credits for user ${user._id}`
+    );
+
+    return {
+      success: true,
+      message: `Transferred $${user.cache_credits} to your account credits`,
+      transferred: user.cache_credits,
+    };
+  } catch (error) {
+    console.error("Error transferring cache credits to Stripe:", error);
+    return {
+      success: false,
+      message: "Failed to transfer cache credits",
+      error: error.message,
+    };
+  }
+}
+
 module.exports = {
   createStripeCustomer,
   getOrCreateStripeCustomer,
@@ -1274,4 +1357,7 @@ module.exports = {
   createStripePromotionCode,
   updateStripePromotionCode,
   deleteStripePromotionCode,
+  // Cache credits functions
+  hasUserMadeFirstPurchase,
+  transferCacheCreditsToStripe,
 };
