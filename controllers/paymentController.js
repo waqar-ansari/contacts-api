@@ -1860,7 +1860,6 @@ const previewNewSubscription = async (req, res) => {
       );
       finalPriceAfterCoupon = couponDiscountCalculation.finalAmount;
     }
-
     const planPriceInDollars = planPriceInCents / 100;
     const finalPriceAfterCouponInDollars = finalPriceAfterCoupon / 100;
 
@@ -1891,6 +1890,9 @@ const previewNewSubscription = async (req, res) => {
 
     // Convert cents to dollars with proper precision (avoiding floating point errors)
     const toFixedDollars = (cents) => Math.round(cents) / 100;
+
+    // Check if first purchase to show notice on frontend
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
 
     res.json({
       success: true,
@@ -1936,6 +1938,7 @@ const previewNewSubscription = async (req, res) => {
           immediateCharge: toFixedDollars(finalChargeAfterCredits),
           nextBillingDate: nextBillingDate.toISOString(),
           nextBillingAmount: toFixedDollars(planPriceInCents),
+          isFirstPurchase,
         },
         isNewSubscription: true,
         customerInfo: {
@@ -1973,7 +1976,6 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     }
     console.log("Creating subscription with payment method:", {
       paymentMethodId,
- 
     });
     // Validate plan
     const plan = await Plan.findById(planId);
