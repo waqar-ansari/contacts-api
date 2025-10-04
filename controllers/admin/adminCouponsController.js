@@ -153,7 +153,7 @@ const createCoupon = async (req, res) => {
 
     // Check if coupon code already exists
     const existingCoupon = await Coupon.findOne({
-      couponCode: couponCode.toUpperCase(),
+      couponCode: couponCode,
     });
 
     if (existingCoupon) {
@@ -195,7 +195,7 @@ const createCoupon = async (req, res) => {
     // Create Stripe coupon first
     try {
       const stripeCoupon = await createStripeCoupon({
-        couponCode: couponCode.toUpperCase(),
+        couponCode: couponCode,
         discountType,
         discountValue,
         expiryDate,
@@ -209,7 +209,7 @@ const createCoupon = async (req, res) => {
       try {
         const stripePromotionCode = await createStripePromotionCode(
           stripeCouponId,
-          couponCode.toUpperCase(),
+          couponCode,
           {
             active: isActive,
             max_redemptions: maxUsage || undefined,
@@ -241,7 +241,7 @@ const createCoupon = async (req, res) => {
 
     const coupon = new Coupon({
       name,
-      couponCode: couponCode.toUpperCase(),
+      couponCode: couponCode,
       discountType,
       discountValue,
       expiryDate,
@@ -335,9 +335,9 @@ const updateCoupon = async (req, res) => {
     } = req.body;
 
     // Check if coupon code is being changed and if it already exists
-    if (couponCode && couponCode.toUpperCase() !== coupon.couponCode) {
+    if (couponCode && couponCode !== coupon.couponCode) {
       const existingCoupon = await Coupon.findOne({
-        couponCode: couponCode.toUpperCase(),
+        couponCode: couponCode,
         _id: { $ne: req.params.id },
       });
 
@@ -378,7 +378,7 @@ const updateCoupon = async (req, res) => {
 
     // Check if significant fields are being changed that require Stripe update
     const needsStripeUpdate =
-      (couponCode && couponCode.toUpperCase() !== coupon.couponCode) ||
+      (couponCode && couponCode !== coupon.couponCode) ||
       (discountType && discountType !== coupon.discountType) ||
       (discountValue !== undefined && discountValue !== coupon.discountValue) ||
       (expiryDate &&
@@ -396,9 +396,7 @@ const updateCoupon = async (req, res) => {
         const newStripeCoupon = await updateStripeCoupon(
           coupon.stripeCouponId,
           {
-            couponCode: couponCode
-              ? couponCode.toUpperCase()
-              : coupon.couponCode,
+            couponCode: couponCode ? couponCode : coupon.couponCode,
             discountType: discountType || coupon.discountType,
             discountValue:
               discountValue !== undefined
@@ -417,7 +415,7 @@ const updateCoupon = async (req, res) => {
           const newStripePromotionCode = await updateStripePromotionCode(
             coupon.stripePromotionCodeId,
             newStripeCouponId,
-            couponCode ? couponCode.toUpperCase() : coupon.couponCode,
+            couponCode ? couponCode : coupon.couponCode,
             {
               active: isActive !== undefined ? isActive : coupon.isActive,
               max_redemptions:
@@ -483,7 +481,7 @@ const updateCoupon = async (req, res) => {
 
     // Update fields
     if (name) coupon.name = name;
-    if (couponCode) coupon.couponCode = couponCode.toUpperCase();
+    if (couponCode) coupon.couponCode = couponCode;
     if (discountType) coupon.discountType = discountType;
     if (discountValue !== undefined) coupon.discountValue = discountValue;
     if (expiryDate) coupon.expiryDate = expiryDate;

@@ -1087,7 +1087,7 @@ async function validateCoupon(couponCode) {
 
     // Check MongoDB first
     const mongoCoupon = await Coupon.findOne({
-      couponCode: couponCode.toUpperCase(),
+      couponCode: couponCode,
     });
 
     if (!mongoCoupon) {

@@ -11,7 +11,6 @@ const couponSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      uppercase: true,
       trim: true,
       index: true,
     },
