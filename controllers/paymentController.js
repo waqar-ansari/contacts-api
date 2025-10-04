@@ -1971,7 +1971,10 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
         message: "Plan ID and payment method ID are required",
       });
     }
-
+    console.log("Creating subscription with payment method:", {
+      paymentMethodId,
+ 
+    });
     // Validate plan
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
@@ -2007,22 +2010,6 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
           "User already has an active subscription. Use upgrade endpoint instead.",
         redirectToUpgrade: true,
       });
-    }
-
-    // Delete any trialing subscription before creating new one
-    if (activeSubInfo.hasTrialingSubscription) {
-      console.log(
-        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
-      );
-      try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
-        console.log(
-          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
-        );
-      } catch (deleteError) {
-        console.error("Error deleting trialing subscription:", deleteError);
-        // Continue with creation even if delete fails
-      }
     }
 
     // Get or create Stripe customer
@@ -2089,7 +2076,6 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       0,
       planPriceInCents - availableCreditsInCents
     );
-    const creditsUsed = Math.min(availableCreditsInCents, planPriceInCents);
 
     // Create subscription
     const subscriptionData = {
@@ -2132,8 +2118,27 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     if (!autoRenewal) {
       subscriptionData.cancel_at_period_end = true;
     }
+    ///CHECK IF THIS IS THE USER'S FIRST PURCHASE before macking our first purchase
     const isFirstPurchase = !(await hasUserMadeFirstPurchase(stripeCustomerId));
+
+    ///CREATE THE SUBSCRIPTION
     const subscription = await stripe.subscriptions.create(subscriptionData);
+
+    // Delete any trialing subscription after creating new one
+    if (activeSubInfo.hasTrialingSubscription) {
+      console.log(
+        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} after creating new subscription`
+      );
+      try {
+        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        console.log(
+          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
+        );
+      } catch (deleteError) {
+        console.error("Error deleting trialing subscription:", deleteError);
+        // Continue with creation even if delete fails
+      }
+    }
 
     // Get the latest invoice and payment intent
     let finalSubscription = subscription;
@@ -2174,14 +2179,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       }
     }
 
-    // Update user plan
-    await User.findByIdAndUpdate(userId, {
-      plan: planId,
-      stripeSubscriptionId: finalSubscription.id,
-      subscriptionStatus: finalSubscription.status,
-    });
-
-    // Check if this was user's first purchase using metadata (set before session creation)
+    // Check if this was user's first purchase
     try {
       if (isFirstPurchase) {
         // Reload user to get latest cache_credits value
