@@ -1257,12 +1257,14 @@ async function hasUserMadeFirstPurchase(customerId) {
     });
 
     // Count invoices that are not free trial ($0 invoices)
-    const paidInvoices = invoices.data
+    const paidInvoices = invoices.data.filter(
+      (invoice) => invoice.amount_paid > 0
+    );
     console.log(
       `Customer ${customerId} has ${paidInvoices.length} paid invoices`
     );
     // User has made first purchase if they have more than 0 paid invoices
-    return paidInvoices.length > 1;
+    return paidInvoices.length > 0;
   } catch (error) {
     console.error("Error checking if user made first purchase:", error);
     return false;

@@ -1101,63 +1101,8 @@ const createCheckoutSession = async (req, res) => {
       });
     }
 
-    // Delete any trialing subscription before creating new one
-    if (activeSubInfo.hasTrialingSubscription) {
-      console.log(
-        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
-      );
-      try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
-        console.log(
-          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
-        );
-      } catch (deleteError) {
-        console.error("Error deleting trialing subscription:", deleteError);
-        // Continue with creation even if delete fails
-      }
-    }
-
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
-
-    // Check for and cancel any scheduled subscriptions
-    let cancelledSchedules = [];
-    try {
-      const schedules = await stripe.subscriptionSchedules.list({
-        customer: customer.id,
-        limit: 10,
-      });
-
-      // Filter for active schedules that are not released
-      const activeSchedules = schedules.data.filter(
-        (schedule) => schedule.status === "not_started"
-      );
-
-      if (activeSchedules.length > 0) {
-        console.log(
-          `Found ${activeSchedules.length} scheduled subscriptions to cancel for checkout session`
-        );
-
-        for (const schedule of activeSchedules) {
-          try {
-            await stripe.subscriptionSchedules.cancel(schedule.id);
-            cancelledSchedules.push(schedule.id);
-            console.log(`Cancelled scheduled subscription: ${schedule.id}`);
-          } catch (cancelError) {
-            console.error(
-              `Failed to cancel scheduled subscription ${schedule.id}:`,
-              cancelError
-            );
-          }
-        }
-      }
-    } catch (scheduleError) {
-      console.error(
-        "Error checking/cancelling scheduled subscriptions:",
-        scheduleError
-      );
-      // Continue with checkout session creation but log the error
-    }
 
     // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
     const session = await stripe.checkout.sessions.create({
@@ -1170,6 +1115,8 @@ const createCheckoutSession = async (req, res) => {
         },
       ],
       mode: "subscription",
+      allow_promotion_codes: true,
+
       return_url: `${
         process.env.FRONTEND_URL || "http://localhost:3000"
       }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
@@ -1216,13 +1163,7 @@ const createCheckoutSession = async (req, res) => {
  */
 const createHostedCheckoutSession = async (req, res) => {
   try {
-    const {
-      planId,
-      autoRenewal = true,
-      successUrl,
-      cancelUrl,
-      couponCode,
-    } = req.body;
+    const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
     const userId = req.user._id;
 
     // Validate plan
@@ -1262,63 +1203,8 @@ const createHostedCheckoutSession = async (req, res) => {
       });
     }
 
-    // // Delete any trialing subscription before creating new one
-    // if (activeSubInfo.hasTrialingSubscription) {
-    //   console.log(
-    //     `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
-    //   );
-    //   try {
-    //     await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
-    //     console.log(
-    //       `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
-    //     );
-    //   } catch (deleteError) {
-    //     console.error("Error deleting trialing subscription:", deleteError);
-    //     // Continue with creation even if delete fails
-    //   }
-    // }
-
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
-
-    // // Check for and cancel any scheduled subscriptions
-    // let cancelledSchedules = [];
-    // try {
-    //   const schedules = await stripe.subscriptionSchedules.list({
-    //     customer: customer.id,
-    //     limit: 10,
-    //   });
-
-    //   // Filter for active schedules that are not released
-    //   const activeSchedules = schedules.data.filter(
-    //     (schedule) => schedule.status === "not_started"
-    //   );
-
-    //   if (activeSchedules.length > 0) {
-    //     console.log(
-    //       `Found ${activeSchedules.length} scheduled subscriptions to cancel for hosted checkout session`
-    //     );
-
-    //     for (const schedule of activeSchedules) {
-    //       try {
-    //         await stripe.subscriptionSchedules.cancel(schedule.id);
-    //         cancelledSchedules.push(schedule.id);
-    //         console.log(`Cancelled scheduled subscription: ${schedule.id}`);
-    //       } catch (cancelError) {
-    //         console.error(
-    //           `Failed to cancel scheduled subscription ${schedule.id}:`,
-    //           cancelError
-    //         );
-    //       }
-    //     }
-    //   }
-    // } catch (scheduleError) {
-    //   console.error(
-    //     "Error checking/cancelling scheduled subscriptions:",
-    //     scheduleError
-    //   );
-    //   // Continue with checkout session creation but log the error
-    // }
 
     const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
 
@@ -1378,6 +1264,77 @@ const createHostedCheckoutSession = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to create hosted checkout session",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get checkout session details by session ID
+ * @route GET /api/user/payment/checkout-session/:sessionId
+ * @access Private
+ */
+const getCheckoutSessionDetails = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const userId = req.user._id;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
+
+    // Retrieve the checkout session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    // Verify the session belongs to this user
+    if (session.metadata.userId !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized access to this session",
+      });
+    }
+
+    // Get plan details if available
+    let planDetails = null;
+    if (session.metadata.planId) {
+      const plan = await Plan.findById(session.metadata.planId);
+      if (plan) {
+        planDetails = {
+          planId: plan._id,
+          planName: plan.name,
+          planPrice: plan.price,
+          autoRenewal: session.metadata.autoRenewal === "true",
+        };
+      }
+    }
+
+    // Get user and check if this is their first purchase
+    const user = await User.findById(userId);
+    let isFirstPurchase = true;
+
+    if (user && user.stripeCustomerId) {
+      isFirstPurchase = !(await hasUserMadeFirstPurchase(
+        user.stripeCustomerId
+      ));
+    }
+
+    res.json({
+      success: true,
+      sessionId: session.id,
+      clientSecret: session.client_secret,
+      status: session.status,
+      planDetails: planDetails,
+      isNewSubscription: session.metadata.type === "new_subscription",
+      isFirstPurchase: isFirstPurchase,
+    });
+  } catch (error) {
+    console.error("Error retrieving checkout session:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve checkout session",
       error: error.message,
     });
   }
@@ -1452,7 +1409,6 @@ const completeSubscription = async (req, res) => {
     }
 
     const activeSubInfo = await checkSubscriptionDetails(user);
-   
 
     // Delete any trialing subscription before creating new one
     if (activeSubInfo.hasTrialingSubscription) {
@@ -2733,6 +2689,7 @@ module.exports = {
   getPaymentStatus,
   createCheckoutSession,
   createHostedCheckoutSession,
+  getCheckoutSessionDetails,
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,

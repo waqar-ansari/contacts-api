@@ -6,6 +6,7 @@ const {
   getPaymentStatus,
   createCheckoutSession,
   createHostedCheckoutSession,
+  getCheckoutSessionDetails,
   completeSubscription,
   upgradeSubscription,
   previewUpgrade,
@@ -37,6 +38,9 @@ router.post("/create-checkout-session", createCheckoutSession);
 
 // POST create hosted checkout session for NEW subscription purchase
 router.post("/create-hosted-checkout-session", createHostedCheckoutSession);
+
+// GET checkout session details by session ID
+router.get("/checkout-session/:sessionId", getCheckoutSessionDetails);
 
 // POST complete subscription after successful checkout
 router.post("/complete-subscription", completeSubscription);
