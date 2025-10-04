@@ -411,7 +411,6 @@ const getUserData = async (req, res) => {
     // Fetch Stripe subscription data if user has a subscription
     const stripeData = await getUserStripeSubscriptionData(user);
 
-
     const data = {
       id: user._id,
       firstname: user.firstname,
@@ -433,8 +432,8 @@ const getUserData = async (req, res) => {
       referredBy: user.referredBy || null,
       myReferrals: user.myReferrals || [],
       referralCode: user.referralCode || null,
-      trialStartDate: user.trialStart || null,
-      trialEndDate: user.trialEnd || null,
+      trialStartDate: stripeData?.trialStart || null,
+      trialEndDate: stripeData?.trialEnd || null,
       referralUrl: `https://app.contacts.management/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
       accounts: [

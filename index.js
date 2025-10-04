@@ -85,6 +85,7 @@ const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
 const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
 const testRoutes = require("./routes/testRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
 
 console.log("Setting up Express app...");
 
@@ -92,10 +93,7 @@ app.use(cors());
 
 // Webhook routes must be defined before JSON parsing middleware
 // because Stripe needs raw body for signature verification
-// app.use("/webhooks", webhookRoutes);
-
-// app.use(express.json());
-// app.use(express.json({ limit: '50mb' })); // or higher if needed
+app.use("/webhooks", webhookRoutes);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));

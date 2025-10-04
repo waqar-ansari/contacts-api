@@ -818,6 +818,52 @@ async function deleteTrialingSubscription(subscriptionId) {
 }
 
 /**
+ * Check subscription details for a user
+ * @param {Object} user - User object
+ * @returns {Object} Subscription details object
+ */
+async function checkSubscriptionDetails(user) {
+  const result = {
+    hasActiveSubscription: false,
+    subscriptionId: null,
+    subscriptionStatus: null,
+    hasTrialingSubscription: false,
+    trialingSubscriptionId: null,
+  };
+
+  if (!user.stripeCustomerId) {
+    return result;
+  }
+
+  try {
+    // Check for active non-trialing subscription
+    const activeSubscription = await getCustomerActiveNonTrialingSubscription(
+      user.stripeCustomerId
+    );
+
+    if (activeSubscription) {
+      result.hasActiveSubscription = true;
+      result.subscriptionId = activeSubscription.id;
+      result.subscriptionStatus = activeSubscription.status;
+    }
+
+    // Check for trialing subscription
+    const trialingSubscription = await getCustomerTrialingSubscription(
+      user.stripeCustomerId
+    );
+
+    if (trialingSubscription) {
+      result.hasTrialingSubscription = true;
+      result.trialingSubscriptionId = trialingSubscription.id;
+    }
+  } catch (error) {
+    console.log("Error checking subscription details:", error.message);
+  }
+
+  return result;
+}
+
+/**
  * Check if customer has active non-trialing subscription
  * @param {String} customerId - Stripe customer ID
  * @returns {Object|null} Active non-trialing subscription object or null
@@ -1342,6 +1388,7 @@ module.exports = {
   getCustomerActiveNonTrialingSubscription,
   getCustomerTrialingSubscription,
   deleteTrialingSubscription,
+  checkSubscriptionDetails,
   getPlanFromPriceId,
   getUserCurrentPlan,
   getUserBillingHistory,

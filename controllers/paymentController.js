@@ -2,6 +2,9 @@ const { stripe } = require("../config/stripe");
 const Plan = require("../models/planModel");
 const User = require("../models/userModel");
 const {
+  processSubscriptionCompletion,
+} = require("../utils/subscriptionProcessor");
+const {
   getOrCreateStripeCustomer,
   getStripeCreditBalance,
   getUserStripeSubscriptionData,
@@ -13,9 +16,9 @@ const {
   getFormattedBillingHistory,
   validateCoupon,
   calculateCouponDiscount,
-  applyCouponToSession,
   hasUserMadeFirstPurchase,
   transferCacheCreditsToStripe,
+  checkSubscriptionDetails,
 } = require("../utils/stripeUtils");
 
 /**
@@ -104,47 +107,6 @@ const checkActiveSubscription = async (user) => {
  * @param {Object} user - User object
  * @returns {Object} Active subscription info with trialing details
  */
-const checkSubscriptionDetails = async (user) => {
-  const result = {
-    hasActiveSubscription: false,
-    subscriptionId: null,
-    subscriptionStatus: null,
-    hasTrialingSubscription: false,
-    trialingSubscriptionId: null,
-  };
-
-  if (!user.stripeCustomerId) {
-    return result;
-  }
-
-  try {
-    // Check for active non-trialing subscription
-    const activeSubscription = await getCustomerActiveNonTrialingSubscription(
-      user.stripeCustomerId
-    );
-
-    if (activeSubscription) {
-      result.hasActiveSubscription = true;
-      result.subscriptionId = activeSubscription.id;
-      result.subscriptionStatus = activeSubscription.status;
-    }
-
-    // Check for trialing subscription
-    const trialingSubscription = await getCustomerTrialingSubscription(
-      user.stripeCustomerId
-    );
-
-    if (trialingSubscription) {
-      result.hasTrialingSubscription = true;
-      result.trialingSubscriptionId = trialingSubscription.id;
-    }
-  } catch (error) {
-    console.log("Error checking subscription details:", error.message);
-  }
-
-  return result;
-};
-
 /**
  * Get user's Stripe credit balance
  * @route GET /api/user/payment/credit-balance
@@ -1019,7 +981,7 @@ const createCheckoutSession = async (req, res) => {
 
     // Get or create Stripe customer
     const customer = await getOrCreateStripeCustomer(user);
-
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
     // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
@@ -1041,6 +1003,7 @@ const createCheckoutSession = async (req, res) => {
         planId: plan._id.toString(),
         autoRenewal: autoRenewal.toString(),
         type: "new_subscription",
+        isFirstPurchase: isFirstPurchase.toString(),
       },
     });
 
@@ -1273,116 +1236,24 @@ const completeSubscription = async (req, res) => {
       });
     }
 
-    // Retrieve the checkout session
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ["subscription", "subscription.items.data.price"],
+    // Use the centralized subscription processing function
+    const result = await processSubscriptionCompletion(sessionId, {
+      fromWebhook: false,
+      userId: userId.toString(),
     });
 
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Checkout session not found",
+    if (result.alreadyProcessed) {
+      // Session was already processed by webhook
+      return res.json({
+        success: true,
+        message: "Subscription already processed successfully",
+        alreadyProcessed: true,
+        subscription: result.subscription,
+        plan: result.plan,
       });
     }
 
-    if (session.payment_status !== "paid") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment not completed",
-      });
-    }
-
-    // Verify this session belongs to the current user
-    if (session.metadata.userId !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access to session",
-      });
-    }
-
-    // Verify this is for a new subscription (not upgrade)
-    if (session.metadata.type !== "new_subscription") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "This endpoint is only for new subscriptions. Use upgrade endpoint for existing subscriptions.",
-      });
-    }
-
-    const { planId } = session.metadata;
-
-    // Get plan and user
-    const [plan, user] = await Promise.all([
-      Plan.findById(planId),
-      User.findById(userId),
-    ]);
-
-    if (!plan || !user) {
-      return res.status(404).json({
-        success: false,
-        message: "Plan or user not found",
-      });
-    }
-
-    const activeSubInfo = await checkSubscriptionDetails(user);
-
-    // Delete any trialing subscription before creating new one
-    if (activeSubInfo.hasTrialingSubscription) {
-      console.log(
-        `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} before creating new subscription`
-      );
-      try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
-        console.log(
-          `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
-        );
-      } catch (deleteError) {
-        console.error("Error deleting trialing subscription:", deleteError);
-        // Continue with creation even if delete fails
-      }
-    }
-
-    console.log(
-      `Successfully completed the creation of new subscription for user ${userId} with plan ${plan.name}`
-    );
-
-    // Check if this was user's first purchase using metadata (set before session creation)
-    try {
-      const isFirstPurchase = session.metadata.isFirstPurchase === "true";
-      console.log(
-        `Processing first purchase logic for user ${userId}: ${isFirstPurchase}`
-      );
-
-      if (isFirstPurchase) {
-        if (user.cache_credits && user.cache_credits > 0) {
-          const transferResult = await transferCacheCreditsToStripe(user);
-          if (transferResult.success) {
-            console.log(
-              `Cache credits transfer result: ${transferResult.message}`
-            );
-          }
-        }
-      }
-    } catch (cacheError) {
-      console.error("Error processing cache credits transfer:", cacheError);
-      // Don't fail the subscription completion if cache credit transfer fails
-    }
-
-    res.json({
-      success: true,
-      message: `Successfully subscribed to ${plan.name}!`,
-      subscription: {
-        id: session.subscription.id,
-        status: session.subscription.status,
-        currentPeriodStart: session.subscription.current_period_start,
-        currentPeriodEnd: session.subscription.current_period_end,
-      },
-      plan: {
-        id: plan._id,
-        name: plan.name,
-        price: plan.price,
-      },
-    });
+    res.json(result);
   } catch (error) {
     console.error("Error completing subscription:", error);
     res.status(500).json({
@@ -2608,6 +2479,7 @@ const getInvoiceDetails = async (req, res) => {
 
 module.exports = {
   getCreditBalance,
+
   toggleAutoRenewal,
   getPaymentStatus,
   createCheckoutSession,
@@ -2626,4 +2498,5 @@ module.exports = {
   createSubscriptionWithPaymentMethod,
   getBillingHistory,
   getInvoiceDetails,
+  checkSubscriptionDetails,
 };
