@@ -687,9 +687,12 @@ const previewUpgrade = async (req, res) => {
 
       // Calculate how much credits will be used (up to the immediate charge amount)
       const creditsToUse = Math.min(availableCredits, immediateCharge);
+
+      // For frontend display, calculate final charge based on full plan price flow:
+      // Full Plan Price - Proration Credit - Credits Used = Final Charge
       const finalChargeAfterCredits = Math.max(
         0,
-        immediateCharge - creditsToUse
+        plan.price - prorationCredit - creditsToUse
       );
       const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
 
@@ -701,47 +704,38 @@ const previewUpgrade = async (req, res) => {
         remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100,
       });
 
-      console.log("Processed preview data:", {
-        currentAmount,
-        newAmount,
-        prorationCredit: prorationCredit / 100,
-        immediateCharge: immediateCharge / 100,
-        nextBillingDate,
-        periodInfo: {
-          currentPeriodStart,
-          currentPeriodEnd,
-          timeRemaining: `${Math.ceil(timeRemaining / (24 * 60 * 60))} days`,
-        },
-      });
+      // Convert cents to dollars with proper precision (avoiding floating point errors)
+      const toFixedDollars = (cents) => Math.round(cents) / 100;
 
       res.json({
         success: true,
-        message: "Upgrade preview calculated successfully using Stripe",
+        message: "Upgrade preview calculated successfully",
         preview: {
           currentPlan: {
             id: currentPlan?._id,
             name: currentPlan?.name,
-            price: currentAmount,
-            remainingValue: prorationCredit / 100, // Convert to dollars
+            price: toFixedDollars(currentPrice.unit_amount),
+            remainingValue: toFixedDollars(prorationCredit),
           },
           newPlan: {
             id: plan._id,
             name: plan.name,
-            price: newAmount,
-            proRatedAmount: newAmount,
+            price: toFixedDollars(plan.price),
+            immediateCharge: toFixedDollars(newPlanCharge), // This is the actual charge for current period
           },
           billing: {
-            immediateCharge: immediateCharge / 100, // Convert to dollars
-            creditApplied: prorationCredit / 100, // Convert to dollars
-            netAmount: immediateCharge / 100, // Convert to dollars
+            immediateCharge: toFixedDollars(immediateCharge),
+            creditApplied: toFixedDollars(prorationCredit),
             nextBillingDate: nextBillingDate,
-            nextBillingAmount: newAmount,
+            nextBillingAmount: toFixedDollars(plan.price),
           },
           credits: {
-            availableCredits: availableCredits / 100, // Convert to dollars
-            creditsToUse: creditsToUse / 100, // Convert to dollars
-            finalChargeAfterCredits: finalChargeAfterCredits / 100, // Convert to dollars
-            remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
+            availableCredits: toFixedDollars(availableCredits),
+            creditsToUse: toFixedDollars(creditsToUse),
+            finalChargeAfterCredits: toFixedDollars(finalChargeAfterCredits),
+            remainingCreditsAfterPurchase: toFixedDollars(
+              remainingCreditsAfterPurchase
+            ),
           },
           coupon: couponData
             ? {
@@ -752,31 +746,14 @@ const previewUpgrade = async (req, res) => {
                 discountValue: couponData.discountValue,
                 discountAmount:
                   couponData.discountType === "percentage"
-                    ? (newAmount * couponData.discountValue) / 100
+                    ? toFixedDollars(
+                        (plan.price * couponData.discountValue) / 100
+                      )
                     : couponData.discountValue,
-                // Note: Stripe applies coupon discount directly to the invoice preview
-                // The actual discount amount is reflected in the invoice total
               }
             : {
                 isApplied: false,
               },
-          period: {
-            daysRemaining: Math.max(
-              1,
-              Math.ceil(timeRemaining / (24 * 60 * 60))
-            ),
-            percentUsed: Math.round(
-              ((totalPeriodTime - timeRemaining) / totalPeriodTime) * 100
-            ),
-          },
-          stripeInvoicePreview: {
-            invoiceId: upcomingInvoice.id,
-            amountDue: upcomingInvoice.amount_due / 100,
-            subtotal: upcomingInvoice.subtotal / 100,
-            total: upcomingInvoice.total / 100,
-            currency: upcomingInvoice.currency,
-            // Coupon discount is already applied to these Stripe amounts
-          },
         },
       });
     } catch (stripeError) {
@@ -784,8 +761,7 @@ const previewUpgrade = async (req, res) => {
 
       // Fallback to basic calculation if Stripe preview fails
       const currentPrice = existingSubscription.items.data[0].price;
-      const currentAmount = currentPrice.unit_amount / 100;
-      const newAmount = plan.price / 100;
+      const toFixedDollars = (cents) => Math.round(cents) / 100;
 
       return res.status(500).json({
         success: false,
@@ -793,9 +769,11 @@ const previewUpgrade = async (req, res) => {
           "Unable to preview upgrade costs using Stripe. Please try again.",
         error: stripeError.message,
         fallback: {
-          currentPlanPrice: currentAmount,
-          newPlanPrice: newAmount,
-          estimatedChange: newAmount - currentAmount,
+          currentPlanPrice: toFixedDollars(currentPrice.unit_amount),
+          newPlanPrice: toFixedDollars(plan.price),
+          estimatedChange: toFixedDollars(
+            plan.price - currentPrice.unit_amount
+          ),
         },
       });
     }
@@ -2102,6 +2080,9 @@ const previewNewSubscription = async (req, res) => {
     const nextBillingDate = new Date();
     nextBillingDate.setDate(nextBillingDate.getDate() + 30);
 
+    // Convert cents to dollars with proper precision (avoiding floating point errors)
+    const toFixedDollars = (cents) => Math.round(cents) / 100;
+
     res.json({
       success: true,
       message: "New subscription preview calculated successfully",
@@ -2109,9 +2090,9 @@ const previewNewSubscription = async (req, res) => {
         plan: {
           id: plan._id,
           name: plan.name,
-          price: planPriceInDollars,
-          originalPrice: planPriceInDollars,
-          finalPrice: finalPriceAfterCouponInDollars,
+          price: toFixedDollars(planPriceInCents),
+          originalPrice: toFixedDollars(planPriceInCents),
+          finalPrice: toFixedDollars(finalPriceAfterCoupon),
         },
         coupon: couponData
           ? {
@@ -2120,28 +2101,32 @@ const previewNewSubscription = async (req, res) => {
               name: couponData.name,
               discountType: couponData.discountType,
               discountValue: couponData.discountValue,
-              discountAmount: couponDiscountCalculation.discountAmount / 100,
+              discountAmount: toFixedDollars(
+                couponDiscountCalculation.discountAmount
+              ),
               discountPercentage: couponDiscountCalculation.discountPercentage,
             }
           : {
               isApplied: false,
             },
         credits: {
-          availableCredits: availableCredits / 100, // Convert to dollars
-          creditsToUse: creditsToUse / 100, // Convert to dollars
-          finalChargeAfterCredits: finalChargeAfterCredits / 100, // Convert to dollars
-          remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100, // Convert to dollars
+          availableCredits: toFixedDollars(availableCredits),
+          creditsToUse: toFixedDollars(creditsToUse),
+          finalChargeAfterCredits: toFixedDollars(finalChargeAfterCredits),
+          remainingCreditsAfterPurchase: toFixedDollars(
+            remainingCreditsAfterPurchase
+          ),
         },
         billing: {
-          subtotal: planPriceInDollars,
+          subtotal: toFixedDollars(planPriceInCents),
           couponDiscount: couponDiscountCalculation
-            ? couponDiscountCalculation.discountAmount / 100
+            ? toFixedDollars(couponDiscountCalculation.discountAmount)
             : 0,
-          afterCouponDiscount: finalPriceAfterCouponInDollars,
-          creditDiscount: creditsToUse / 100,
-          immediateCharge: finalChargeAfterCredits / 100, // Convert to dollars
+          afterCouponDiscount: toFixedDollars(finalPriceAfterCoupon),
+          creditDiscount: toFixedDollars(creditsToUse),
+          immediateCharge: toFixedDollars(finalChargeAfterCredits),
           nextBillingDate: nextBillingDate.toISOString(),
-          nextBillingAmount: planPriceInDollars, // Full price for next billing
+          nextBillingAmount: toFixedDollars(planPriceInCents),
         },
         isNewSubscription: true,
         customerInfo: {
