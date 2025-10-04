@@ -427,6 +427,11 @@ const getPaymentStatus = async (req, res) => {
 
 /**
  * Preview upgrade cost and proration details before actual upgrade using Stripe's Upcoming Invoice API
+ *
+ * This function calculates exact upgrade costs by using Stripe's invoice preview API to simulate
+ * the subscription change. It handles proration credits for unused time on the current plan,
+ * calculates credits usage, and provides accurate pricing for the frontend display.
+ *
  * @route POST /api/user/payment/preview-upgrade
  * @access Private
  */
@@ -435,7 +440,7 @@ const previewUpgrade = async (req, res) => {
     const { planId, couponCode } = req.body;
     const userId = req.user._id;
 
-    // Validate plan
+    // === STEP 1: VALIDATE PLAN AND USER ===
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
       return res.status(404).json({
@@ -444,7 +449,6 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Check if plan has a Stripe price ID
     if (!plan.stripePriceId) {
       return res.status(400).json({
         success: false,
@@ -452,7 +456,6 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Get user and current plan from subscription
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -461,12 +464,9 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Get current plan from active subscription
+    // === STEP 2: VERIFY ACTIVE SUBSCRIPTION EXISTS ===
     const currentPlan = await getUserCurrentPlan(user);
-
-    // Check for active subscription
     const activeSubInfo = await checkActiveSubscription(user);
-    console.log("Active subscription info:", activeSubInfo);
 
     if (!activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
@@ -478,7 +478,7 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Validate plan upgrade/change
+    // === STEP 3: VALIDATE UPGRADE/DOWNGRADE ELIGIBILITY ===
     const validation = validatePlanUpgrade(currentPlan, plan);
     if (!validation.isValid) {
       return res.status(400).json({
@@ -487,11 +487,11 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    // Get the existing subscription
+    // === STEP 4: RETRIEVE EXISTING SUBSCRIPTION DETAILS ===
     const existingSubscription = await stripe.subscriptions.retrieve(
       activeSubInfo.subscriptionId,
       {
-        expand: ["items.data.price"],
+        expand: ["items.data.price"], // Get full price details
       }
     );
 
@@ -502,24 +502,11 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    console.log("Subscription data:", {
-      id: existingSubscription.id,
-      status: existingSubscription.status,
-      current_period_start:
-        existingSubscription.items.data[0].current_period_start,
-      current_period_end: existingSubscription.items.data[0].current_period_end,
-      items: existingSubscription.items?.data?.length || 0,
-    });
-
-    // Use Stripe's Upcoming Invoice Preview API for accurate calculation
-    // This simulates what would happen if we change the subscription
     const subscriptionItem = existingSubscription.items.data[0];
 
     try {
-      // Validate coupon if provided
+      // === STEP 5: VALIDATE COUPON (IF PROVIDED) ===
       let couponData = null;
-      let couponDiscountCalculation = null;
-
       if (couponCode) {
         const couponValidation = await validateCoupon(couponCode.trim());
         if (!couponValidation.isValid) {
@@ -529,11 +516,11 @@ const previewUpgrade = async (req, res) => {
             code: "INVALID_COUPON",
           });
         }
-        console.log("Coupon data for preview:", couponValidation);
         couponData = couponValidation.coupon;
       }
-      console.log("Coupon data for preview:", couponData);
-      // Create invoice preview parameters
+
+      // === STEP 6: CREATE STRIPE INVOICE PREVIEW ===
+      // This simulates what would happen if we change the subscription to the new plan
       const invoicePreviewParams = {
         customer: user.stripeCustomerId,
         subscription: activeSubInfo.subscriptionId,
@@ -541,14 +528,14 @@ const previewUpgrade = async (req, res) => {
           items: [
             {
               id: subscriptionItem.id,
-              price: plan.stripePriceId, // Change to new price
+              price: plan.stripePriceId, // Change to new plan's price
             },
           ],
-          proration_behavior: "create_prorations", // Enable proration
+          proration_behavior: "create_prorations", // Enable proration calculations
         },
       };
 
-      // Add coupon to preview if valid
+      // Add coupon discount to the preview if valid
       if (couponData && couponData.stripeCouponId) {
         invoicePreviewParams.discounts = [
           {
@@ -557,31 +544,22 @@ const previewUpgrade = async (req, res) => {
         ];
       }
 
-      // Preview the upcoming invoice with the subscription change
+      // Get the upcoming invoice preview from Stripe
       const upcomingInvoice = await stripe.invoices.createPreview(
         invoicePreviewParams
       );
 
-      console.log("Stripe upcoming invoice preview:", {
-        amount_due: upcomingInvoice.amount_due,
-        amount_paid: upcomingInvoice.amount_paid,
-        amount_remaining: upcomingInvoice.amount_remaining,
-        subtotal: upcomingInvoice.subtotal,
-        total: upcomingInvoice.total,
-        lines_count: upcomingInvoice.lines?.data?.length || 0,
-      });
-
-      // Parse the invoice line items to understand the charges
+      // === STEP 7: PARSE INVOICE LINES TO CALCULATE COSTS ===
       const invoiceLines = upcomingInvoice.lines.data;
+      let prorationCredit = 0; // Credit for unused time on current plan
+      let newPlanCharge = 0; // Charge for new plan (current period only)
+      let couponDiscountFromStripe = 0; // Coupon discount already applied by Stripe
 
-      // Find proration credit (negative amount) and new charge (positive amount)
-      let prorationCredit = 0;
-      let newPlanCharge = 0;
-      let immediateCharge = 0;
-
-      // Get current period end to filter out future billing cycles
+      // Get current billing period end to filter out future charges
       let currentBillingPeriodEnd =
         existingSubscription.items.data[0].current_period_end;
+
+      // Fallback: if period end not available, extract from invoice lines
       if (!currentBillingPeriodEnd && invoiceLines.length > 0) {
         const lineWithPeriod = invoiceLines.find((line) => line.period);
         if (lineWithPeriod) {
@@ -589,124 +567,89 @@ const previewUpgrade = async (req, res) => {
         }
       }
 
-      invoiceLines.forEach((line, index) => {
-        console.log(`Invoice line ${index + 1}:`, {
-          description: line.description,
-          amount: line.amount,
-          amount_in_dollars: (line.amount / 100).toFixed(2),
-          proration: line.proration,
-          period: line.period
-            ? {
-                start: new Date(line.period.start * 1000).toISOString(),
-                end: new Date(line.period.end * 1000).toISOString(),
-              }
-            : null,
-          isCurrentPeriod: line.period
-            ? line.period.end <= currentBillingPeriodEnd
-            : "unknown",
-        });
-
-        // Only include charges from the current billing period (exclude future billing cycles)
+      // Process each line item in the invoice preview
+      invoiceLines.forEach((line) => {
+        // Determine if this charge is for the current billing period
         const isCurrentPeriodCharge =
           !line.period || line.period.end <= currentBillingPeriodEnd;
 
         if (line.amount < 0) {
-          // This is a proration credit for unused time (negative amount)
+          // Negative amounts are credits for unused time on current plan
           prorationCredit += Math.abs(line.amount);
-          console.log(
-            `  -> Adding credit: $${(Math.abs(line.amount) / 100).toFixed(2)}`
-          );
         } else if (line.amount > 0 && isCurrentPeriodCharge) {
-          // Only include positive charges from current period (exclude next month's full charge)
+          // Positive amounts for current period are charges for the new plan
+          // Note: If coupon is applied, this amount already has the discount applied by Stripe
           newPlanCharge += line.amount;
-          console.log(
-            `  -> Adding current period charge: $${(line.amount / 100).toFixed(
-              2
-            )}`
-          );
-        } else if (line.amount > 0 && !isCurrentPeriodCharge) {
-          console.log(
-            `  -> Skipping future period charge: $${(line.amount / 100).toFixed(
-              2
-            )} (next billing cycle)`
-          );
         }
+        // Note: We skip future billing cycle charges as they don't affect immediate cost
       });
 
-      // Calculate the actual immediate charge for current period only
-      immediateCharge = Math.max(0, newPlanCharge - prorationCredit);
+      // Calculate immediate charge after applying proration credit
+      const immediateCharge = Math.max(0, newPlanCharge - prorationCredit);
 
-      console.log("Proration summary:", {
-        totalCredit: (prorationCredit / 100).toFixed(2),
-        totalCurrentPeriodCharge: (newPlanCharge / 100).toFixed(2),
-        calculatedImmediateCharge: (immediateCharge / 100).toFixed(2),
-        stripeRawAmountDue: (upcomingInvoice.amount_due / 100).toFixed(2),
-      });
+      // === STEP 8: CALCULATE COUPON DISCOUNT FROM STRIPE INVOICE ===
+      // When a coupon is applied, Stripe automatically applies the discount to the invoice
+      // newPlanCharge already has the coupon discount applied by Stripe
+      let couponDiscountAmount = 0;
+      if (couponData) {
+        if (couponData.discountType === "percentage") {
+          // Calculate discount amount based on plan price
+          couponDiscountAmount = Math.round(
+            (plan.price * couponData.discountValue) / 100
+          );
+        } else {
+          // Fixed amount discount (convert dollars to cents)
+          couponDiscountAmount = Math.round(couponData.discountValue * 100);
+        }
+      }
 
-      // Get current plan details
+      // === STEP 9: CALCULATE CREDIT USAGE ===
+      const availableCredits = Math.abs(
+        await getStripeCreditBalance(user.stripeCustomerId)
+      );
+
+      // Credits can only be used up to the immediate charge amount
+      const creditsToUse = Math.min(availableCredits, immediateCharge);
+
+      // === STEP 10: CALCULATE FINAL CHARGE FOR FRONTEND DISPLAY ===
+      // Use Stripe's actual calculation flow: (newPlanCharge already discounted) - proration - credits
+      // This matches exactly how Stripe processes the payment
+      const finalChargeAfterCredits = Math.max(
+        0,
+        immediateCharge - creditsToUse
+      );
+      const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
+
+      // === STEP 11: PREPARE BILLING DATE ===
       const currentPrice = existingSubscription.items.data[0].price;
-      const currentAmount = currentPrice.unit_amount / 100; // Convert to dollars
-      const newAmount = plan.price / 100; // Convert to dollars
-
-      // Calculate period information from invoice lines (more reliable)
-      const now = Math.floor(Date.now() / 1000);
       let currentPeriodEnd =
         existingSubscription.items.data[0].current_period_end;
-      let currentPeriodStart =
-        existingSubscription.items.data[0].current_period_start;
 
-      // If subscription periods are undefined, get from invoice line periods
+      // Fallback for period end if not available
       if (!currentPeriodEnd && invoiceLines.length > 0) {
         const lineWithPeriod = invoiceLines.find((line) => line.period);
         if (lineWithPeriod) {
           currentPeriodEnd = lineWithPeriod.period.end;
-          currentPeriodStart = lineWithPeriod.period.start;
         }
       }
 
-      const timeRemaining = Math.max(0, currentPeriodEnd - now);
-      const totalPeriodTime = currentPeriodEnd - currentPeriodStart;
-
-      // Safe date conversion with validation
+      // Convert timestamp to ISO date string with error handling
       let nextBillingDate;
       try {
         nextBillingDate =
           currentPeriodEnd && !isNaN(currentPeriodEnd)
             ? new Date(currentPeriodEnd * 1000).toISOString()
-            : new Date().toISOString(); // Fallback to current date
+            : new Date().toISOString();
       } catch (error) {
         console.error("Date conversion error:", error);
-        nextBillingDate = new Date().toISOString(); // Fallback
+        nextBillingDate = new Date().toISOString();
       }
 
-      // Get Stripe credit balance for the user
-      const availableCredits = Math.abs(
-        await getStripeCreditBalance(user.stripeCustomerId)
-      );
-      console.log("Available Stripe credits:", availableCredits);
-
-      // Calculate how much credits will be used (up to the immediate charge amount)
-      const creditsToUse = Math.min(availableCredits, immediateCharge);
-
-      // For frontend display, calculate final charge based on full plan price flow:
-      // Full Plan Price - Proration Credit - Credits Used = Final Charge
-      const finalChargeAfterCredits = Math.max(
-        0,
-        plan.price - prorationCredit - creditsToUse
-      );
-      const remainingCreditsAfterPurchase = availableCredits - creditsToUse;
-
-      console.log("Credit calculation:", {
-        availableCredits: availableCredits / 100,
-        immediateCharge: immediateCharge / 100,
-        creditsToUse: creditsToUse / 100,
-        finalChargeAfterCredits: finalChargeAfterCredits / 100,
-        remainingCreditsAfterPurchase: remainingCreditsAfterPurchase / 100,
-      });
-
-      // Convert cents to dollars with proper precision (avoiding floating point errors)
+      // === STEP 12: UTILITY FUNCTION FOR PRECISE DOLLAR CONVERSION ===
+      // Prevents floating-point precision errors in financial calculations
       const toFixedDollars = (cents) => Math.round(cents) / 100;
 
+      // === STEP 13: SEND PREVIEW RESPONSE ===
       res.json({
         success: true,
         message: "Upgrade preview calculated successfully",
@@ -721,7 +664,7 @@ const previewUpgrade = async (req, res) => {
             id: plan._id,
             name: plan.name,
             price: toFixedDollars(plan.price),
-            immediateCharge: toFixedDollars(newPlanCharge), // This is the actual charge for current period
+            immediateCharge: toFixedDollars(newPlanCharge),
           },
           billing: {
             immediateCharge: toFixedDollars(immediateCharge),
@@ -744,12 +687,7 @@ const previewUpgrade = async (req, res) => {
                 name: couponData.name,
                 discountType: couponData.discountType,
                 discountValue: couponData.discountValue,
-                discountAmount:
-                  couponData.discountType === "percentage"
-                    ? toFixedDollars(
-                        (plan.price * couponData.discountValue) / 100
-                      )
-                    : couponData.discountValue,
+                discountAmount: toFixedDollars(couponDiscountAmount),
               }
             : {
                 isApplied: false,
@@ -759,7 +697,7 @@ const previewUpgrade = async (req, res) => {
     } catch (stripeError) {
       console.error("Stripe upcoming invoice error:", stripeError);
 
-      // Fallback to basic calculation if Stripe preview fails
+      // === FALLBACK: BASIC CALCULATION IF STRIPE PREVIEW FAILS ===
       const currentPrice = existingSubscription.items.data[0].price;
       const toFixedDollars = (cents) => Math.round(cents) / 100;
 
