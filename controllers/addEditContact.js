@@ -136,93 +136,163 @@ const addEditContact = async (req, res) => {
     //   }
     // }
 
-    // ---------- Normalize Phone Numbers ----------
-    let parsedPhones = [];
-    let hasPhoneInput = false;
+    // // ---------- Normalize Phone Numbers ----------
+    // let parsedPhones = [];
+    // let hasPhoneInput = false;
 
-    // ✅ Case 1: apiType = "mobile" (phonenumber & countryCode come separately)
-    if (apiType === "mobile") {
-      hasPhoneInput = hasPhoneInput =
-        Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
-        Object.prototype.hasOwnProperty.call(req.body, "countryCode");
-      console.log(hasPhoneInput, phonenumber, countryCode);
+    // // ✅ Case 1: apiType = "mobile" (phonenumber & countryCode come separately)
+    // if (apiType === "mobile") {
+    //   hasPhoneInput = hasPhoneInput =
+    //     Object.prototype.hasOwnProperty.call(req.body, "phonenumber") ||
+    //     Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+    //   console.log(hasPhoneInput, phonenumber, countryCode);
 
-      if (hasPhoneInput) {
-        console.log("Phone input detected:", phonenumber, countryCode);
+    //   if (hasPhoneInput) {
+    //     console.log("Phone input detected:", phonenumber, countryCode);
 
-        const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, ""); // remove all non-digits
-        const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
-        if (cleanedCC && cleanedNum) {
-          parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
-        }
-      }
-    }
-
-    // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
-    // else if (apiType === "web" || apiType === "scan") {
-    //   if (phonenumber) {
-    //     if (!phonenumber.startsWith("+")) {
-    //       phonenumber = "+" + phonenumber;
-    //     }
-    //     const phoneObj = parsePhoneNumberFromString(phonenumber);
-    //     console.log(phoneObj);
-
-    //     if (phoneObj) {
-    //       const cleanedCC = phoneObj.countryCallingCode
-    //         .toString()
-    //         .replace(/[^\d]/g, ""); // clean country code
-    //       const cleanedNum = phoneObj.nationalNumber
-    //         .toString()
-    //         .replace(/[^\d]/g, ""); // clean national number
-
-    //       parsedPhones.push({
-    //         countryCode: cleanedCC,
-    //         number: cleanedNum,
-    //       });
-
-    //       hasPhoneInput = true;
+    //     const cleanedCC = (countryCode ?? "").toString().replace(/[^\d]/g, ""); // remove all non-digits
+    //     const cleanedNum = (phonenumber ?? "").toString().replace(/[^\d]/g, "");
+    //     if (cleanedCC && cleanedNum) {
+    //       parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
     //     }
     //   }
     // }
 
-    // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
-    // Treat presence of the phonenumber field (even if empty) as an instruction
-    else if (apiType === "web" || apiType === "scan") {
-      // Consider the field present if client sent it at all
-      hasPhoneInput = Object.prototype.hasOwnProperty.call(
-        req.body,
-        "phonenumber"
-      );
+    // // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
+    // // else if (apiType === "web" || apiType === "scan") {
+    // //   if (phonenumber) {
+    // //     if (!phonenumber.startsWith("+")) {
+    // //       phonenumber = "+" + phonenumber;
+    // //     }
+    // //     const phoneObj = parsePhoneNumberFromString(phonenumber);
+    // //     console.log(phoneObj);
 
-      // If client provided a non-empty value, parse it into countryCode/number
-      if (hasPhoneInput && phonenumber && String(phonenumber).trim() !== "") {
-        let raw = String(phonenumber).trim();
-        if (!raw.startsWith("+")) raw = "+" + raw;
-        const phoneObj = parsePhoneNumberFromString(raw);
-        console.log(phoneObj);
+    // //     if (phoneObj) {
+    // //       const cleanedCC = phoneObj.countryCallingCode
+    // //         .toString()
+    // //         .replace(/[^\d]/g, ""); // clean country code
+    // //       const cleanedNum = phoneObj.nationalNumber
+    // //         .toString()
+    // //         .replace(/[^\d]/g, ""); // clean national number
 
-        if (phoneObj) {
-          const cleanedCC = String(phoneObj.countryCallingCode ?? "").replace(
-            /[^\d]/g,
-            ""
-          );
-          const cleanedNum = String(phoneObj.nationalNumber ?? "").replace(
-            /[^\d]/g,
-            ""
-          );
+    // //       parsedPhones.push({
+    // //         countryCode: cleanedCC,
+    // //         number: cleanedNum,
+    // //       });
 
+    // //       hasPhoneInput = true;
+    // //     }
+    // //   }
+    // // }
+
+    // // ✅ Case 2: apiType = "web" or "scan" (combined number, e.g., +917046658651)
+    // // Treat presence of the phonenumber field (even if empty) as an instruction
+    // else if (apiType === "web" || apiType === "scan") {
+    //   // Consider the field present if client sent it at all
+    //   hasPhoneInput = Object.prototype.hasOwnProperty.call(
+    //     req.body,
+    //     "phonenumber"
+    //   );
+
+    //   // If client provided a non-empty value, parse it into countryCode/number
+    //   if (hasPhoneInput && phonenumber && String(phonenumber).trim() !== "") {
+    //     let raw = String(phonenumber).trim();
+    //     if (!raw.startsWith("+")) raw = "+" + raw;
+    //     const phoneObj = parsePhoneNumberFromString(raw);
+    //     console.log(phoneObj);
+
+    //     if (phoneObj) {
+    //       const cleanedCC = String(phoneObj.countryCallingCode ?? "").replace(
+    //         /[^\d]/g,
+    //         ""
+    //       );
+    //       const cleanedNum = String(phoneObj.nationalNumber ?? "").replace(
+    //         /[^\d]/g,
+    //         ""
+    //       );
+
+    //       if (cleanedCC && cleanedNum) {
+    //         parsedPhones.push({
+    //           countryCode: cleanedCC,
+    //           number: cleanedNum,
+    //         });
+    //       }
+    //     }
+    //   }
+    //   // If hasPhoneInput === true but value empty -> parsedPhones remains []
+    //   // Later the code `if (hasPhoneInput) updateFields.phonenumbers = parsedPhones;`
+    //   // will set phonenumbers to [] and thus remove phone(s) from DB on edit.
+    // }
+    // ---------- Normalize Phone Numbers (Final) ----------
+    let parsedPhones = [];
+    let hasPhoneInput = false;
+    let shouldRemovePhones = false;
+
+    // Detect presence (was the key sent at all?)
+    const phonePropPresent = Object.prototype.hasOwnProperty.call(req.body, "phonenumber");
+    const countryPropPresent = Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+
+    // Raw normalized values (if present) — keep undefined when the property wasn't sent
+    const rawPhone = phonePropPresent ? (req.body.phonenumber ?? "").toString().trim() : undefined;
+    const rawCC = countryPropPresent ? (req.body.countryCode ?? "").toString().trim() : undefined;
+    if (phonePropPresent || countryPropPresent) {
+      hasPhoneInput = true;
+
+      // If client explicitly sent a phonenumber field that is blank -> treat as "clear" (covers web).
+      // Also covers mobile because mobile normally sends phonenumber too.
+      if (phonePropPresent && rawPhone === "") {
+        shouldRemovePhones = true;
+      } else if ((rawPhone && rawPhone !== "") || (rawCC && rawCC !== "")) {
+        // Build a candidate international number for parsing
+        let full = null;
+
+        // Case: mobile sends countryCode + number separately
+        if (rawCC && rawCC !== "" && rawPhone && rawPhone !== "") {
+          const ccDigits = rawCC.replace(/[^\d]/g, "");
+          const numDigits = rawPhone.replace(/[^\d]/g, "");
+          if (ccDigits && numDigits) full = `+${ccDigits}${numDigits}`;
+        } else if (rawPhone && rawPhone !== "") {
+          // web sends a single phonenumber which may already include the country code
+          full = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
+        } else if (rawCC && rawCC !== "") {
+          // cc provided but number missing -> don't parse, leave unchanged
+          full = null;
+        }
+
+        if (full) {
+          try {
+            const phoneObj = parsePhoneNumberFromString(full);
+            if (phoneObj && phoneObj.countryCallingCode && phoneObj.nationalNumber) {
+              parsedPhones.push({
+                countryCode: String(phoneObj.countryCallingCode).replace(/[^\d]/g, ""),
+                number: String(phoneObj.nationalNumber).replace(/[^\d]/g, ""),
+              });
+            }
+          } catch (err) {
+            console.error("Phone parse error:", err && err.message ? err.message : err);
+          }
+        }
+
+        // Fallbacks when parsing fails:
+        if (parsedPhones.length === 0 && rawCC && rawPhone) {
+          const cleanedCC = rawCC.replace(/[^\d]/g, "");
+          const cleanedNum = rawPhone.replace(/[^\d]/g, "");
           if (cleanedCC && cleanedNum) {
-            parsedPhones.push({
-              countryCode: cleanedCC,
-              number: cleanedNum,
-            });
+            parsedPhones.push({ countryCode: cleanedCC, number: cleanedNum });
+          }
+        }
+        if (parsedPhones.length === 0 && rawPhone) {
+          const cleanedNumOnly = rawPhone.replace(/[^\d]/g, "");
+          if (cleanedNumOnly) {
+            parsedPhones.push({ countryCode: "", number: cleanedNumOnly });
           }
         }
       }
-      // If hasPhoneInput === true but value empty -> parsedPhones remains []
-      // Later the code `if (hasPhoneInput) updateFields.phonenumbers = parsedPhones;`
-      // will set phonenumbers to [] and thus remove phone(s) from DB on edit.
     }
+
+    // ---------- End Normalize Phone Numbers ----------
+
+
 
     // console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
@@ -806,10 +876,24 @@ const addEditContact = async (req, res) => {
       //   updateFields.phonenumbers = parsedPhones;
       // }
 
+      // if (hasPhoneInput) {
+      //   // This sets phonenumbers to [] when blanks are sent, effectively removing the phone(s).
+      //   updateFields.phonenumbers = parsedPhones;
+      // }
+
+      // Apply phone updates only when client intended a change
       if (hasPhoneInput) {
-        // This sets phonenumbers to [] when blanks are sent, effectively removing the phone(s).
-        updateFields.phonenumbers = parsedPhones;
+        if (shouldRemovePhones) {
+          // client sent both phone & country as blank -> clear phone numbers
+          updateFields.phonenumbers = [];
+        } else if (parsedPhones.length > 0) {
+          // parsed successfully -> update to parsedPhones
+          updateFields.phonenumbers = parsedPhones;
+        } else {
+          // phone props present but nothing parsed -> do NOT change db value (avoid accidental deletion)
+        }
       }
+
 
       if (
         req.body.emailaddresses !== undefined &&
