@@ -425,6 +425,10 @@ const userSchema = new Schema(
       sparse: true, // only enforce uniqueness when present
     },
 
+    // userModel.js (schema additions)
+    oneSignalPlayerIds: [{ type: String }], // optional - store device/player ids
+    oneSignalExternalUserIds: [{ type: String }], // recommended - store phone-based external ids like "919876543210"
+
     // myReferrals: {
     //   type: [
     //     {
@@ -566,7 +570,7 @@ userSchema.static(
     const query = email
       ? { email }
       : // : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
-        { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
+      { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
 
     const user = await this.findOne(query);
     if (!user) throw new Error("User not found");

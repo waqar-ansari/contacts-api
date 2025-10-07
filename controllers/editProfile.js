@@ -663,4 +663,26 @@ const editProfile = async (req, res) => {
   }
 };
 
-module.exports = { editProfile };
+const addonsignals = async (req, res) => {
+  try {
+    const { userId, playerId, externalId } = req.body;
+
+    if (!userId || (!playerId && !externalId))
+      return res.status(400).json({ error: "userId and oneSignal ids required" });
+
+    const update = {};
+    if (playerId) update.$addToSet = { oneSignalPlayerIds: playerId };
+    if (externalId) update.$addToSet = { oneSignalExternalUserIds: externalId };
+
+    const user = await User.findByIdAndUpdate(userId, update, { new: true });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json({ message: "OneSignal IDs updated", user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+
+module.exports = { editProfile, addonsignals };

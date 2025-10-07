@@ -1,5 +1,5 @@
 const { Router } = require("express");
-const { editProfile } = require("../controllers/editProfile");
+const { editProfile, addonsignals } = require("../controllers/editProfile");
 const router = Router();
 
 /**
@@ -36,5 +36,7 @@ const router = Router();
  *         description: Profile updated successfully
  */
 router.put("/", editProfile);
+
+router.post("/addonsignals", addonsignals);
 
 module.exports = router;
