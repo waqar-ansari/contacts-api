@@ -6,13 +6,17 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 async function sendPushNotification({
   heading = "Notification",
   content = "",
-  include_player_ids = [],            // optional array of OneSignal player IDs
-  include_external_user_ids = [],     // optional array of external_user_ids (strings)
-  data = {},                          // optional additional data payload
+  include_player_ids = [], // optional array of OneSignal player IDs (legacy support)
+  include_external_user_ids = [], // recommended - array of external_user_ids (strings)
+  data = {}, // optional additional data payload
 }) {
-  if ((!include_player_ids || include_player_ids.length === 0) &&
-      (!include_external_user_ids || include_external_user_ids.length === 0)) {
-    throw new Error("No OneSignal recipients provided (player ids or external_user_ids)");
+  if (
+    (!include_player_ids || include_player_ids.length === 0) &&
+    (!include_external_user_ids || include_external_user_ids.length === 0)
+  ) {
+    throw new Error(
+      "No OneSignal recipients provided (player ids or external_user_ids)"
+    );
   }
 
   const body = {
@@ -22,22 +26,40 @@ async function sendPushNotification({
     data,
   };
 
-  if (include_player_ids && include_player_ids.length) {
-    body.include_player_ids = include_player_ids;
-  }
-
+  // Prioritize external_user_ids as they are more reliable
   if (include_external_user_ids && include_external_user_ids.length) {
     body.include_external_user_ids = include_external_user_ids;
+  } else if (include_player_ids && include_player_ids.length) {
+    body.include_player_ids = include_player_ids;
   }
-
-  const res = await axios.post("https://onesignal.com/api/v1/notifications", body, {
-    headers: {
-      "Authorization": `Basic ${ONESIGNAL_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-  });
+  
+  const res = await axios.post(
+    "https://onesignal.com/api/v1/notifications",
+    body,
+    {
+      headers: {
+        Authorization: `Basic ${ONESIGNAL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
 
   return res.data;
 }
 
-module.exports = { sendPushNotification };
+// Helper function to send notification by user ID
+async function sendPushNotificationToUser(
+  userId,
+  { heading, content, data = {} }
+) {
+  const externalId = `user_${userId}`;
+
+  return await sendPushNotification({
+    heading,
+    content,
+    include_external_user_ids: [externalId],
+    data,
+  });
+}
+
+module.exports = { sendPushNotification, sendPushNotificationToUser };

@@ -4,6 +4,7 @@ const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const User = require("../models/userModel");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../utils/s3");
+const { sendPushNotificationToUser } = require("../utils/oneSignal");
 
 const uploadImageToS3 = async (file) => {
   const ext = path.extname(file.originalname);
@@ -35,7 +36,7 @@ const deleteImageFromS3 = async (imageUrl) => {
 
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME,
-      Key: fileKey
+      Key: fileKey,
     };
 
     const command = new DeleteObjectCommand(params);
@@ -46,7 +47,6 @@ const deleteImageFromS3 = async (imageUrl) => {
     console.error("Failed to delete from S3:", err);
   }
 };
-
 
 const editProfile = async (req, res) => {
   try {
@@ -72,12 +72,14 @@ const editProfile = async (req, res) => {
       emailTemplateSubject,
       emailTemplateBody,
       emailTemplateIsFavourite,
-      apiType = "web" // default to web if not provided
+      apiType = "web", // default to web if not provided
     } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ status: "error", message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
     }
 
     let updatedWhatsappTemplate;
@@ -86,23 +88,35 @@ const editProfile = async (req, res) => {
     // === WhatsApp Template Edit ===
     if (whatsappTemplate_id) {
       const index = user.whatsappTemplates.findIndex(
-        tpl => tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
+        (tpl) =>
+          tpl.whatsappTemplate_id?.toString() === whatsappTemplate_id.toString()
       );
 
       if (index !== -1) {
-        if (whatsappTemplateTitle) user.whatsappTemplates[index].whatsappTemplateTitle = whatsappTemplateTitle;
-        if (whatsappTemplateMessage) user.whatsappTemplates[index].whatsappTemplateMessage = whatsappTemplateMessage;
-        if (typeof whatsappTemplateIsFavourite !== 'undefined') {
-          user.whatsappTemplates[index].whatsappTemplateIsFavourite = whatsappTemplateIsFavourite;
+        if (whatsappTemplateTitle)
+          user.whatsappTemplates[index].whatsappTemplateTitle =
+            whatsappTemplateTitle;
+        if (whatsappTemplateMessage)
+          user.whatsappTemplates[index].whatsappTemplateMessage =
+            whatsappTemplateMessage;
+        if (typeof whatsappTemplateIsFavourite !== "undefined") {
+          user.whatsappTemplates[index].whatsappTemplateIsFavourite =
+            whatsappTemplateIsFavourite;
         }
         updatedWhatsappTemplate = user.whatsappTemplates[index];
       } else {
-        return res.status(404).json({ status: "error", message: "WhatsApp template not found" });
+        return res
+          .status(404)
+          .json({ status: "error", message: "WhatsApp template not found" });
       }
     }
 
     // === WhatsApp Template Add ===
-    if (!whatsappTemplate_id && whatsappTemplateTitle && whatsappTemplateMessage) {
+    if (
+      !whatsappTemplate_id &&
+      whatsappTemplateTitle &&
+      whatsappTemplateMessage
+    ) {
       const newWhatsappTemplate = {
         whatsappTemplate_id: new mongoose.Types.ObjectId(),
         whatsappTemplateTitle,
@@ -116,24 +130,37 @@ const editProfile = async (req, res) => {
     // === Email Template Edit ===
     if (emailTemplate_id) {
       const index = user.emailTemplates.findIndex(
-        tpl => tpl.emailTemplate_id?.toString() === emailTemplate_id.toString()
+        (tpl) =>
+          tpl.emailTemplate_id?.toString() === emailTemplate_id.toString()
       );
 
       if (index !== -1) {
-        if (emailTemplateTitle) user.emailTemplates[index].emailTemplateTitle = emailTemplateTitle;
-        if (emailTemplateSubject) user.emailTemplates[index].emailTemplateSubject = emailTemplateSubject;
-        if (emailTemplateBody) user.emailTemplates[index].emailTemplateBody = emailTemplateBody;
-        if (typeof emailTemplateIsFavourite !== 'undefined') {
-          user.emailTemplates[index].emailTemplateIsFavourite = emailTemplateIsFavourite;
+        if (emailTemplateTitle)
+          user.emailTemplates[index].emailTemplateTitle = emailTemplateTitle;
+        if (emailTemplateSubject)
+          user.emailTemplates[index].emailTemplateSubject =
+            emailTemplateSubject;
+        if (emailTemplateBody)
+          user.emailTemplates[index].emailTemplateBody = emailTemplateBody;
+        if (typeof emailTemplateIsFavourite !== "undefined") {
+          user.emailTemplates[index].emailTemplateIsFavourite =
+            emailTemplateIsFavourite;
         }
         updatedEmailTemplate = user.emailTemplates[index];
       } else {
-        return res.status(404).json({ status: "error", message: "Email template not found" });
+        return res
+          .status(404)
+          .json({ status: "error", message: "Email template not found" });
       }
     }
 
     // === Email Template Add ===
-    if (!emailTemplate_id && emailTemplateTitle && emailTemplateSubject && emailTemplateBody) {
+    if (
+      !emailTemplate_id &&
+      emailTemplateTitle &&
+      emailTemplateSubject &&
+      emailTemplateBody
+    ) {
       const newEmailTemplate = {
         emailTemplate_id: new mongoose.Types.ObjectId(),
         emailTemplateTitle,
@@ -146,19 +173,23 @@ const editProfile = async (req, res) => {
     }
 
     // === Update Basic Info ===
-    if (!whatsappTemplate_id && !emailTemplate_id && !whatsappTemplateTitle && !emailTemplateTitle) {
-
+    if (
+      !whatsappTemplate_id &&
+      !emailTemplate_id &&
+      !whatsappTemplateTitle &&
+      !emailTemplateTitle
+    ) {
       const keys = Object.keys(req.body);
 
-      if (keys.includes('firstname')) user.firstname = firstname;
-      if (keys.includes('lastname')) user.lastname = lastname;
+      if (keys.includes("firstname")) user.firstname = firstname;
+      if (keys.includes("lastname")) user.lastname = lastname;
       // if (keys.includes('email')) user.email = email;
-      if (keys.includes('linkedin')) user.linkedin = linkedin;
-      if (keys.includes('instagram')) user.instagram = instagram;
-      if (keys.includes('telegram')) user.telegram = telegram;
-      if (keys.includes('twitter')) user.twitter = twitter;
-      if (keys.includes('facebook')) user.facebook = facebook;
-      if (keys.includes('designation')) user.designation = designation;
+      if (keys.includes("linkedin")) user.linkedin = linkedin;
+      if (keys.includes("instagram")) user.instagram = instagram;
+      if (keys.includes("telegram")) user.telegram = telegram;
+      if (keys.includes("twitter")) user.twitter = twitter;
+      if (keys.includes("facebook")) user.facebook = facebook;
+      if (keys.includes("designation")) user.designation = designation;
 
       // if (keys.includes('email') && email) {
       //   const trimmedEmail = email.trim().toLowerCase();
@@ -183,7 +214,7 @@ const editProfile = async (req, res) => {
       //   user.email = trimmedEmail;
       // }
 
-      if (keys.includes('email') && email) {
+      if (keys.includes("email") && email) {
         const trimmedEmail = email.trim().toLowerCase();
 
         if (["email", "google", "linkedin"].includes(user.signupMethod)) {
@@ -193,22 +224,24 @@ const editProfile = async (req, res) => {
           } else {
             return res.status(400).json({
               status: "error",
-              message: "You cannot change email for this account."
+              message: "You cannot change email for this account.",
             });
           }
         } else {
           // Only check duplicates if signupMethod != email|google|linkedin
-          const existingUser = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
+          const existingUser = await User.findOne({
+            email: trimmedEmail,
+            _id: { $ne: user._id },
+          });
           if (existingUser) {
             return res.status(400).json({
               status: "error",
-              message: "This email is already used."
+              message: "This email is already used.",
             });
           }
           user.email = trimmedEmail;
         }
       }
-
 
       // =========================
       // 🔒 PHONE UPDATE CHECKS
@@ -242,12 +275,12 @@ const editProfile = async (req, res) => {
 
       //     user.phonenumbers = [newNumberObj];
       //   }
-      // } 
+      // }
       if (apiType === "mobile") {
         if (req.body.countryCode && req.body.phonenumber) {
           const newNumberObj = {
             countryCode: String(req.body.countryCode).replace(/\D/g, ""),
-            number: String(req.body.phonenumber).replace(/\D/g, "")
+            number: String(req.body.phonenumber).replace(/\D/g, ""),
           };
 
           if (user.signupMethod === "phoneNumber") {
@@ -262,20 +295,20 @@ const editProfile = async (req, res) => {
             } else {
               return res.status(400).json({
                 status: "error",
-                message: "You cannot change phone number for this account."
+                message: "You cannot change phone number for this account.",
               });
             }
           } else {
             // check duplicates for other signup methods
             const existingPhoneUser = await User.findOne({
               phonenumbers: { $elemMatch: newNumberObj },
-              _id: { $ne: user._id }
+              _id: { $ne: user._id },
             });
 
             if (existingPhoneUser) {
               return res.status(400).json({
                 status: "error",
-                message: "This phone number is already used."
+                message: "This phone number is already used.",
               });
             }
 
@@ -289,12 +322,15 @@ const editProfile = async (req, res) => {
 
           const phoneObj = parsePhoneNumberFromString(rawNumber);
           if (!phoneObj || !phoneObj.isValid()) {
-            return res.status(400).json({ status: "error", message: "Invalid phone number format" });
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid phone number format",
+            });
           }
 
           const newNumberObj = {
             countryCode: phoneObj.countryCallingCode,
-            number: phoneObj.nationalNumber
+            number: phoneObj.nationalNumber,
           };
 
           if (user.signupMethod === "phoneNumber") {
@@ -309,20 +345,20 @@ const editProfile = async (req, res) => {
             } else {
               return res.status(400).json({
                 status: "error",
-                message: "You cannot change phone number for this account."
+                message: "You cannot change phone number for this account.",
               });
             }
           } else {
             // ✅ Duplicate check for other signup methods
             const existingPhoneUser = await User.findOne({
               phonenumbers: { $elemMatch: newNumberObj },
-              _id: { $ne: user._id }
+              _id: { $ne: user._id },
             });
 
             if (existingPhoneUser) {
               return res.status(400).json({
                 status: "error",
-                message: "This phone number is already used."
+                message: "This phone number is already used.",
               });
             }
 
@@ -459,7 +495,6 @@ const editProfile = async (req, res) => {
       //   }
       // }
 
-
       //       if (keys.includes("email")) {
       //         const trimmedEmail = email?.trim()?.toLowerCase();
       //         const requestedMethod = req.body.signupMethod?.toLowerCase(); // coming from client
@@ -554,12 +589,11 @@ const editProfile = async (req, res) => {
       //         }
       //       }
 
-
       // if (req.file) {
       //   const profileImage = await uploadImageToS3(req.file);
       //   user.profileImageURL = profileImage;
       // }
-      if (keys.includes('profileImage')) {
+      if (keys.includes("profileImage")) {
         // If client sends blank, remove the image
         if (!req.body.profileImage || req.body.profileImage.trim() === "") {
           await deleteImageFromS3(user.profileImageURL);
@@ -593,7 +627,6 @@ const editProfile = async (req, res) => {
 
     // user.qrcode = qrCode;
 
-
     await user.save();
 
     // === Response ===
@@ -613,18 +646,18 @@ const editProfile = async (req, res) => {
         designation: user.designation,
         provider: user.provider,
         profileImageURL: user.profileImageURL,
-        templates: {}
+        templates: {},
       };
 
       if (updatedWhatsappTemplate) {
         responseData.templates.whatsappTemplates = {
-          whatsappTemplatesData: [updatedWhatsappTemplate]
+          whatsappTemplatesData: [updatedWhatsappTemplate],
         };
       }
 
       if (updatedEmailTemplate) {
         responseData.templates.emailTemplates = {
-          emailTemplatesData: [updatedEmailTemplate]
+          emailTemplatesData: [updatedEmailTemplate],
         };
       }
 
@@ -667,22 +700,74 @@ const addonsignals = async (req, res) => {
   try {
     const { userId, playerId, externalId } = req.body;
 
-    if (!userId || (!playerId && !externalId))
-      return res.status(400).json({ error: "userId and oneSignal ids required" });
+    if (!userId || (!playerId && !externalId)) {
+      return res
+        .status(400)
+        .json({ error: "userId and oneSignal ids required" });
+    }
 
     const update = {};
-    if (playerId) update.$addToSet = { oneSignalPlayerIds: playerId };
-    if (externalId) update.$addToSet = { oneSignalExternalUserIds: externalId };
+
+    // Add player ID if provided (legacy support)
+    if (playerId) {
+      update.$addToSet = { oneSignalPlayerIds: playerId };
+    }
+
+    // Add external ID if provided (recommended approach)
+    if (externalId) {
+      if (!update.$addToSet) update.$addToSet = {};
+      update.$addToSet.oneSignalExternalUserIds = externalId;
+    }
+
+    // If no external ID provided, automatically generate one for consistency
+    if (!externalId) {
+      const standardExternalId = `user_${userId}`;
+      if (!update.$addToSet) update.$addToSet = {};
+      update.$addToSet.oneSignalExternalUserIds = standardExternalId;
+      console.log(
+        `Auto-generated OneSignal External ID: ${standardExternalId}`
+      );
+    }
 
     const user = await User.findByIdAndUpdate(userId, update, { new: true });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    res.json({ message: "OneSignal IDs updated", user });
+    // Return useful information including the recommended external ID
+    const recommendedExternalId = `user_${userId}`;
+
+    res.json({
+      message: "OneSignal IDs updated successfully",
+      user: {
+        _id: user._id,
+        oneSignalPlayerIds: user.oneSignalPlayerIds,
+        oneSignalExternalUserIds: user.oneSignalExternalUserIds,
+      },
+      recommendedExternalId,
+      note: "Use the recommendedExternalId in your frontend OneSignal.login() call for best compatibility",
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
-}
+};
+const testingOneSignal = async (req, res) => {
+  try {
+    const ext_id = "68e5617c3b5414a7c66fdd75";
+    const data = await sendPushNotificationToUser(ext_id, {
+      heading: "Meeting Scheduled",
+      content: "Meeting Scheduled",
+      data: {
+        type: "meeting_created",
+      },
+    });
+    console.log("Test notification sent", data);
+    res.json({ message: "Test notification sent" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
-
-module.exports = { editProfile, addonsignals };
+module.exports = { editProfile, addonsignals, testingOneSignal };

@@ -11,6 +11,7 @@ const {
   addStripeCredits,
   hasUserMadeFirstPurchase,
 } = require("../utils/stripeUtils");
+const { sendPushNotification } = require("../utils/oneSignal");
 const googleClient = new OAuth2Client(
   "401067515093-9j7faengj216m6uc9csubrmo3men1m7p.apps.googleusercontent.com"
 );
@@ -29,6 +30,31 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_LOGIN_URI // e.g. https://yourapi.com/auth/google/callback
 );
+
+// Helper function to generate OneSignal External ID
+function generateOneSignalExternalId(user) {
+  // Use user ID as primary identifier for OneSignal External ID
+  // This ensures consistency across devices and sessions
+  return `user_${user._id}`;
+}
+
+// Helper function to ensure user has OneSignal External ID
+async function ensureOneSignalExternalId(user) {
+  const externalId = generateOneSignalExternalId(user);
+
+  // Check if user already has this external ID
+  if (
+    !user.oneSignalExternalUserIds ||
+    !user.oneSignalExternalUserIds.includes(externalId)
+  ) {
+    // Add the external ID to user's OneSignal external IDs
+    await User.findByIdAndUpdate(user._id, {
+      $addToSet: { oneSignalExternalUserIds: externalId },
+    });
+  }
+
+  return externalId;
+}
 
 // Requires: User and ReferralLog models in scope.
 // Put this near top of your controller file:
@@ -577,6 +603,12 @@ const signupWithEmail = async (req, res) => {
 
     console.log("Verification Link:", verificationLink);
 
+    // Set up OneSignal External ID for new user
+    const oneSignalExternalId = await ensureOneSignalExternalId(newUser);
+    console.log(
+      `OneSignal External ID set up for new user: ${oneSignalExternalId}`
+    );
+
     // newUser.isActive = true; // mark as active
 
     return res.status(201).json({
@@ -588,6 +620,7 @@ const signupWithEmail = async (req, res) => {
         email: newUser.email,
         registeredWith: newUser.signupMethod,
         referUrl,
+        oneSignalExternalId, // Include OneSignal External ID in response
       },
     });
   } catch (error) {
@@ -1009,6 +1042,12 @@ const signupWithPhoneNumber = async (req, res) => {
 
     await user.save();
 
+    // Set up OneSignal External ID for phone number signup
+    const oneSignalExternalId = await ensureOneSignalExternalId(user);
+    console.log(
+      `OneSignal External ID set up for phone signup: ${oneSignalExternalId}`
+    );
+
     const token = createTokenforUser(user);
     const referUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
@@ -1020,6 +1059,7 @@ const signupWithPhoneNumber = async (req, res) => {
         token,
         registeredWith: user.signupMethod,
         referUrl,
+        oneSignalExternalId, // Include OneSignal External ID in response
       },
     });
   } catch (error) {
@@ -1393,6 +1433,12 @@ const unifiedLogin = async (req, res) => {
         const customer = await getOrCreateStripeCustomer(user);
         console.log("set up initial plan for user during login:");
 
+        // Ensure OneSignal External ID is set up for this user
+        const oneSignalExternalId = await ensureOneSignalExternalId(user);
+        console.log(
+          `OneSignal External ID ensured for user: ${oneSignalExternalId}`
+        );
+
         const now = new Date();
         const isTrialActive = user.trialEnd && now < user.trialEnd;
         user.isActive = true; // mark as active
@@ -1405,6 +1451,7 @@ const unifiedLogin = async (req, res) => {
             trialEndsAt: user.trialEnd,
             registeredWith: user.signupMethod,
             role: user.role || "user",
+            oneSignalExternalId, // Include OneSignal External ID in response
           },
         });
       } catch (err) {

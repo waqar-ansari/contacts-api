@@ -9,7 +9,10 @@ const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const Plan = require("../models/planModel");
 const { getUserCurrentPlan } = require("../utils/stripeUtils");
-const { sendPushNotification } = require("../utils/oneSignal");
+const {
+  sendPushNotification,
+  sendPushNotificationToUser,
+} = require("../utils/oneSignal");
 
 const addEditContact = async (req, res) => {
   try {
@@ -87,12 +90,22 @@ const addEditContact = async (req, res) => {
     let shouldRemovePhones = false;
 
     // Detect presence (was the key sent at all?)
-    const phonePropPresent = Object.prototype.hasOwnProperty.call(req.body, "phonenumber");
-    const countryPropPresent = Object.prototype.hasOwnProperty.call(req.body, "countryCode");
+    const phonePropPresent = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "phonenumber"
+    );
+    const countryPropPresent = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "countryCode"
+    );
 
     // Raw normalized values (if present) — keep undefined when the property wasn't sent
-    const rawPhone = phonePropPresent ? (req.body.phonenumber ?? "").toString().trim() : undefined;
-    const rawCC = countryPropPresent ? (req.body.countryCode ?? "").toString().trim() : undefined;
+    const rawPhone = phonePropPresent
+      ? (req.body.phonenumber ?? "").toString().trim()
+      : undefined;
+    const rawCC = countryPropPresent
+      ? (req.body.countryCode ?? "").toString().trim()
+      : undefined;
     if (phonePropPresent || countryPropPresent) {
       hasPhoneInput = true;
 
@@ -119,14 +132,24 @@ const addEditContact = async (req, res) => {
         if (full) {
           try {
             const phoneObj = parsePhoneNumberFromString(full);
-            if (phoneObj && phoneObj.countryCallingCode && phoneObj.nationalNumber) {
+            if (
+              phoneObj &&
+              phoneObj.countryCallingCode &&
+              phoneObj.nationalNumber
+            ) {
               parsedPhones.push({
-                countryCode: String(phoneObj.countryCallingCode).replace(/[^\d]/g, ""),
+                countryCode: String(phoneObj.countryCallingCode).replace(
+                  /[^\d]/g,
+                  ""
+                ),
                 number: String(phoneObj.nationalNumber).replace(/[^\d]/g, ""),
               });
             }
           } catch (err) {
-            console.error("Phone parse error:", err && err.message ? err.message : err);
+            console.error(
+              "Phone parse error:",
+              err && err.message ? err.message : err
+            );
           }
         }
 
@@ -148,8 +171,6 @@ const addEditContact = async (req, res) => {
     }
 
     // ---------- End Normalize Phone Numbers ----------
-
-
 
     // console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
@@ -391,7 +412,6 @@ const addEditContact = async (req, res) => {
     let meetingObj = null; // ✅ This line fixes your error
 
     if (meetingProvided) {
-
       // ✅ For online meeting: Check Google connection
       if (meetingType === "online") {
         if (!user.googleAccessToken || !user.googleRefreshToken) {
@@ -581,7 +601,7 @@ const addEditContact = async (req, res) => {
       // if (meetingObj) contactPayload.meetings = [meetingObj];
       if (meetingObj) {
         contactPayload.meetings = [meetingObj];
-        meetingWasCreated = true;   // <-- mark that a meeting was created during contact creation
+        meetingWasCreated = true; // <-- mark that a meeting was created during contact creation
       }
 
       contactData = await Contact.create(contactPayload);
@@ -611,7 +631,6 @@ const addEditContact = async (req, res) => {
         website,
       };
 
-
       // Apply phone updates only when client intended a change
       if (hasPhoneInput) {
         if (shouldRemovePhones) {
@@ -624,7 +643,6 @@ const addEditContact = async (req, res) => {
           // phone props present but nothing parsed -> do NOT change db value (avoid accidental deletion)
         }
       }
-
 
       if (
         req.body.emailaddresses !== undefined &&
@@ -748,16 +766,20 @@ const addEditContact = async (req, res) => {
       // ---------- OneSignal Push: notify user(s) if a meeting was newly created ----------
       if (meetingWasCreated) {
         try {
-          // collect unique users matched by contact phone numbers
+          console.log("meetingWasCreated is true; starting OneSignal flow");
+          // Collect unique users to notify based on contact phone numbers
           const notifiedUserIds = new Set();
 
-          if (Array.isArray(contactData.phonenumbers) && contactData.phonenumbers.length) {
+          if (
+            Array.isArray(contactData.phonenumbers) &&
+            contactData.phonenumbers.length
+          ) {
             for (const p of contactData.phonenumbers) {
               const cc = String(p.countryCode ?? "").replace(/[^\d]/g, "");
               const num = String(p.number ?? "").replace(/[^\d]/g, "");
               if (!num) continue;
 
-              // find user who has this phone
+              // Find user who has this phone number
               const matchedUser = await User.findOne({
                 phonenumbers: {
                   $elemMatch: {
@@ -769,37 +791,43 @@ const addEditContact = async (req, res) => {
 
               if (!matchedUser) continue;
               const uid = String(matchedUser._id);
-              if (notifiedUserIds.has(uid)) continue; // already notified this user
+              if (notifiedUserIds.has(uid)) continue; // Already notified this user
               notifiedUserIds.add(uid);
 
-              // Prepare OneSignal recipient identifiers (prefer playerIds then external ids)
-              const playerIds = Array.isArray(matchedUser.oneSignalPlayerIds) ? matchedUser.oneSignalPlayerIds.filter(Boolean) : [];
-              const externalIds = Array.isArray(matchedUser.oneSignalExternalUserIds) ? matchedUser.oneSignalExternalUserIds.filter(Boolean) : [];
-
-              if (playerIds.length === 0 && externalIds.length === 0) {
-                console.log(`User ${matchedUser._id} has no OneSignal ids; skipping push`);
-                continue;
-              }
-
+              // Use the new optimized function to send notification by user ID
               const heading = "Meeting Scheduled";
-              const content = `Meeting scheduled with ${contactData.firstname || ""} ${contactData.lastname || ""}${meetingObj.meetingStartDate ? " on " + meetingObj.meetingStartDate : ""}${meetingObj.meetingStartTime ? " at " + meetingObj.meetingStartTime : ""}`;
+              const content = `Meeting scheduled with ${
+                contactData.firstname || ""
+              } ${contactData.lastname || ""}${
+                meetingObj.meetingStartDate
+                  ? " on " + meetingObj.meetingStartDate
+                  : ""
+              }${
+                meetingObj.meetingStartTime
+                  ? " at " + meetingObj.meetingStartTime
+                  : ""
+              }`;
 
-              // call your util
               try {
-                await sendPushNotification({
+                await sendPushNotificationToUser(matchedUser._id, {
                   heading,
                   content,
-                  include_player_ids: playerIds,
-                  include_external_user_ids: externalIds,
                   data: {
                     contact_id: String(contactData._id),
                     meeting_id: String(meetingObj.meeting_id),
                     type: "meeting_created",
                   },
                 });
-                console.log(`OneSignal: notification sent to user ${matchedUser._id}`);
+                console.log(
+                  `OneSignal: notification sent to user ${matchedUser._id}`
+                );
               } catch (err) {
-                console.error("OneSignal send error:", err && err.response?.data ? err.response.data : err.message || err);
+                console.error(
+                  "OneSignal send error:",
+                  err && err.response?.data
+                    ? err.response.data
+                    : err.message || err
+                );
               }
             } // end for phonenumbers
           } // end if contactData.phonenumbers
@@ -807,7 +835,6 @@ const addEditContact = async (req, res) => {
           console.error("OneSignal notification flow failed:", err);
         }
       } // end if meetingWasCreated
-
 
       // Log contact_updated ONLY if no task, meeting, or tag was updated
       const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;

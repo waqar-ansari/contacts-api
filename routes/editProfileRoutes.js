@@ -1,5 +1,5 @@
 const { Router } = require("express");
-const { editProfile, addonsignals } = require("../controllers/editProfile");
+const { editProfile, addonsignals, testingOneSignal } = require("../controllers/editProfile");
 const router = Router();
 
 /**
@@ -38,5 +38,6 @@ const router = Router();
 router.put("/", editProfile);
 
 router.post("/addonsignals", addonsignals);
+router.get("/testingonesignal", testingOneSignal);
 
 module.exports = router;
