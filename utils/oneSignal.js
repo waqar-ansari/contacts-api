@@ -9,6 +9,7 @@ async function sendPushNotification({
   include_player_ids = [], // optional array of OneSignal player IDs (legacy support)
   include_external_user_ids = [], // recommended - array of external_user_ids (strings)
   data = {}, // optional additional data payload
+  url = null, // optional URL to redirect when notification is clicked
 }) {
   if (
     (!include_player_ids || include_player_ids.length === 0) &&
@@ -26,13 +27,18 @@ async function sendPushNotification({
     data,
   };
 
+  // Add URL if provided
+  if (url) {
+    body.url = url;
+  }
+
   // Prioritize external_user_ids as they are more reliable
   if (include_external_user_ids && include_external_user_ids.length) {
     body.include_external_user_ids = include_external_user_ids;
   } else if (include_player_ids && include_player_ids.length) {
     body.include_player_ids = include_player_ids;
   }
-  
+
   const res = await axios.post(
     "https://onesignal.com/api/v1/notifications",
     body,
@@ -50,7 +56,7 @@ async function sendPushNotification({
 // Helper function to send notification by user ID
 async function sendPushNotificationToUser(
   userId,
-  { heading, content, data = {} }
+  { heading, content, data = {}, url = null }
 ) {
   const externalId = `user_${userId}`;
 
@@ -59,6 +65,7 @@ async function sendPushNotificationToUser(
     content,
     include_external_user_ids: [externalId],
     data,
+    url,
   });
 }
 

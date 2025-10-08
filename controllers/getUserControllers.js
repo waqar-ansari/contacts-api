@@ -42,13 +42,15 @@ const getUserData = async (req, res) => {
 
     // Get Stripe credit balance
     let creditBalance = 0;
-    try {
-      const customer = await getOrCreateStripeCustomer(user);
-      const stripeCreditBalance = await getStripeCreditBalance(customer.id);
-      creditBalance = Math.abs(stripeCreditBalance); // Convert to dollars
-    } catch (error) {
-      console.error("Error getting Stripe credit balance:", error);
-      creditBalance = 0;
+    if (user.role !== "admin") {
+      try {
+        const customer = await getOrCreateStripeCustomer(user);
+        const stripeCreditBalance = await getStripeCreditBalance(customer.id);
+        creditBalance = Math.abs(stripeCreditBalance); // Convert to dollars
+      } catch (error) {
+        console.error("Error getting Stripe credit balance:", error);
+        creditBalance = 0;
+      }
     }
 
     const responseData = {};

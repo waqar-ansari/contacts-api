@@ -160,7 +160,6 @@ const getProfileEvents = async (req, res) => {
 
         const contacts = await Contact.find({ createdBy: userId });
 
-        console.log("Fetched contacts:", contacts.length);
 
         const events = [];
         let skippedOnlineMeetings = false;

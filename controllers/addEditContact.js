@@ -9,15 +9,11 @@ const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const Plan = require("../models/planModel");
 const { getUserCurrentPlan } = require("../utils/stripeUtils");
-const {
-  sendPushNotification,
-  sendPushNotificationToUser,
-} = require("../utils/oneSignal");
+const { sendPushNotificationToUser } = require("../utils/oneSignal");
 
 const addEditContact = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    console.log(user);
 
     if (!user) {
       return res
@@ -817,6 +813,7 @@ const addEditContact = async (req, res) => {
                     meeting_id: String(meetingObj.meeting_id),
                     type: "meeting_created",
                   },
+                  url: `${process.env.FRONTEND_URL}/calendar`,
                 });
                 console.log(
                   `OneSignal: notification sent to user ${matchedUser._id}`
