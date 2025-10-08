@@ -696,62 +696,6 @@ const editProfile = async (req, res) => {
   }
 };
 
-const addonsignals = async (req, res) => {
-  try {
-    const { userId, playerId, externalId } = req.body;
-
-    if (!userId || (!playerId && !externalId)) {
-      return res
-        .status(400)
-        .json({ error: "userId and oneSignal ids required" });
-    }
-
-    const update = {};
-
-    // Add player ID if provided (legacy support)
-    if (playerId) {
-      update.$addToSet = { oneSignalPlayerIds: playerId };
-    }
-
-    // Add external ID if provided (recommended approach)
-    if (externalId) {
-      if (!update.$addToSet) update.$addToSet = {};
-      update.$addToSet.oneSignalExternalUserIds = externalId;
-    }
-
-    // If no external ID provided, automatically generate one for consistency
-    if (!externalId) {
-      const standardExternalId = `user_${userId}`;
-      if (!update.$addToSet) update.$addToSet = {};
-      update.$addToSet.oneSignalExternalUserIds = standardExternalId;
-      console.log(
-        `Auto-generated OneSignal External ID: ${standardExternalId}`
-      );
-    }
-
-    const user = await User.findByIdAndUpdate(userId, update, { new: true });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Return useful information including the recommended external ID
-    const recommendedExternalId = `user_${userId}`;
-
-    res.json({
-      message: "OneSignal IDs updated successfully",
-      user: {
-        _id: user._id,
-        oneSignalPlayerIds: user.oneSignalPlayerIds,
-        oneSignalExternalUserIds: user.oneSignalExternalUserIds,
-      },
-      recommendedExternalId,
-      note: "Use the recommendedExternalId in your frontend OneSignal.login() call for best compatibility",
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
 const testingOneSignal = async (req, res) => {
   try {
     const ext_id = "68e5617c3b5414a7c66fdd75";
@@ -770,4 +714,4 @@ const testingOneSignal = async (req, res) => {
   }
 };
 
-module.exports = { editProfile, addonsignals, testingOneSignal };
+module.exports = { editProfile, testingOneSignal };

@@ -37,7 +37,6 @@ const router = Router();
  */
 router.put("/", editProfile);
 
-router.post("/addonsignals", addonsignals);
 router.get("/testingonesignal", testingOneSignal);
 
 module.exports = router;
