@@ -17,8 +17,13 @@ const sendEmail = async (to, subject, html) => {
     }
   });
 
+  //  from: '"Contacts Management" <noreply@contacts.management>',
+  //   to: email,
+  //   subject: "Contacts.Management : Verify Your E-mail",
+  //   html: `<html lang="en">
+
   await transporter.sendMail({
-    from: 'noreply@contacts.management',
+    from: '"Contacts Management" <noreply@contacts.management>',
     to,
     subject,
     html
