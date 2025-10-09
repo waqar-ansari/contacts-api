@@ -35,6 +35,14 @@ async function createStripeCustomer(user) {
  */
 async function getOrCreateStripeCustomer(user) {
   try {
+    if (
+      !user.email &&
+      !user.firstname &&
+      !user.lastname &&
+      user.phonenumbers.length === 0
+    ) {
+      throw new Error("Cannot create stripe customer, invalid user object");
+    }
     if (user.stripeCustomerId) {
       // Try to retrieve existing customer
       try {

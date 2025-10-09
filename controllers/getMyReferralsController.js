@@ -15,10 +15,29 @@ const getMyReferrals = async (req, res) => {
         .json({ status: "error", message: "User not found" });
     }
 
-    // Calculate referral earnings: number of referrals × $10 bonus
+    // Calculate referral earnings: only count verified referrals × $10 bonus
     const referralBonus = 10; // $10 per referral
-    const referralCount = (user.myReferrals || []).length;
-    const creditBalance = referralCount * referralBonus;
+    const totalReferralCount = (user.myReferrals || []).length;
+
+    // We need to check verification status to calculate proper credit balance
+    const referralIds = (user.myReferrals || [])
+      .map((entry) => {
+        if (!entry) return null;
+        if (typeof entry === "object" && entry._id) return entry._id.toString();
+        return entry.toString();
+      })
+      .filter(Boolean);
+
+    const verifiedUsers = await User.find(
+      {
+        _id: { $in: referralIds },
+        isVerified: true,
+      },
+      { _id: 1 }
+    ).lean();
+
+    const verifiedReferralCount = verifiedUsers.length;
+    const creditBalance = verifiedReferralCount * referralBonus;
     const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
     if (!user.myReferrals || user.myReferrals.length === 0) {
@@ -26,8 +45,9 @@ const getMyReferrals = async (req, res) => {
         status: "success",
         message: "No referrals yet",
         data: {
-          creditBalance,
-          referralCount,
+          creditBalance: 0,
+          referralCount: 0,
+          verifiedReferralCount: 0,
           referralUrl,
         },
       });
@@ -100,18 +120,9 @@ const getMyReferrals = async (req, res) => {
     //     );
     // }
 
-    const referralIds = (user.myReferrals || [])
-      .map((entry) => {
-        // entry may be an object or an ObjectId/string; normalize to string id
-        if (!entry) return null;
-        if (typeof entry === "object" && entry._id) return entry._id.toString();
-        return entry.toString();
-      })
-      .filter(Boolean);
-
     const referredUsers = await User.find({ _id: { $in: referralIds } }).lean();
 
-    // Build a map for quick lookup
+    // Build a map for quick lookup including verification status
     const referredMap = {};
     referredUsers.forEach((ref) => {
       referredMap[ref._id.toString()] = ref;
@@ -142,6 +153,7 @@ const getMyReferrals = async (req, res) => {
               email: "",
               phonenumbers: [],
               signupDate: null,
+              isVerified: false,
             };
 
       let changed = false;
@@ -159,6 +171,12 @@ const getMyReferrals = async (req, res) => {
         }
         if (!updatedEntry.signupMethod && refUser.signupMethod) {
           updatedEntry.signupMethod = refUser.signupMethod;
+          changed = true;
+        }
+
+        // Add verification status
+        if (updatedEntry.isVerified !== refUser.isVerified) {
+          updatedEntry.isVerified = refUser.isVerified || false;
           changed = true;
         }
         if (
@@ -208,7 +226,8 @@ const getMyReferrals = async (req, res) => {
       data: {
         referrals,
         creditBalance,
-        referralCount,
+        referralCount: totalReferralCount,
+        verifiedReferralCount,
         referralUrl,
       },
     });
@@ -235,23 +254,46 @@ const getReferralData = async (req, res) => {
 
     // Get referrals from myReferrals array
     const referrals = user.myReferrals || [];
-    const referralCount = referrals.length;
     const referralUrl = `https://app.contacts.management/register?ref=${user.referralCode}`;
 
-    // Calculate referral earnings: number of referrals × $10 bonus
-    const referralBonus = 10; // $10 per referral
-    const creditBalance = referralCount * referralBonus;
+    // Get referral IDs to fetch verification status
+    const referralIds = referrals
+      .map((referral) => referral._id)
+      .filter(Boolean);
+    const referredUsers = await User.find(
+      { _id: { $in: referralIds } },
+      { _id: 1, isVerified: 1 }
+    ).lean();
 
-    // Format referrals data for frontend
-    const formattedReferrals = referrals.map((referral) => ({
-      _id: referral._id,
-      firstname: referral.firstname || "N/A",
-      lastname: referral.lastname || "",
-      email: referral.email || null,
-      phonenumbers: referral.phonenumbers || [],
-      signupDate: referral.signupDate || new Date(),
-      status: "Completed", // Since they're in myReferrals, they've completed signup
-    }));
+    // Build a map for verification status lookup
+    const verificationMap = {};
+    referredUsers.forEach((user) => {
+      verificationMap[user._id.toString()] = user.isVerified || false;
+    });
+
+    // Format referrals data for frontend with verification status
+    const formattedReferrals = referrals.map((referral) => {
+      const isVerified = verificationMap[referral._id?.toString()] || false;
+      return {
+        _id: referral._id,
+        firstname: referral.firstname || "N/A",
+        lastname: referral.lastname || "",
+        email: referral.email || null,
+        phonenumbers: referral.phonenumbers || [],
+        signupDate: referral.signupDate || new Date(),
+        status: "Completed", // Since they're in myReferrals, they've completed signup
+        isVerified: isVerified,
+        verificationStatus: isVerified ? "Verified" : "Not Verified",
+      };
+    });
+
+    // Calculate referral earnings: only count verified referrals × $10 bonus
+    const referralBonus = 10; // $10 per referral
+    const verifiedReferralCount = formattedReferrals.filter(
+      (ref) => ref.isVerified
+    ).length;
+    const totalReferralCount = referrals.length;
+    const creditBalance = verifiedReferralCount * referralBonus;
 
     return res.status(200).json({
       status: "success",
@@ -259,7 +301,8 @@ const getReferralData = async (req, res) => {
       data: {
         referrals: formattedReferrals,
         creditBalance,
-        referralCount,
+        referralCount: totalReferralCount,
+        verifiedReferralCount,
         referralUrl,
         totalEarned: creditBalance, // Alias for frontend compatibility
       },
