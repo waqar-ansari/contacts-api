@@ -818,6 +818,105 @@ const addEditContact = async (req, res) => {
                 console.log(
                   `OneSignal: notification sent to user ${matchedUser._id}`
                 );
+
+                // Schedule reminder notification before meeting
+                if (
+                  meetingObj.meetingStartDate &&
+                  meetingObj.meetingStartTime
+                ) {
+                  try {
+                    // Configure reminder time (in minutes)
+                    const REMINDER_MINUTES_BEFORE = 30; // Change this value to adjust reminder time
+
+                    // Parse meeting date and time
+                    const meetingDateTime = new Date(
+                      `${meetingObj.meetingStartDate}T${meetingObj.meetingStartTime}`
+                    );
+                    const reminderTime = new Date(
+                      meetingDateTime.getTime() -
+                        REMINDER_MINUTES_BEFORE * 60 * 1000
+                    ); // minutes before meeting
+                    const now = new Date();
+
+                    // Log all the times for debugging
+                    console.log(
+                      `OneSignal Reminder Debug - User ${matchedUser._id}:`
+                    );
+                    console.log(`  Current time: ${now.toISOString()}`);
+                    console.log(
+                      `  Meeting time: ${meetingDateTime.toISOString()}`
+                    );
+                    console.log(
+                      `  Reminder time: ${reminderTime.toISOString()}`
+                    );
+                    console.log(
+                      `  Time until meeting: ${Math.round(
+                        (meetingDateTime.getTime() - now.getTime()) /
+                          (60 * 1000)
+                      )} minutes`
+                    );
+                    console.log(
+                      `  Time until reminder: ${Math.round(
+                        (reminderTime.getTime() - now.getTime()) / (60 * 1000)
+                      )} minutes`
+                    );
+                    console.log(
+                      `  Reminder ${REMINDER_MINUTES_BEFORE} minute${
+                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                      } before meeting`
+                    );
+
+                    // Only schedule reminder if it's more than the configured time from now
+                    if (reminderTime > now) {
+                      const reminderHeading = "Meeting Reminder";
+                      const reminderContent = `Your meeting with ${
+                        contactData.firstname || ""
+                      } ${
+                        contactData.lastname || ""
+                      } starts in ${REMINDER_MINUTES_BEFORE} minute${
+                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                      }${
+                        meetingObj.meetingStartTime
+                          ? " at " + meetingObj.meetingStartTime
+                          : ""
+                      }`;
+
+                      await sendPushNotificationToUser(matchedUser._id, {
+                        heading: reminderHeading,
+                        content: reminderContent,
+                        data: {
+                          contact_id: String(contactData._id),
+                          meeting_id: String(meetingObj.meeting_id),
+                          type: "meeting_reminder",
+                        },
+                        url: `${process.env.FRONTEND_URL}/calendar`,
+                        send_after: reminderTime.toISOString(),
+                      });
+                      console.log(
+                        `OneSignal: reminder notification scheduled for user ${
+                          matchedUser._id
+                        } at ${reminderTime.toISOString()} (${REMINDER_MINUTES_BEFORE} minute${
+                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        } before meeting)`
+                      );
+                    } else {
+                      console.log(
+                        `OneSignal: skipping reminder for user ${
+                          matchedUser._id
+                        } - meeting is too soon (less than ${REMINDER_MINUTES_BEFORE} minute${
+                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        } away)`
+                      );
+                    }
+                  } catch (reminderErr) {
+                    console.error(
+                      "OneSignal reminder scheduling error:",
+                      reminderErr && reminderErr.response?.data
+                        ? reminderErr.response.data
+                        : reminderErr.message || reminderErr
+                    );
+                  }
+                }
               } catch (err) {
                 console.error(
                   "OneSignal send error:",

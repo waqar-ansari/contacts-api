@@ -10,6 +10,7 @@ async function sendPushNotification({
   include_external_user_ids = [], // recommended - array of external_user_ids (strings)
   data = {}, // optional additional data payload
   url = null, // optional URL to redirect when notification is clicked
+  send_after = null, // optional ISO 8601 datetime string for scheduled delivery
 }) {
   if (
     (!include_player_ids || include_player_ids.length === 0) &&
@@ -32,13 +33,17 @@ async function sendPushNotification({
     body.url = url;
   }
 
+  // Add scheduled delivery if provided
+  if (send_after) {
+    body.send_after = send_after;
+  }
+
   // Prioritize external_user_ids as they are more reliable
   if (include_external_user_ids && include_external_user_ids.length) {
     body.include_external_user_ids = include_external_user_ids;
   } else if (include_player_ids && include_player_ids.length) {
     body.include_player_ids = include_player_ids;
   }
-
   const res = await axios.post(
     "https://onesignal.com/api/v1/notifications",
     body,
@@ -49,23 +54,23 @@ async function sendPushNotification({
       },
     }
   );
-
   return res.data;
 }
 
 // Helper function to send notification by user ID
 async function sendPushNotificationToUser(
   userId,
-  { heading, content, data = {}, url = null }
+  { heading, content, data = {}, url = null, send_after = null }
 ) {
   const externalId = `user_${userId}`;
-
+  console.log("Sending notification to user with external ID:", externalId);
   return await sendPushNotification({
     heading,
     content,
     include_external_user_ids: [externalId],
     data,
     url,
+    send_after,
   });
 }
 
