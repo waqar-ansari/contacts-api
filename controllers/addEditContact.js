@@ -792,9 +792,20 @@ const addEditContact = async (req, res) => {
 
               // Use the new optimized function to send notification by user ID
               const heading = "Meeting Scheduled";
-              const content = `Meeting scheduled with ${
-                contactData.firstname || ""
-              } ${contactData.lastname || ""}${
+
+              // Determine the display name for the logged-in user
+              let userDisplayName = "";
+              if (user.firstname && user.lastname) {
+                userDisplayName = `${user.firstname} ${user.lastname}`;
+              } else if (user.firstname) {
+                userDisplayName = user.firstname;
+              } else if (user.lastname) {
+                userDisplayName = user.lastname;
+              } else {
+                userDisplayName = user.email;
+              }
+
+              const content = `Meeting scheduled with ${userDisplayName}${
                 meetingObj.meetingStartDate
                   ? " on " + meetingObj.meetingStartDate
                   : ""
@@ -869,11 +880,9 @@ const addEditContact = async (req, res) => {
                     // Only schedule reminder if it's more than the configured time from now
                     if (reminderTime > now) {
                       const reminderHeading = "Meeting Reminder";
-                      const reminderContent = `Your meeting with ${
-                        contactData.firstname || ""
-                      } ${
-                        contactData.lastname || ""
-                      } starts in ${REMINDER_MINUTES_BEFORE} minute${
+
+                      // Use the same display name logic for reminder
+                      const reminderContent = `Your meeting with ${userDisplayName} starts in ${REMINDER_MINUTES_BEFORE} minute${
                         REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                       }${
                         meetingObj.meetingStartTime
