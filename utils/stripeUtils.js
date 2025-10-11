@@ -39,7 +39,7 @@ async function getOrCreateStripeCustomer(user) {
       !user.email &&
       !user.firstname &&
       !user.lastname &&
-      user.phonenumbers.length === 0
+      user?.phonenumbers?.length === 0
     ) {
       throw new Error("Cannot create stripe customer, invalid user object");
     }
@@ -1262,10 +1262,7 @@ function calculateCouponDiscount(subtotal, coupon) {
       discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
     } else if (coupon.discountType === "fixed") {
       // Convert fixed discount to cents if it's in dollars
-      const fixedAmountInCents =
-        coupon.discountValue > 100
-          ? coupon.discountValue
-          : Math.round(coupon.discountValue * 100);
+      const fixedAmountInCents = Math.round(coupon.discountValue * 100);
       discountAmount = Math.min(fixedAmountInCents, subtotal);
     }
 
@@ -1310,15 +1307,63 @@ async function hasUserMadeFirstPurchase(customerId) {
       limit: 100, // Should be enough for most cases
     });
 
-    // Count invoices that are not free trial ($0 invoices)
+    console.log(
+      `Customer ${customerId} has ${invoices.data.length} total invoices`
+    );
+
+    // If no invoices at all, user hasn't made first purchase
+    if (invoices.data.length === 0) {
+      return false;
+    }
+
+    // Count invoices that have actual payments (amount_paid > 0)
     const paidInvoices = invoices.data.filter(
       (invoice) => invoice.amount_paid > 0
     );
+
     console.log(
       `Customer ${customerId} has ${paidInvoices.length} paid invoices`
     );
-    // User has made first purchase if they have more than 0 paid invoices
-    return paidInvoices.length > 0;
+
+    // If no paid invoices at all, user hasn't made first purchase
+    if (paidInvoices.length === 0) {
+      console.log(
+        `Customer ${customerId} has no paid invoices - hasn't made first purchase`
+      );
+      return false;
+    }
+
+    // Special case: Check if there's only one invoice and it's a trial invoice
+    if (invoices.data.length === 1) {
+      const singleInvoice = invoices.data[0];
+
+      // Check if this single invoice is for a trial by examining the description
+      let isTrialInvoice = false;
+
+      if (singleInvoice.lines && singleInvoice.lines.data.length > 0) {
+        const line = singleInvoice.lines.data[0];
+        const description = line.description || "";
+
+        // Check if description contains the word "trial" (case insensitive)
+        if (description.toLowerCase().includes("trial")) {
+          isTrialInvoice = true;
+        }
+      }
+
+      // Also check if it's a $0 invoice (additional safety check)
+      const isZeroAmountInvoice =
+        singleInvoice.amount_paid === 0 && singleInvoice.total === 0;
+
+      if (isTrialInvoice && isZeroAmountInvoice) {
+        console.log(
+          `Customer ${customerId} has only one invoice which is for a trial (description contains "trial" and amount is $0)`
+        );
+        return false; // User hasn't made their first purchase yet
+      }
+    }
+
+    // User has made first purchase otherwise
+    return true;
   } catch (error) {
     console.error("Error checking if user made first purchase:", error);
     return false;
