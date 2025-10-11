@@ -805,15 +805,13 @@ const addEditContact = async (req, res) => {
                 userDisplayName = user.email;
               }
 
-              const content = `Meeting scheduled with ${userDisplayName}${
-                meetingObj.meetingStartDate
+              const content = `Meeting scheduled with ${userDisplayName}${meetingObj.meetingStartDate
                   ? " on " + meetingObj.meetingStartDate
                   : ""
-              }${
-                meetingObj.meetingStartTime
+                }${meetingObj.meetingStartTime
                   ? " at " + meetingObj.meetingStartTime
                   : ""
-              }`;
+                }`;
 
               try {
                 await sendPushNotificationToUser(matchedUser._id, {
@@ -845,7 +843,7 @@ const addEditContact = async (req, res) => {
                     );
                     const reminderTime = new Date(
                       meetingDateTime.getTime() -
-                        REMINDER_MINUTES_BEFORE * 60 * 1000
+                      REMINDER_MINUTES_BEFORE * 60 * 1000
                     ); // minutes before meeting
                     const now = new Date();
 
@@ -863,7 +861,7 @@ const addEditContact = async (req, res) => {
                     console.log(
                       `  Time until meeting: ${Math.round(
                         (meetingDateTime.getTime() - now.getTime()) /
-                          (60 * 1000)
+                        (60 * 1000)
                       )} minutes`
                     );
                     console.log(
@@ -872,8 +870,7 @@ const addEditContact = async (req, res) => {
                       )} minutes`
                     );
                     console.log(
-                      `  Reminder ${REMINDER_MINUTES_BEFORE} minute${
-                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                      `  Reminder ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                       } before meeting`
                     );
 
@@ -882,13 +879,11 @@ const addEditContact = async (req, res) => {
                       const reminderHeading = "Meeting Reminder";
 
                       // Use the same display name logic for reminder
-                      const reminderContent = `Your meeting with ${userDisplayName} starts in ${REMINDER_MINUTES_BEFORE} minute${
-                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
-                      }${
-                        meetingObj.meetingStartTime
+                      const reminderContent = `Your meeting with ${userDisplayName} starts in ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        }${meetingObj.meetingStartTime
                           ? " at " + meetingObj.meetingStartTime
                           : ""
-                      }`;
+                        }`;
 
                       await sendPushNotificationToUser(matchedUser._id, {
                         heading: reminderHeading,
@@ -902,18 +897,14 @@ const addEditContact = async (req, res) => {
                         send_after: reminderTime.toISOString(),
                       });
                       console.log(
-                        `OneSignal: reminder notification scheduled for user ${
-                          matchedUser._id
-                        } at ${reminderTime.toISOString()} (${REMINDER_MINUTES_BEFORE} minute${
-                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        `OneSignal: reminder notification scheduled for user ${matchedUser._id
+                        } at ${reminderTime.toISOString()} (${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                         } before meeting)`
                       );
                     } else {
                       console.log(
-                        `OneSignal: skipping reminder for user ${
-                          matchedUser._id
-                        } - meeting is too soon (less than ${REMINDER_MINUTES_BEFORE} minute${
-                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        `OneSignal: skipping reminder for user ${matchedUser._id
+                        } - meeting is too soon (less than ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                         } away)`
                       );
                     }
@@ -955,7 +946,21 @@ const addEditContact = async (req, res) => {
     }
 
     // ---------- Format Response ----------
-    const responseData = contactData.toObject();
+    // const responseData = contactData.toObject();
+    // Refresh contact from DB to include any activities (and any other changes performed by helpers)
+    const freshContact = await Contact.findOne({
+      _id: contactData._id,
+      createdBy: req.user._id,
+    }).lean(); // .lean() returns a plain JS object which is convenient for response
+
+    if (!freshContact) {
+      return res.status(404).json({
+        status: "error",
+        message: "Contact not found after update",
+      });
+    }
+
+    const responseData = freshContact;
     responseData.contact_id = responseData._id;
     responseData.tags = responseData.tags || [];
 
