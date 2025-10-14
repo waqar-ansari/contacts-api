@@ -252,6 +252,49 @@ const userSchema = new Schema(
 
     lastSeen: { type: Date, default: null },
 
+    // tags: {
+    //   type: [
+    //     {
+    //       _id: false,
+    //       tag_id: {
+    //         type: mongoose.Schema.Types.ObjectId,
+    //         default: () => new mongoose.Types.ObjectId(),
+    //       },
+    //       tag: {
+    //         type: String,
+    //       },
+    //       emoji: {
+    //         type: String, // emoji
+    //       },
+    //       order: {
+    //         type: Number, // New field
+    //       },
+    //     },
+    //   ],
+    //   default: () => [
+    //     {
+    //       tag_id: new mongoose.Types.ObjectId(),
+    //       tag: "Family",
+    //       emoji: "🖤",
+    //     },
+    //     {
+    //       tag_id: new mongoose.Types.ObjectId(),
+    //       tag: "Networking",
+    //       emoji: "🤝",
+    //     },
+    //     {
+    //       tag_id: new mongoose.Types.ObjectId(),
+    //       tag: "Coworkers",
+    //       emoji: "💼",
+    //     },
+    //     {
+    //       tag_id: new mongoose.Types.ObjectId(),
+    //       tag: "Friends",
+    //       emoji: "⚽",
+    //     },
+    //   ],
+    // },
+
     tags: {
       type: [
         {
@@ -266,6 +309,9 @@ const userSchema = new Schema(
           emoji: {
             type: String, // emoji
           },
+          order: {
+            type: Number, // New field
+          },
         },
       ],
       default: () => [
@@ -273,21 +319,25 @@ const userSchema = new Schema(
           tag_id: new mongoose.Types.ObjectId(),
           tag: "Family",
           emoji: "🖤",
+          order: 1,
         },
         {
           tag_id: new mongoose.Types.ObjectId(),
           tag: "Networking",
           emoji: "🤝",
+          order: 2,
         },
         {
           tag_id: new mongoose.Types.ObjectId(),
           tag: "Coworkers",
           emoji: "💼",
+          order: 3,
         },
         {
           tag_id: new mongoose.Types.ObjectId(),
           tag: "Friends",
           emoji: "⚽",
+          order: 4,
         },
       ],
     },

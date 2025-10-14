@@ -312,6 +312,23 @@ const addEditContact = async (req, res) => {
 
           matchedTags.push(tagObj);
         }
+        // ✅ Maintain same order as user's tag list
+        const userTagOrder = user.tags.map((t) => String(t.tag_id));
+
+        matchedTags.sort((a, b) => {
+          const indexA = userTagOrder.indexOf(String(a.tag_id));
+          const indexB = userTagOrder.indexOf(String(b.tag_id));
+          if (indexA === -1 && indexB === -1) return 0;
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        });
+
+        // ✅ Assign 'order' field to each contact tag
+        matchedTags = matchedTags.map((t) => ({
+          ...t,
+          order: userTagOrder.indexOf(String(t.tag_id)), // 👈 order from user's tag array
+        }));
       } catch (err) {
         return res.status(400).json({
           status: "error",
@@ -806,8 +823,8 @@ const addEditContact = async (req, res) => {
               }
 
               const content = `Meeting scheduled with ${userDisplayName}${meetingObj.meetingStartDate
-                  ? " on " + meetingObj.meetingStartDate
-                  : ""
+                ? " on " + meetingObj.meetingStartDate
+                : ""
                 }${meetingObj.meetingStartTime
                   ? " at " + meetingObj.meetingStartTime
                   : ""

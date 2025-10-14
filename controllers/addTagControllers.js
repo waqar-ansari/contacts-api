@@ -97,6 +97,11 @@ const addTag = async (req, res) => {
     const newTags = [];
     const skippedTags = [];
 
+    // Get current highest order value
+    let maxOrder = user.tags.length > 0
+      ? Math.max(...user.tags.map(t => t.order || 0))
+      : 0;
+
     for (const item of tagsArray) {
       const tagText = item.tag?.trim();
       const emoji = item.emoji?.trim() || "";
@@ -109,10 +114,13 @@ const addTag = async (req, res) => {
         continue;
       }
 
+      maxOrder++; // increment order
+
       const newTag = {
         tag_id: new mongoose.Types.ObjectId(),
         tag: tagText,
         emoji,
+        order: maxOrder,
       };
 
       user.tags.push(newTag);

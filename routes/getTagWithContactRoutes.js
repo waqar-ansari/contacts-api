@@ -17,7 +17,7 @@ const router = Router()
  */
 
 
-router.get("/", getTagWithContact)
+router.post("/", getTagWithContact)
 
 
 module.exports = router
