@@ -116,6 +116,7 @@ const contactSchema = new Schema(
         },
         emoji: {
           type: String, // URL to S3
+          default: "🏷️",
         },
         order: {
           type: Number, // New field

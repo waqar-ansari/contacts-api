@@ -308,6 +308,7 @@ const userSchema = new Schema(
           },
           emoji: {
             type: String, // emoji
+            default: "🏷️",
           },
           order: {
             type: Number, // New field
