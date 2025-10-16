@@ -9,7 +9,7 @@ const deleteAllContacts = async (req, res) => {
 
     return res.status(200).json({
       status: 'success',
-      message: `${result.deletedCount} contacts deleted successfully`,
+      message: `${result.deletedCount} Contacts Deleted`,
     });
   } catch (error) {
     console.error('Error deleting contacts:', error);

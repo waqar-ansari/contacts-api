@@ -51,7 +51,7 @@ const deleteTemplate = async (req, res) => {
 
         return res.status(200).json({
             status: "success",
-            message: `${templateTypeMessage} Removed`,
+            message: `${templateTypeMessage} Deleted`,
             data: {
                 templateType,
                 template_id,

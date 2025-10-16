@@ -54,7 +54,7 @@ const deleteTag = async (req, res) => {
     res
       .status(200)
       .json({
-        status: "success", message: "Tag deleted successfully", data: { tag_id }
+        status: "success", message: "Tag Deleted", data: { tag_id }
       });
   } catch {
     res.status(500).send({ status: "error", message: "Error deleting tag" });

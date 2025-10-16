@@ -95,7 +95,7 @@ exports.googleCallback = async (req, res) => {
         // ✅ Send Google details back to frontend main window using postMessage
         const resultData = {
             status: 'success',
-            message: 'Google connected successfully',
+            message: 'Google Connected',
             googleId: user.googleId,
             googleEmail: user.googleEmail,
             googleAccessToken: user.googleAccessToken,
@@ -215,7 +215,7 @@ exports.microsoftCallback = async (req, res) => {
 
         const resultData = {
             status: 'success',
-            message: 'Microsoft account connected',
+            message: 'Microsoft Connected',
             microsoftId: user.microsoftId,
             microsoftEmail: user.microsoftEmail,
             microsoftAccessToken: user.microsoftAccessToken,
@@ -298,7 +298,7 @@ exports.connectSMTP = async (req, res) => {
 
         res.json({
             status: 'success',
-            message: 'SMTP Mail connected successfully',
+            message: 'SMTP Mail Connected',
             data: {
                 smtpId: user.smtpId,
                 smtpHost: user.smtpHost,

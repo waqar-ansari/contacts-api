@@ -663,13 +663,13 @@ const editProfile = async (req, res) => {
 
       return res.status(200).json({
         status: "success",
-        message: "Template added or updated successfully",
+        message: "Template Added or Updated",
         data: responseData,
       });
     } else {
       return res.status(200).json({
         status: "success",
-        message: "Profile updated successfully",
+        message: "Profile Updated",
         data: {
           id: user._id,
           firstname: user.firstname,

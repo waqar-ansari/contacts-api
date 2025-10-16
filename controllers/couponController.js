@@ -99,7 +99,7 @@ const previewCouponDiscount = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Discount calculated successfully",
+      message: "Discount Calculated",
       isValid: true,
       coupon: {
         name: validation.coupon.name,

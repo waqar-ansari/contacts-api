@@ -35,7 +35,7 @@ const editTag = async (req, res) => {
 
         return res.status(200).json({
             status: "success",
-            message: "Tag updated successfully",
+            message: "Tag Updated",
             data: [user.tags[index]],
         });
     } catch (error) {

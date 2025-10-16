@@ -28,7 +28,7 @@ const getContactEmail = async (req, res) => {
 
         res.json({
             status: "success",
-            message: "Contact emails fetched successfully",
+            message: "Contact Email Fetched",
             data: emails,
         });
     } catch (error) {

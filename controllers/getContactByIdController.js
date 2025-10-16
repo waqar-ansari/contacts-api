@@ -62,7 +62,7 @@ const getContactById = async (req, res) => {
         }
         return res.json({
             status: "success",
-            message: "Contact fetched successfully",
+            message: "Contact Fetched",
             data: contact,
         });
     } catch (error) {

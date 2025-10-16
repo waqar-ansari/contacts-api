@@ -19,7 +19,7 @@ exports.disconnectGoogle = async (req, res) => {
 
         await user.save();
 
-        res.json({ status: 'success', message: 'Google account disconnected successfully' });
+        res.json({ status: 'success', message: 'Google Disconnected' });
     } catch (error) {
         res.status(500).json({ status: 'error', message: 'Failed to disconnect Google account', error: error.message });
     }
@@ -43,7 +43,7 @@ exports.disconnectMicrosoft = async (req, res) => {
 
         await user.save();
 
-        res.json({ status: 'success', message: 'Microsoft account disconnected successfully' });
+        res.json({ status: 'success', message: 'Microsoft Disconnected' });
     } catch (error) {
         res.status(500).json({ status: 'error', message: 'Failed to disconnect Microsoft account', error: error.message });
     }
@@ -70,7 +70,7 @@ exports.disconnectSMTP = async (req, res) => {
 
         res.json({
             status: 'success',
-            message: 'SMTP account disconnected successfully'
+            message: 'SMTP Mail Disconnected'
         });
 
     } catch (error) {

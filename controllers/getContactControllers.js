@@ -245,7 +245,7 @@ const getContact = async (req, res) => {
 
     res.json({
       status: "success",
-      message: "Contacts fetched successfully",
+      message: "Contacts Fetched",
       data: contacts,
       pagination: {
         currentPage: pageToUse,

@@ -30,7 +30,7 @@ const changePassword = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Password changed successfully",
+      message: "Password Changed",
     });
   } catch (error) {
     console.error("Change password error:", error);

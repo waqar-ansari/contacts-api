@@ -287,52 +287,6 @@ exports.scanUser = async (req, res) => {
           createdAt: new Date(),
         });
         await scanner.save(); // Save scanner updates
-
-        // ✅ Add contact for scanner (based on iScanned only)
-        // CHANGED: duplicate check uses $elemMatch
-        // const contactExistsForScanner2 = await Contact.findOne({
-        //     createdBy: scanner._id,
-        //     $or: [
-        //         { emailaddresses: { $in: [user.email] } },
-        //         user.phonenumbers?.[0]?.number
-        //             ? {
-        //                 phonenumbers: {
-        //                     $elemMatch: {
-        //                         countryCode: user.phonenumbers?.[0]?.countryCode || "",
-        //                         number: user.phonenumbers?.[0]?.number || "",
-        //                     },
-        //                 },
-        //             }
-        //             : { _id: null },
-        //     ],
-        // });
-
-        // if (!contactExistsForScanner2) {
-        //     const newContact = new Contact({
-        //         firstname: user.firstname || "",
-        //         lastname: user.lastname || "",
-        //         emailaddresses: [user.email || ""],
-        //         phonenumbers:
-        //             Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-        //                 ? [user.phonenumbers[0]]
-        //                 : [],
-        //         linkedin: user.linkedin || "",
-        //         instagram: user.instagram || "",
-        //         telegram: user.telegram || "",
-        //         twitter: user.twitter || "",
-        //         facebook: user.facebook || "",
-        //         createdBy: scanner._id,
-        //     });
-        //     newContact.contact_id = newContact._id; // ensure consistency
-        //     // ✅ ADD THIS
-        //     newContact.activities.push({
-        //         action: "created",
-        //         type: "contact",
-        //         title: "New Contact Added (Unregistered)",
-        //         description: `Temporary contact ${firstname || ""} ${lastname || ""} added via QR scan`,
-        //     });
-        //     await newContact.save();
-        // }
       }
     } else {
       // Case 2: Scanner is not registered — store temp data in scannedMe
@@ -341,19 +295,6 @@ exports.scanUser = async (req, res) => {
       let matchedScanner = null;
 
       if (email && parsedPhone) {
-        // 1️⃣ Try both email + phone match (CHANGED for phone schema)
-        // matchedScanner = await User.findOne(
-        //     countryCode
-        //         ? {
-        //             email: email,
-        //             phonenumbers: { $elemMatch: { countryCode, number: phonenumber } },
-        //         }
-        //         : {
-        //             email: email,
-        //             "phonenumbers.number": phonenumber,
-        //         }
-        // );
-
         matchedScanner = await User.findOne({
           email: email,
           phonenumbers: { $elemMatch: parsedPhone },
@@ -367,9 +308,6 @@ exports.scanUser = async (req, res) => {
         // 3️⃣ If still not found, try phone only
         if (!matchedScanner) {
           matchedScanner = await User.findOne(
-            // countryCode
-            //     ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
-            //     : { "phonenumbers.number": phonenumber }
             { phonenumbers: { $elemMatch: parsedPhone } }
           );
         }
@@ -377,12 +315,6 @@ exports.scanUser = async (req, res) => {
         // 4️⃣ Only email provided
         matchedScanner = await User.findOne({ email: email });
       } else if (phonenumber) {
-        // 5️⃣ Only phone provided (CHANGED for phone schema)
-        // matchedScanner = await User.findOne(
-        //     countryCode
-        //         ? { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } }
-        //         : { "phonenumbers.number": phonenumber }
-        // );
         matchedScanner = await User.findOne(
           parsedPhone
             ? { phonenumbers: { $elemMatch: parsedPhone } }
@@ -442,9 +374,6 @@ exports.scanUser = async (req, res) => {
             firstname: scanner.firstname || "",
             lastname: scanner.lastname || "",
             email: scanner.email || "",
-            // CHANGED
-            // phonenumber: scanner.phonenumbers?.[0]?.number || "",
-            // countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
             phonenumber: parsedPhone?.number || "",
             countryCode: parsedPhone?.countryCode || "",
             linkedin: scanner.linkedin || "",
@@ -461,7 +390,6 @@ exports.scanUser = async (req, res) => {
             firstname: user.firstname || "",
             lastname: user.lastname || "",
             email: user.email || "",
-            // CHANGED
             phonenumber: user.phonenumbers?.[0]?.number || "",
             countryCode: user.phonenumbers?.[0]?.countryCode || "",
             linkedin: user.linkedin || "",
@@ -496,11 +424,6 @@ exports.scanUser = async (req, res) => {
               firstname: scanner.firstname || "",
               lastname: scanner.lastname || "",
               emailaddresses: [scanner.email || ""],
-              // CHANGED: save whole object
-              // phonenumbers:
-              //     Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-              //         ? [scanner.phonenumbers[0]]
-              //         : [],
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
@@ -548,10 +471,6 @@ exports.scanUser = async (req, res) => {
               firstname: user.firstname || "",
               lastname: user.lastname || "",
               emailaddresses: [user.email || ""],
-              // phonenumbers:
-              //     Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-              //         ? [user.phonenumbers[0]]
-              //         : [],
               phonenumbers: parsedPhone
                 ? [parsedPhone] // ✅ use normalized phone for web/mobile
                 : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
@@ -607,8 +526,6 @@ exports.scanUser = async (req, res) => {
             lastname: lastname || "",
             email: email || "",
             // CHANGED: store number + countryCode
-            // phonenumber: phonenumber || "",
-            // countryCode: countryCode || "",
             phonenumber: parsedPhone?.number || "",
             countryCode: parsedPhone?.countryCode || "",
             createdAt: new Date(),
@@ -638,10 +555,6 @@ exports.scanUser = async (req, res) => {
               firstname: firstname || "",
               lastname: lastname || "",
               emailaddresses: [email || ""],
-              // CHANGED: save phone object from raw values
-              // phonenumbers: phonenumber
-              //     ? [{ countryCode: countryCode || "", number: phonenumber }]
-              //     : [],
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : phonenumber
@@ -685,7 +598,7 @@ exports.scanUser = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Scan successful",
+      message: "Scan Done",
       data: responseData,
     });
   } catch (error) {

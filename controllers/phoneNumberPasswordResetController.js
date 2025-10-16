@@ -174,7 +174,7 @@ exports.forgotPasswordPhone = async (req, res) => {
 
         return res.json({
             status: "success",
-            message: "OTP sent to your WhatsApp number for password reset",
+            message: "OTP Sent in Whatsapp",
         });
     } catch (err) {
         console.error("Forgot Password Phone Error", err);
@@ -338,7 +338,7 @@ exports.resetPasswordPhone = async (req, res) => {
 
         return res.json({
             status: "success",
-            message: "Password has been reset successfully",
+            message: "Password Reset",
         });
     } catch (err) {
         console.error("Reset Password Phone Error", err);

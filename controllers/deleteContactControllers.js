@@ -1,23 +1,3 @@
-// const Contact = require("../models/contactModel");
-
-// const deleteContact = async (req, res) => {
-//   try {
-//     const { contact_id } = req.body;
-
-//     const contact = await Contact.findOneAndDelete({ _id: contact_id });
-//     if (!contact) {
-//       return res.status(404).json({ status: "error", message: "Contact not found" });
-//     }
-//     res
-//       .status(200)
-//       .json({ status: "success", message: "Contact Deleted Successfully", data: { contact_id: contact_id } });
-//   } catch {
-//     res.status(500).json({ status: "error", message: "Error deleting contact" });
-//   }
-// };
-
-// module.exports = { deleteContact };
-
 const Contact = require("../models/contactModel");
 
 const deleteContact = async (req, res) => {
@@ -36,7 +16,7 @@ const deleteContact = async (req, res) => {
 
     res.status(200).json({
       status: "success",
-      message: `contact deleted successfully`,
+      message: `Contact Deleted`,
       data: { deleted_id: contact_id },
     });
   } catch (error) {

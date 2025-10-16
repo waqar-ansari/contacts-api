@@ -63,13 +63,6 @@ exports.getScanData = async (req, res) => {
                 path: "iScanned",
                 select: "firstname lastname email profileImageURL phonenumbers linkedin instagram telegram twitter facebook createdAt",
             })
-            // CHANGE: add '+' to force include hidden fields
-            // .populate({
-            //     path: "iScanned",
-            //     select: "firstname lastname email profileImageURL linkedin instagram telegram twitter facebook createdAt +phonenumbers +phonenumbers.number +phonenumbers.countryCode",
-            //     // (optional, but good to be explicit)
-            //     // model: "User",
-            // })
             .lean(); // make it easier to manipulate data
 
         if (!user) {
@@ -77,39 +70,6 @@ exports.getScanData = async (req, res) => {
         }
         console.log("user.iScanned:", user.iScanned);
         // STEP 1: Process iScanned
-        // const iScannedUsers = (user.iScanned || []).map(scannedUser => ({
-
-
-        //     id: scannedUser._id || null,
-        //     firstname: scannedUser.firstname || '',
-        //     lastname: scannedUser.lastname || '',
-        //     email: scannedUser.email || '',
-        //     // phonenumbers: Array.isArray(scannedUser.phonenumber)
-        //     //     ? scannedUser.phonenumber
-        //     //     : (scannedUser.phonenumber ? [scannedUser.phonenumber] : []),
-        //     // phonenumbers: Array.isArray(scannedUser.phonenumbers)
-        //     //     ? scannedUser.phonenumbers.map(p => ({
-        //     //         countryCode: p.countryCode || "",
-        //     //         number: p.number || ""
-        //     //     }))
-        //     //     : [],
-        //     phonenumbers: Array.isArray(scannedUser.phonenumbers)
-        //         ? scannedUser.phonenumbers.map(p =>
-        //             apiType === "web"
-        //                 ? `${(p.countryCode || "").replace(/^\+/, "")}${p.number || ""}`
-        //                 : { countryCode: p.countryCode || "", number: p.number || "" }
-        //         )
-        //         : [],
-        //     profileImageURL: scannedUser.profileImageURL || '',
-        //     linkedin: scannedUser.linkedin || '',
-        //     instagram: scannedUser.instagram || '',
-        //     telegram: scannedUser.telegram || '',
-        //     twitter: scannedUser.twitter || '',
-        //     facebook: scannedUser.facebook || '',
-        //     createdAt: scannedUser.createdAt,
-        //     iScanned: true,
-        // }));
-
         const iScannedUsers = await Promise.all(
             (user.iScanned || []).map(async scannedUser => {
                 // new: find by email or phone(s)
@@ -122,13 +82,6 @@ exports.getScanData = async (req, res) => {
                     firstname: scannedUser.firstname || '',
                     lastname: scannedUser.lastname || '',
                     email: scannedUser.email || '',
-                    // phonenumbers: Array.isArray(scannedUser.phonenumbers)
-                    //     ? scannedUser.phonenumbers.map(p =>
-                    //         apiType === "web"
-                    //             ? `${(p.countryCode || "").replace(/^\+/, "")}${p.number || ""}`
-                    //             : { countryCode: p.countryCode || "", number: p.number || "" }
-                    //     )
-                    //     : [],
                     phonenumbers: Array.isArray(scannedUser.phonenumbers)
                         ? scannedUser.phonenumbers.map(p =>
                             apiType === "web"
@@ -158,9 +111,6 @@ exports.getScanData = async (req, res) => {
             })
         );
 
-        // console.log(scannedUser.phonenumbers);
-
-
         // STEP 2: Process scannedMe
         const scannedMeEntries = user.scannedMe || [];
         const scannedMeUsers = [];
@@ -180,15 +130,6 @@ exports.getScanData = async (req, res) => {
                         firstname: fullUser.firstname || '',
                         lastname: fullUser.lastname || '',
                         email: fullUser.email || '',
-                        // phonenumbers: Array.isArray(fullUser.phonenumbers)
-                        //     ? fullUser.phonenumbers
-                        //     : (fullUser.phonenumbers ? [fullUser.phonenumbers] : []),
-                        // phonenumbers: Array.isArray(fullUser.phonenumbers)
-                        //     ? fullUser.phonenumbers.map(p => ({
-                        //         countryCode: p.countryCode || "",
-                        //         number: p.number || ""
-                        //     }))
-                        //     : [],
                         phonenumbers: Array.isArray(fullUser.phonenumbers)
                             ? fullUser.phonenumbers.map(p =>
                                 apiType === "web"
@@ -211,30 +152,12 @@ exports.getScanData = async (req, res) => {
             else if (typeof entry === "object") {
                 // Temporary scanned user (not yet registered)
                 const contact = await findContactByEmailOrPhone(userId, entry.email, entry.phonenumbers);
-                // const contact = await Contact.findOne({
-                //     $or: [
-                //         { email: entry.email },
-                //         { "phonenumbers.number": entry.phonenumber },
-                //     ],
-                // }).select("_id");
                 scannedMeUsers.push({
                     id: null,
                     contact_id: contact ? (contact.contact_id || contact._id) : null,
                     firstname: entry.firstname || '',
                     lastname: entry.lastname || '',
                     email: entry.email || '',
-                    // phonenumbers: Array.isArray(entry.phonenumber)
-                    //     ? entry.phonenumber
-                    //     : (entry.phonenumber ? [entry.phonenumber] : []),
-                    // phonenumbers: Array.isArray(entry.phonenumbers)
-                    //     ? entry.phonenumbers.map(p => ({
-                    //         countryCode: p.countryCode || "",
-                    //         number: p.number || ""
-                    //     }))
-                    //     : (entry.phonenumber ? [{
-                    //         countryCode: entry.countryCode?.replace(/^\+/, "") || "",
-                    //         number: entry.phonenumber.replace(/^\+/, "")
-                    //     }] : []),
                     phonenumbers: Array.isArray(entry.phonenumbers)
                         ? entry.phonenumbers.map(p =>
                             apiType === "web"
@@ -267,7 +190,7 @@ exports.getScanData = async (req, res) => {
 
         return res.status(200).json({
             status: "success",
-            message: "Scan data fetched",
+            message: "Scan Data Fetched",
             data: combined,
         });
     } catch (err) {

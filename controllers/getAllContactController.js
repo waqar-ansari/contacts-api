@@ -33,7 +33,7 @@ const getAllContact = async (req, res) => {
 
         return res.json({
             status: "success",
-            message: "Contacts fetched successfully",
+            message: "Contacts Fetched",
             data: formattedContacts
         });
     } catch (error) {

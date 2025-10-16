@@ -42,9 +42,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-        number: (p.number || "").toString().replace(/^\+/, ""),
-      }))
+      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+      number: (p.number || "").toString().replace(/^\+/, ""),
+    }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -254,8 +254,7 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${
-                    user.firstname || "User"
+                  `Referral bonus - ${user.firstname || "User"
                   } verified their email`
                 );
                 console.log(
@@ -342,12 +341,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-              scannedMe: {
-                $elemMatch: {
-                  $or: matchConditions,
-                },
+            scannedMe: {
+              $elemMatch: {
+                $or: matchConditions,
               },
-            })
+            },
+          })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -365,8 +364,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                  user.phonenumbers[0].countryCode +
-                    user.phonenumbers[0].number))
+                user.phonenumbers[0].countryCode +
+                user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -402,7 +401,7 @@ const signupWithEmail = async (req, res) => {
 
       return res.status(200).json({
         status: "success",
-        message: "Email verified successfully. You can now log in.",
+        message: "Email Verified. Login To Continue.",
         data: {
           token,
           registeredWith: user.signupMethod,
@@ -582,7 +581,7 @@ const signupWithEmail = async (req, res) => {
     return res.status(201).json({
       status: "success",
       message:
-        "Signup started. Please verify your email to activate your account.",
+        "Signup started. Verify Email to Active Account.",
       data: {
         _id: newUser._id,
         email: newUser.email,
@@ -705,8 +704,8 @@ const signupWithPhoneNumber = async (req, res) => {
       return res.status(200).json({
         status: "pending",
         message: resendOtp
-          ? "OTP resent to your WhatsApp number"
-          : "OTP sent to your WhatsApp number",
+          ? "OTP Resent to WhatsApp"
+          : "OTP Sent to WhatsApp",
       });
     }
 
@@ -983,8 +982,7 @@ const signupWithPhoneNumber = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${
-                  user.firstname || "User"
+                `Referral bonus - ${user.firstname || "User"
                 } verified phone number`
               );
               console.log(
@@ -1014,7 +1012,7 @@ const signupWithPhoneNumber = async (req, res) => {
 
     return res.status(201).json({
       status: "success",
-      message: "Phone signup completed successfully",
+      message: "Phone Signup Completed",
       data: {
         _id: user._id,
         token,
@@ -1069,7 +1067,7 @@ const resendVerificationLink = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Verification email resent successfully",
+      message: "Verification Email Resent",
       verificationLink,
     });
   } catch (error) {
@@ -1094,187 +1092,7 @@ const unifiedLogin = async (req, res) => {
       apiType = "mobile",
     } = req.body;
 
-    //email and phoneNumber Login
-    // if ((email || phonenumber) && password && !googleToken && !appleToken) {
-    //   try {
-    //     const trimmedEmail = email?.trim()?.toLowerCase();
-    //     // const trimmedPhone = phonenumber?.trim();
-    //     const trimmedPhone = phonenumber?.trim();
-    //     const trimmedCountry = countryCode?.trim()?.replace(/^\+/, ""); // remove + if present
-
-    //     // let normalizedPhone = trimmedPhone;
-    //     // if (normalizedPhone?.startsWith('+')) {
-    //     //   normalizedPhone = normalizedPhone.slice(1);
-    //     // }
-
-    //     const queryConditions = [];
-    //     if (trimmedEmail) queryConditions.push({ email: trimmedEmail });
-    //     // if (normalizedPhone) queryConditions.push({ phonenumbers: { $in: [normalizedPhone] } });
-
-    //     if (trimmedPhone && trimmedCountry) {
-    //       queryConditions.push({
-    //         phonenumbers: {
-    //           $elemMatch: { number: trimmedPhone, countryCode: trimmedCountry }
-    //         }
-    //       });
-    //     } else if (trimmedPhone) {
-    //       queryConditions.push({ "phonenumbers.number": trimmedPhone });
-    //     }
-
-    //     if (queryConditions.length === 0) {
-    //       return res.status(400).json({ status: "error", message: "Email or phone number is required" });
-    //     }
-
-    //     const user = await User.findOne({ $or: queryConditions });
-
-    //     if (!user) {
-    //       return res.status(401).json({ status: "error", message: "User not found" });
-    //     }
-
-    //     if (trimmedEmail && !user.isVerified) {
-    //       return res.status(403).json({ status: "error", message: "Please verify your email before logging in" });
-    //     }
-
-    //     // if (normalizedPhone && !user.isVerified) {
-    //     //   return res.status(403).json({ status: "error", message: "Please complete signup and verify OTP first" });
-    //     // }
-
-    //     if ((trimmedPhone && trimmedCountry) && !user.isVerified) {
-    //       return res.status(403).json({
-    //         status: "error",
-    //         message: "Please complete signup and verify OTP first"
-    //       });
-    //     }
-
-    //     // ✅ Prevent wrong login method
-    //     if (user.signupMethod === "google") {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "This user signed up with Google. Please use Google login."
-    //       });
-    //     }
-
-    //     if (user.signupMethod === "linkedin") {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "This user signed up with linkedin. Please use linkedin login."
-    //       });
-    //     }
-
-    //     if (user.signupMethod === "apple") {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "This user signed up with Apple. Please use Apple login."
-    //       });
-    //     }
-
-    //     // if (user.signupMethod === "phoneNumber" && trimmedEmail) {
-    //     //   return res.status(400).json({
-    //     //     status: "error",
-    //     //     message: "This user signed up with phone number. Please login with phone number and password."
-    //     //   });
-    //     // }
-
-    //     // if (user.signupMethod === "email" && normalizedPhone) {
-    //     //   return res.status(400).json({
-    //     //     status: "error",
-    //     //     message: "This user signed up with email. Please login with email and password."
-    //     //   });
-    //     // }
-
-    //     if (user.signupMethod === "phoneNumber" && trimmedEmail) {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "This user signed up with phone number. Please login with phone number and password."
-    //       });
-    //     }
-
-    //     if (user.signupMethod === "email" && (trimmedPhone && trimmedCountry)) {
-    //       return res.status(400).json({
-    //         status: "error",
-    //         message: "This user signed up with email. Please login with email and password."
-    //       });
-    //     }
-
-    //     // const token = await User.matchPasswordAndGenerateToken({
-    //     //   email: trimmedEmail,
-    //     //   phonenumber: normalizedPhone,
-    //     //   password
-    //     // });
-
-    //     const token = await User.matchPasswordAndGenerateToken({
-    //       email: trimmedEmail,
-    //       phonenumber: trimmedPhone,
-    //       countryCode: trimmedCountry,
-    //       password
-    //     });
-
-    //     const now = new Date();
-    //     const isTrialActive = user.trialEnd && now < user.trialEnd;
-
-    //     // try {
-    //     //   if (user.myReferrals?.length > 0) {
-    //     //     let isUpdated = false;
-
-    //     //     for (let i = 0; i < user.myReferrals.length; i++) {
-    //     //       const referralEntry = user.myReferrals[i];
-    //     //       const referredUser = await User.findById(referralEntry._id);
-
-    //     //       if (referredUser) {
-    //     //         let needsUpdate = false;
-
-    //     //         if (!referralEntry.firstname && referredUser.firstname) {
-    //     //           user.myReferrals[i].firstname = referredUser.firstname;
-    //     //           needsUpdate = true;
-    //     //         }
-
-    //     //         if (!referralEntry.lastname && referredUser.lastname) {
-    //     //           user.myReferrals[i].lastname = referredUser.lastname;
-    //     //           needsUpdate = true;
-    //     //         }
-
-    //     //         if (!referralEntry.email && referredUser.email) {
-    //     //           user.myReferrals[i].email = referredUser.email;
-    //     //           needsUpdate = true;
-    //     //         }
-
-    //     //         if ((!referralEntry.phonenumbers || referralEntry.phonenumbers.length === 0) && referredUser.phonenumbers?.length > 0) {
-    //     //           user.myReferrals[i].phonenumbers = referredUser.phonenumbers;
-    //     //           needsUpdate = true;
-    //     //         }
-
-    //     //         if (needsUpdate) {
-    //     //           user.myReferrals[i].signupDate = referredUser.createdAt || new Date();
-    //     //           isUpdated = true;
-    //     //         }
-    //     //       }
-    //     //     }
-
-    //     //     if (isUpdated) {
-    //     //       await user.save();
-    //     //     }
-    //     //   }
-    //     // } catch (syncErr) {
-    //     //   console.error("Referral sync failed:", syncErr.message);
-    //     // }
-
-    //     return res.json({
-    //       status: "success",
-    //       message: "Login successful",
-    //       data: {
-    //         token,
-    //         hasAccess,
-    //         isTrialActive,
-    //         trialEndsAt: user.trialEnd,
-    //         registeredWith: user.signupMethod
-    //       }
-    //     });
-
-    //   } catch (err) {
-    //     return res.status(401).json({ status: "error", message: err.message || "Invalid credentials" });
-    //   }
-    // }
-
+    // === EMAIL/PHONE + PASSWORD LOGIN ===
     if ((email || phonenumber) && password && !googleToken && !appleToken) {
       try {
         const trimmedEmail = email?.trim()?.toLowerCase();
@@ -1398,7 +1216,7 @@ const unifiedLogin = async (req, res) => {
         user.isActive = true; // mark as active
         return res.json({
           status: "success",
-          message: "Login successful",
+          message: "Account Login...",
           data: {
             token,
             isTrialActive,
@@ -2208,10 +2026,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-          ? "Email"
-          : user.signupMethod === "phoneNumber"
-          ? "Phone Number"
-          : "Other";
+            ? "Email"
+            : user.signupMethod === "phoneNumber"
+              ? "Phone Number"
+              : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 

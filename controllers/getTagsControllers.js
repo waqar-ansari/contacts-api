@@ -18,7 +18,7 @@ const getTags = async (req, res) => {
       .status(200)
       .json({
         status: "success",
-        message: "Tags fetched sucessfully",
+        message: "Tags Fetched",
         data: userTags,
       });
   } catch {

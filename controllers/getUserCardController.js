@@ -23,15 +23,6 @@ exports.getUserInfo = async (req, res) => {
       });
     }
 
-    // let rawFirstname = match[1];        // With spaces
-    // const serialNumber = match[2];      // e.g., "02"
-
-    // const firstname = rawFirstname.trim().replace(/\s+/g, " "); // Normalize spaces
-
-    // const user = await User.findOne({
-    //   firstname: new RegExp(`^${firstname}$`, "i"), // case-insensitive match with spaces
-    //   serialNumber,
-    // });
 
     let rawFirstname = match[1];
     const serialNumber = match[2];

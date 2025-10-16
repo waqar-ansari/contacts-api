@@ -241,11 +241,11 @@ const addEditContact = async (req, res) => {
           let message = "";
           if (duplicateEmail && duplicatePhone) {
             message =
-              "Email address and phone number are already used in another contact.";
+              "Already Have Contact Of This Email & Phone Number.";
           } else if (duplicateEmail) {
-            message = "Email address is already used in another contact.";
+            message = "Already Have Contact Of This Email.";
           } else if (duplicatePhone) {
-            message = "Phone number is already used in another contact.";
+            message = "Already Have Contact Of This Phone Number.";
           }
 
           return res.status(400).json({
@@ -431,7 +431,7 @@ const addEditContact = async (req, res) => {
           return res.status(400).json({
             status: "error",
             message:
-              "To create an online meeting, please first connect your Google account.",
+              "Connect Google Account For Online Meeting Scheduling.",
           });
         }
       }
@@ -1071,17 +1071,17 @@ const addEditContact = async (req, res) => {
     // ---------- Choose Message ----------
     let message = "";
     if (meeting_id) {
-      message = "Meeting updated successfully";
+      message = "Meeting Updated";
     } else if (meetingProvided) {
-      message = "Meeting created successfully";
+      message = "Meeting Created";
     } else if (task_id) {
-      message = "Note updated successfully";
+      message = "Note Updated";
     } else if (taskProvided) {
-      message = "Note created successfully";
+      message = "Note Created";
     } else {
       message = isCreating
-        ? "Contact created successfully"
-        : "Contact updated successfully";
+        ? "Contact Created"
+        : "Contact Updated";
     }
 
     return res.status(isCreating ? 201 : 200).json({

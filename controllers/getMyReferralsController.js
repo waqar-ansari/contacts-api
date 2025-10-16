@@ -297,7 +297,7 @@ const getReferralData = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Referral data retrieved successfully",
+      message: "Referral data retrieved",
       data: {
         referrals: formattedReferrals,
         creditBalance,
