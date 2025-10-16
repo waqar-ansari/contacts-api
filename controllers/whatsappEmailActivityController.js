@@ -11,7 +11,7 @@ const getMessageSummary = (msg) => {
 
 const logMessageActivity = async (req, res) => {
     try {
-        const { contact_id, whatsappMessage, emailMessage } = req.body;
+        const { contact_id, whatsappMessage, emailMessage, call } = req.body;
 
         if (!contact_id || !mongoose.Types.ObjectId.isValid(contact_id)) {
             return res.status(400).json({ status: "error", message: "Invalid contact_id" });
@@ -22,27 +22,9 @@ const logMessageActivity = async (req, res) => {
             return res.status(404).json({ status: "error", message: "Contact not found" });
         }
 
-        if (!whatsappMessage && !emailMessage) {
+        if (!whatsappMessage && !emailMessage && !call) {
             return res.status(400).json({ status: "error", message: "No message provided" });
         }
-
-        // Log WhatsApp message activity
-        // if (whatsappMessage) {
-        //     await logActivityToContact(contact_id, {
-        //         action: "whatsapp_message_sent",
-        //         type: "whatsapp",
-        //         description: `WhatsApp sent : ${whatsappMessage}`
-        //     });
-        // }
-
-        // // Log Email message activity
-        // if (emailMessage) {
-        //     await logActivityToContact(contact_id, {
-        //         action: "email_message_sent",
-        //         type: "email",
-        //         description: `Email sent: ${emailMessage}`
-        //     });
-        // }
 
         // Log WhatsApp message activity
         if (whatsappMessage) {
@@ -66,6 +48,15 @@ const logMessageActivity = async (req, res) => {
             });
         }
 
+        if (call) {
+            const summary = getMessageSummary(emailMessage);
+            await logActivityToContact(contact_id, {
+                action: "call_made",
+                type: "call",
+                title: "Call Made",
+                description: `${emailMessage}`
+            });
+        }
 
         return res.status(200).json({
             status: "success",

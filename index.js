@@ -179,7 +179,7 @@ app.use(
 app.use("/deleteAllContacts", checkForAuthentication(), deleteAllContactRoutes);
 // app.use("/fetch-google-contacts", checkForAuthentication(), fetchGoogleContacts);
 app.use(
-  "/whatsapp-email-activity",
+  "/whatsapp-email-call-activity",
   checkForAuthentication(),
   whatsappEmailActivityRoutes
 );
