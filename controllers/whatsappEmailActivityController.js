@@ -47,16 +47,17 @@ const logMessageActivity = async (req, res) => {
                 description: `${summary}`
             });
         }
-
+        console.log(call);
         if (call) {
-            const summary = getMessageSummary(emailMessage);
+            // const summary = getMessageSummary(call);
             await logActivityToContact(contact_id, {
                 action: "call_made",
                 type: "call",
                 title: "Call Made",
-                description: `${emailMessage}`
+                description: `${call}`
             });
         }
+        console.log(logActivityToContact);
 
         return res.status(200).json({
             status: "success",
