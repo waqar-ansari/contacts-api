@@ -156,7 +156,7 @@ const contactSchema = new Schema(
         type: {
           type: String,
           required: true,
-          enum: ["contact", "task", "meeting", "tag", "email", "whatsapp"], // Optional but safer
+          enum: ["contact", "task", "meeting", "tag", "email", "whatsapp", "call"], // Optional but safer
         },
         title: { type: String },
         description: { type: String },
