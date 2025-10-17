@@ -949,10 +949,43 @@ const addEditContact = async (req, res) => {
         }
       } // end if meetingWasCreated
 
-      // Log contact_updated ONLY if no task, meeting, or tag was updated
-      const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;
+      // // Log contact_updated ONLY if no task, meeting, or tag was updated
+      // const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;
 
-      if (nothingElseChanged) {
+      // if (nothingElseChanged) {
+      //   await logActivityToContact(contactData._id, {
+      //     action: "contact_updated",
+      //     type: "contact",
+      //     title: "Contact Updated",
+      //     description: `${contactData.firstname} ${contactData.lastname}`,
+      //   });
+      // }
+
+
+      // ✅ Detect if any contact fields (excluding tags/tasks/meetings) were updated
+      const contactFieldsChanged = Object.keys(updateFields).some(
+        (key) =>
+          [
+            "firstname",
+            "lastname",
+            "company",
+            "designation",
+            "linkedin",
+            "instagram",
+            "telegram",
+            "twitter",
+            "facebook",
+            "isFavourite",
+            "notes",
+            "website",
+            "contactImageURL",
+            "phonenumbers",
+            "emailaddresses",
+          ].includes(key)
+      );
+
+      // ✅ Log contact update activity if contact fields were changed (even if tags/tasks/meetings also updated)
+      if (contactFieldsChanged) {
         await logActivityToContact(contactData._id, {
           action: "contact_updated",
           type: "contact",
@@ -960,6 +993,9 @@ const addEditContact = async (req, res) => {
           description: `${contactData.firstname} ${contactData.lastname}`,
         });
       }
+
+
+
     }
 
     // ---------- Format Response ----------
