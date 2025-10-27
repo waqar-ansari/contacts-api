@@ -87,6 +87,7 @@ const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
 const testRoutes = require("./routes/testRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const quoteRoutes = require("./routes/admin/quoteRoutes");
+const publicQuoteRoutes = require("./routes/public/publicQuoteRoutes");
 
 console.log("Setting up Express app...");
 
@@ -193,6 +194,7 @@ app.use(
 app.use("/plans", planRoutes); // Public route for getting plans
 app.use("/user/payment", checkForAuthentication(), paymentRoutes);
 app.use("/api-key", checkForAuthentication(), apiKeyRoutes);
+app.use("/quote", publicQuoteRoutes); // Public route for getting quotes
 app.use(
   "/fetch-google-contacts",
   (req, res, next) => {
@@ -275,8 +277,12 @@ app.use(
   adminCouponsRoutes
 );
 
-app.use("/admin/quote", checkForAuthentication(), checkRole(["superadmin"]), quoteRoutes);
-
+app.use(
+  "/admin/quote",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  quoteRoutes
+);
 
 app.use("/test", testRoutes);
 // app.use(
