@@ -627,22 +627,47 @@ const addEditContact = async (req, res) => {
         description: ` ${firstname} ${lastname}`,
       });
     } else {
-      const updateFields = {
-        firstname,
-        lastname,
-        company,
-        designation,
-        linkedin,
-        instagram,
-        telegram,
-        twitter,
-        facebook,
-        // emailaddresses,
-        // phonenumbers: parsedPhones,
-        isFavourite,
-        notes,
-        website,
+      // const updateFields = {
+      //   firstname,
+      //   lastname,
+      //   company,
+      //   designation,
+      //   linkedin,
+      //   instagram,
+      //   telegram,
+      //   twitter,
+      //   facebook,
+      //   // emailaddresses,
+      //   // phonenumbers: parsedPhones,
+      //   isFavourite,
+      //   notes,
+      //   website,
+      // };
+
+      // ---------- Build updateFields only with provided values ----------
+      const updateFields = {};
+
+      // helper to add field if provided (not undefined)
+      const addIfProvided = (key, val) => {
+        if (typeof val !== "undefined") {
+          updateFields[key] = val;
+        }
       };
+
+      // add fields only when they were sent in request
+      addIfProvided("firstname", firstname);
+      addIfProvided("lastname", lastname);
+      addIfProvided("company", company);
+      addIfProvided("designation", designation);
+      addIfProvided("linkedin", linkedin);
+      addIfProvided("instagram", instagram);
+      addIfProvided("telegram", telegram);
+      addIfProvided("twitter", twitter);
+      addIfProvided("facebook", facebook);
+      addIfProvided("isFavourite", isFavourite);
+      addIfProvided("notes", notes);
+      addIfProvided("website", website);
+
 
       // Apply phone updates only when client intended a change
       if (hasPhoneInput) {
@@ -963,26 +988,51 @@ const addEditContact = async (req, res) => {
 
 
       // ✅ Detect if any contact fields (excluding tags/tasks/meetings) were updated
-      const contactFieldsChanged = Object.keys(updateFields).some(
-        (key) =>
-          [
-            "firstname",
-            "lastname",
-            "company",
-            "designation",
-            "linkedin",
-            "instagram",
-            "telegram",
-            "twitter",
-            "facebook",
-            "isFavourite",
-            "notes",
-            "website",
-            "contactImageURL",
-            "phonenumbers",
-            "emailaddresses",
-          ].includes(key)
+      // const contactFieldsChanged = Object.keys(updateFields).some(
+      //   (key) =>
+      //     [
+      //       "firstname",
+      //       "lastname",
+      //       "company",
+      //       "designation",
+      //       "linkedin",
+      //       "instagram",
+      //       "telegram",
+      //       "twitter",
+      //       "facebook",
+      //       "isFavourite",
+      //       "notes",
+      //       "website",
+      //       "contactImageURL",
+      //       "phonenumbers",
+      //       "emailaddresses",
+      //     ].includes(key)
+      // );
+
+      // ---------- Detect if actual contact fields were updated ----------
+      const CONTACT_FIELD_KEYS = [
+        "firstname",
+        "lastname",
+        "company",
+        "designation",
+        "linkedin",
+        "instagram",
+        "telegram",
+        "twitter",
+        "facebook",
+        "isFavourite",
+        "notes",
+        "website",
+        "contactImageURL",
+        "phonenumbers",
+        "emailaddresses",
+      ];
+
+      // Only mark contact updated if one of these fields was actually sent in updateFields
+      const contactFieldsChanged = Object.keys(updateFields).some((key) =>
+        CONTACT_FIELD_KEYS.includes(key)
       );
+
 
       // ✅ Log contact update activity if contact fields were changed (even if tags/tasks/meetings also updated)
       if (contactFieldsChanged) {
