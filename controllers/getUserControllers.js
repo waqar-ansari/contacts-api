@@ -2,6 +2,8 @@ const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
+const AdminMessage = require("../models/MessageModel");
+
 // const LZString = require("lz-string");
 const zlib = require("zlib");
 const {
@@ -612,4 +614,27 @@ const getUserData = async (req, res) => {
   }
 };
 
-module.exports = { getUserData };
+
+// ✅ GET API — Get all messages (all users)
+const getAllMessages = async (req, res) => {
+  try {
+    // Fetch all admin message documents
+    const adminMessages = await AdminMessage.find();
+
+    // Extract all message texts into a single flat array
+    const allMessages = adminMessages.flatMap((doc) =>
+      doc.messages.map((m) => m.text)
+    );
+
+    // Return clean format
+    res.status(200).json({
+      messages: allMessages,
+    });
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+module.exports = { getUserData, getAllMessages };
