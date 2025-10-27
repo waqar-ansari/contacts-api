@@ -2,7 +2,7 @@ const Contact = require("../models/contactModel");
 const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
-const AdminMessage = require("../models/MessageModel");
+const AdminQuote = require("../models/QuoteModel");
 
 // const LZString = require("lz-string");
 const zlib = require("zlib");
@@ -615,26 +615,26 @@ const getUserData = async (req, res) => {
 };
 
 
-// ✅ GET API — Get all messages (all users)
-const getAllMessages = async (req, res) => {
+// ✅ GET API — Get all quotes (for all users)
+const getAllQuotes = async (req, res) => {
   try {
-    // Fetch all admin message documents
-    const adminMessages = await AdminMessage.find();
+    // Fetch all admin quote documents
+    const adminQuotes = await AdminQuote.find();
 
-    // Extract all message texts into a single flat array
-    const allMessages = adminMessages.flatMap((doc) =>
-      doc.messages.map((m) => m.text)
+    // Extract all quote texts into a single flat array
+    const allQuotes = adminQuotes.flatMap((doc) =>
+      doc.quotes.map((q) => q.quoteText)
     );
 
     // Return clean format
     res.status(200).json({
-      messages: allMessages,
+      quotes: allQuotes,
     });
   } catch (error) {
-    console.error("Error fetching messages:", error);
+    console.error("Error fetching quotes:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
 
-module.exports = { getUserData, getAllMessages };
+module.exports = { getUserData, getAllQuotes };

@@ -1,15 +1,15 @@
 const mongoose = require("mongoose");
 
-const messageSchema = new mongoose.Schema(
+const quoteSchema = new mongoose.Schema(
   {
-    messages: [
+    quotes: [
       {
         _id: false,
-        message_id: {
+        quote_id: {
           type: mongoose.Schema.Types.ObjectId,
           default: () => new mongoose.Types.ObjectId(),
         },
-        text: {
+        quoteText: {
           type: String,
           required: true,
           trim: true,
@@ -29,4 +29,4 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("AdminMessage", messageSchema);
+module.exports = mongoose.model("AdminQuote", quoteSchema);

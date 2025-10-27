@@ -1,5 +1,5 @@
 const { Router } = require("express");
-const { getUserData, getAllMessages } = require("../controllers/getUserControllers");
+const { getUserData, getAllQuotes } = require("../controllers/getUserControllers");
 const { checkForAuthentication } = require("../middlewares/authentication");
 const { checkPlanStatus } = require("../middlewares/planValidation");
 
@@ -18,7 +18,7 @@ const router = Router();
 
 router.post("/", getUserData);
 
-router.get("/message", getAllMessages);
+router.get("/quote", getAllQuotes);
 
 
 module.exports = router;
