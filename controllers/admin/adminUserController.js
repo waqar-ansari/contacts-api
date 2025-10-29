@@ -185,7 +185,7 @@ const getUser = async (req, res) => {
         user.stripeCustomerId
       );
       if (hasFirstPurchase) {
-        creditBalance = Math.abs(await getStripeCreditBalance(user.stripeCustomerId)); 
+        creditBalance = Math.abs(await getStripeCreditBalance(user.stripeCustomerId));
       } else {
         // Convert cache_credits from dollars to cents
         creditBalance = Math.round((user.cache_credits || 0));
@@ -392,8 +392,7 @@ const editProfile = async (req, res) => {
         }
 
         console.log(
-          `Admin updated plan for user ${user._id} to ${
-            selectedPlan?.name || "Starter"
+          `Admin updated plan for user ${user._id} to ${selectedPlan?.name || "Starter"
           } via Stripe`
         );
       } catch (stripeError) {

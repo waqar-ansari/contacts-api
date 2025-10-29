@@ -295,6 +295,7 @@ async function getUserCurrentPlan(user) {
 
     const priceId = subscription.items.data[0]?.price?.id;
     const plan = await getPlanFromPriceId(priceId);
+    console.log("that is a user plan" + plan);
 
     // Fallback to starter plan if price ID doesn't match any plan
     return plan || (await Plan.findOne({ name: "Starter", isActive: true }));

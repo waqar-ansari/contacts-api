@@ -88,6 +88,7 @@ const testRoutes = require("./routes/testRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const quoteRoutes = require("./routes/admin/quoteRoutes");
 const publicQuoteRoutes = require("./routes/public/publicQuoteRoutes");
+const alertMessageEmailSubcriptionEndController = require("./routes/admin/alertMessageEmailSubcriptionEndRoutes");
 
 console.log("Setting up Express app...");
 
@@ -282,6 +283,13 @@ app.use(
   checkForAuthentication(),
   checkRole(["superadmin"]),
   quoteRoutes
+);
+
+app.use(
+  "/admin/subscription-alerts",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  alertMessageEmailSubcriptionEndController
 );
 
 app.use("/test", testRoutes);

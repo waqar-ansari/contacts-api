@@ -14,11 +14,11 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendVerificationEmail = async (email, link) => {
-  const mailOptions = {
-    from: '"Contacts Management" <noreply@contacts.management>',
-    to: email,
-    subject: "Contacts.Management : Verify Your E-mail",
-    html: `<html lang="en">
+    const mailOptions = {
+        from: '"Contacts Management" <noreply@contacts.management>',
+        to: email,
+        subject: "Contacts.Management : Verify Your E-mail",
+        html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -162,23 +162,23 @@ const sendVerificationEmail = async (email, link) => {
 </body>
 
 </html>`,
-  };
+    };
 
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 };
 
 const sendHelpSupportReply = async (
-  userEmail,
-  userName,
-  originalMessage,
-  adminReply,
-  subject
+    userEmail,
+    userName,
+    originalMessage,
+    adminReply,
+    subject
 ) => {
-  const mailOptions = {
-    from: '"Contacts Management Support" <noreply@contacts.management>',
-    to: userEmail,
-    subject: `Re: ${subject || "Your Support Request"}`,
-    html: `<html lang="en">
+    const mailOptions = {
+        from: '"Contacts Management Support" <noreply@contacts.management>',
+        to: userEmail,
+        subject: `Re: ${subject || "Your Support Request"}`,
+        html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -276,27 +276,26 @@ const sendHelpSupportReply = async (
 </body>
 
 </html>`,
-  };
+    };
 
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 };
 
 const sendHelpSupportReplyNotification = async (
-  userEmail,
-  userName,
-  subject,
-  adminMessage,
-  ticketId
+    userEmail,
+    userName,
+    subject,
+    adminMessage,
+    ticketId
 ) => {
-  const ticketsPageUrl = `${
-    process.env.FRONTEND_URL || "https://contacts.management"
-  }/my-tickets?ticketId=${ticketId}`;
+    const ticketsPageUrl = `${process.env.FRONTEND_URL || "https://contacts.management"
+        }/my-tickets?ticketId=${ticketId}`;
 
-  const mailOptions = {
-    from: '"Contacts Management Support" <noreply@contacts.management>',
-    to: userEmail,
-    subject: `New Reply: ${subject || "Your Support Request"}`,
-    html: `<html lang="en">
+    const mailOptions = {
+        from: '"Contacts Management Support" <noreply@contacts.management>',
+        to: userEmail,
+        subject: `New Reply: ${subject || "Your Support Request"}`,
+        html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -407,9 +406,9 @@ const sendHelpSupportReplyNotification = async (
 </body>
 
 </html>`,
-  };
+    };
 
-  await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 };
 
 module.exports = {
