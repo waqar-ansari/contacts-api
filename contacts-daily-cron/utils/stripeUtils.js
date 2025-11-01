@@ -11,17 +11,23 @@ async function getCustomerPrimarySubscription(customerId) {
   try {
     if (!customerId) return null;
 
-    // Get all active subscriptions (including those set to cancel)
+    // Get all active and trialing subscriptions (including those set to cancel)
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
-      status: "active",
       limit: 100, // Get all to find the one expiring soonest
     });
 
     if (subscriptions.data.length === 0) return null;
 
+    // Filter for active or trialing subscriptions only
+    const activeOrTrialing = subscriptions.data.filter(
+      (sub) => sub.status === "active" || sub.status === "trialing"
+    );
+
+    if (activeOrTrialing.length === 0) return null;
+
     // If multiple subscriptions, return the one expiring soonest
-    const sortedByExpiry = subscriptions.data.sort((a, b) => {
+    const sortedByExpiry = activeOrTrialing.sort((a, b) => {
       const aExpiry = a.trial_end || a.current_period_end;
       const bExpiry = b.trial_end || b.current_period_end;
       return aExpiry - bExpiry;

@@ -13,9 +13,21 @@ const emailLimiter = pLimit(10);
  * @param {Object} user - User object
  * @param {string} planName - Name of the plan
  * @param {string} expiryDateFormatted - Formatted expiry date
+ * @param {number} daysLeft - Number of days left until expiry
+ * @param {boolean} isTrialing - Whether the subscription is in trial
  * @returns {string} HTML email template
  */
-function generateExpiryEmailTemplate(user, planName, expiryDateFormatted) {
+function generateExpiryEmailTemplate(
+  user,
+  planName,
+  expiryDateFormatted,
+  daysLeft,
+  isTrialing
+) {
+  const userName =
+    `${user.firstname || ""} ${user.lastname || ""}`.trim() || "there";
+  const daysText = daysLeft === 1 ? "1 day" : `${daysLeft} days`;
+
   return `
 <html lang="en">
 <head>
@@ -28,87 +40,120 @@ function generateExpiryEmailTemplate(user, planName, expiryDateFormatted) {
       color: #2d313a;
       margin: 0;
       padding: 0;
+      line-height: 1.6;
     }
     .container {
       max-width: 600px;
       margin: 0 auto;
       padding: 20px;
     }
+    .logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .logo img {
+      width: 200px;
+    }
+    .content {
+      font-size: 15px;
+    }
+    .highlight {
+      background-color: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    .benefits {
+      margin: 20px 0;
+    }
+    .benefits ul {
+      list-style: none;
+      padding: 0;
+    }
+    .benefits li {
+      padding: 8px 0;
+      padding-left: 25px;
+      position: relative;
+    }
+    .benefits li:before {
+      content: "✓";
+      color: #28a745;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
     .button {
       display: inline-block;
       background-color: #007bff;
       color: #ffffff !important;
       text-decoration: none;
-      padding: 15px 25px;
+      padding: 12px 30px;
       border-radius: 5px;
       font-weight: bold;
-      margin-top: 20px;
+      margin: 20px 0;
     }
     .footer {
-      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
       font-size: 14px;
       color: #6c757d;
-      margin-top: 30px;
-    }
-    .footer a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    .social-icons img {
-      width: 30px;
-      margin: 0 5px;
-      vertical-align: middle;
-    }
-    .app-buttons img {
-      width: 120px;
-      margin: 10px 5px;
     }
   </style>
 </head>
 
 <body>
   <div class="container">
-    <center>
+    <div class="logo">
       <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png"
-           alt="Contacts Management Logo" style="width:200px; display:block; margin-bottom:20px;">
-    </center>
+           alt="Contacts Management Logo">
+    </div>
 
-    <p><strong>Dear ${user.firstname || ""} ${user.lastname || ""},</strong></p>
+    <div class="content">
+      <p>Hi ${userName},</p>
 
-    <p>This is a friendly reminder that your <strong>${planName}</strong> subscription will expire on 
-       <strong>${expiryDateFormatted}</strong>.</p>
+      ${
+        isTrialing
+          ? `<p>Your <strong>${planName}</strong> trial is ending soon—just <strong>${daysText}</strong> left! Wondering what happens next?</p>`
+          : `<p>Your <strong>${planName}</strong> subscription is ending soon—just <strong>${daysText}</strong> left!</p>`
+      }
 
-    <p>To continue enjoying all premium features without interruption, please renew or upgrade your plan before it expires.</p>
+      <div class="highlight">
+        ${
+          isTrialing
+            ? `<strong>You will be moved back to the free Starter plan</strong>`
+            : `<strong>Your subscription will expire on ${expiryDateFormatted}</strong>`
+        }
+      </div>
 
-    <center>
-      <a href="https://contacts.management/pricing" class="button">Renew My Subscription</a>
-    </center>
+      <p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>
 
-    <p>If you need help or have any questions, our support team is always ready to assist you.</p>
+      <div class="benefits">
+        <p><strong>Why Continue with Contacts Management?</strong></p>
+        <ul>
+          <li>Unlimited contacts and advanced contact management</li>
+          <li>Seamless integrations with Gmail, Outlook, iCloud & more</li>
+          <li>Digital business cards and QR code sharing</li>
+          <li>Advanced analytics and insights on your network</li>
+        </ul>
+      </div>
 
-    <p>Warm regards,<br><strong>Contacts Management Team</strong></p>
+      <p><strong>Ready to continue hassle-free?</strong></p>
+      
+      <center>
+        <a href="https://contacts.management/pricing" class="button">Upgrade Now</a>
+      </center>
 
-    <hr style="margin:30px 0; border:0; border-top:1px solid #ddd;">
+      <p>Have questions? Reach out anytime—we're happy to help!</p>
+      <p><a href="mailto:hello@contacts.management">hello@contacts.management</a></p>
+
+      <p>Cheers!<br><strong>Team Contacts Management</strong></p>
+    </div>
 
     <div class="footer">
-      <p>Follow Contacts Management on:</p>
-      <div class="social-icons">
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/facebookIcon.png" alt="Facebook"></a>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/instagramIcon.png" alt="Instagram"></a>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/linkedinIcon.png" alt="LinkedIn"></a>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/twitterIcon.png" alt="Twitter"></a>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/youtubeIcon.png" alt="YouTube"></a>
-      </div>
-
-      <div class="app-buttons">
-        <p>Get the Contacts Management App:</p>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/appStoreIcon.png" alt="App Store"></a>
-        <a href="#"><img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/playStoreIcon.png" alt="Google Play"></a>
-      </div>
-
-      <p>Need help? <a href="mailto:support@contacts.management">support@contacts.management</a></p>
-      <p>Sent with ❤️ from Contacts Management</p>
-      <p><a href="https://contacts.management/privacy" target="_blank">Privacy Policy</a></p>
+      <p style="text-align: center;">
+        <a href="https://contacts.management/privacy" target="_blank" style="color: #007bff; text-decoration: none;">Privacy Policy</a>
+      </p>
     </div>
   </div>
 </body>
@@ -181,7 +226,7 @@ async function sendSubscriptionExpiryAlerts(daysBeforeExpiry = 7) {
 
           // Match if days until expiry equals the target days
           if (daysUntilExpiry === daysBeforeExpiry) {
-            matchedUsers.push({ user, plan, expiresAt });
+            matchedUsers.push({ user, plan, expiresAt, isTrialing });
             console.log(
               `✅ MATCHED for ${daysBeforeExpiry}-day alert: ${user.email}`
             );
@@ -210,22 +255,29 @@ async function sendSubscriptionExpiryAlerts(daysBeforeExpiry = 7) {
     let failedCount = 0;
 
     await Promise.all(
-      matchedUsers.map(({ user, plan, expiresAt }) =>
+      matchedUsers.map(({ user, plan, expiresAt, isTrialing }) =>
         emailLimiter(async () => {
           try {
             const planName = plan?.name || "Starter";
             const expiryDateFormatted =
               moment(expiresAt).format("MMMM Do, YYYY");
 
+            // Calculate days left
+            const daysLeft = moment(expiresAt).diff(moment(), "days");
+
             const emailHtml = generateExpiryEmailTemplate(
               user,
               planName,
-              expiryDateFormatted
+              expiryDateFormatted,
+              daysLeft,
+              isTrialing
             );
 
             await sendEmail(
               user.email,
-              "Your Subscription is About to Expire",
+              isTrialing
+                ? "Your Trial is Ending Soon"
+                : "Your Subscription is About to Expire",
               emailHtml
             );
             successCount++;

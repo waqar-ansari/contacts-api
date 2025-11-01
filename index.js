@@ -84,6 +84,7 @@ const addEditPlanRoutes = require("./routes/admin/addEditPlanRoutes");
 const getAdminDetailsRoutes = require("./routes/admin/getAdminDetailsRoutes");
 const adminHelpSupportRoutes = require("./routes/admin/adminHelpSupportRoutes");
 const adminCouponsRoutes = require("./routes/admin/adminCouponsRoutes");
+const configurationRoutes = require("./routes/admin/configurationRoutes");
 const testRoutes = require("./routes/testRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const quoteRoutes = require("./routes/admin/quoteRoutes");
@@ -256,6 +257,12 @@ app.use(
   checkForAuthentication(),
   checkRole(["superadmin"]),
   adminPlansRoutes
+);
+app.use(
+  "/admin/configuration",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  configurationRoutes
 );
 
 app.use("/admin/login", adminLoginRoutes);

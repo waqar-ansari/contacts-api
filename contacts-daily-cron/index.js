@@ -2,14 +2,12 @@ require("dotenv").config();
 console.log("Environment Variables Loaded");
 
 const mongoose = require("mongoose");
+const Configuration = require("./models/configurationModel");
 
 // Import subscription alert service
 const {
   sendSubscriptionExpiryAlerts,
 } = require("./services/subscriptionAlertService");
-
-// Configuration: Days before expiry to send alert (configurable via environment variable)
-const DAYS_BEFORE_EXPIRY = parseInt(process.env.DAYS_BEFORE_EXPIRY) || 7;
 
 // ------------------- DB CONNECT -------------------
 let isConnected = false;
@@ -53,11 +51,20 @@ module.exports.handler = async (event, context) => {
     // Connect to database
     await connectToDatabase();
 
+    // Fetch days_before_expiry from database configuration
+    const daysBeforeExpiry = await Configuration.getValue(
+      "days_before_expiry",
+      7
+    );
+    console.log(
+      `⚙️ Using configuration: days_before_expiry = ${daysBeforeExpiry}`
+    );
+
     // Run the subscription expiry alerts
     console.log(
-      `� Running subscription expiry alerts for ${DAYS_BEFORE_EXPIRY} days before expiry...`
+      `📅 Running subscription expiry alerts for ${daysBeforeExpiry} days before expiry...`
     );
-    const result = await sendSubscriptionExpiryAlerts(DAYS_BEFORE_EXPIRY);
+    const result = await sendSubscriptionExpiryAlerts(daysBeforeExpiry);
 
     console.log("✅ Subscription alerts completed successfully");
     console.log("📊 Result:", JSON.stringify(result, null, 2));
@@ -94,7 +101,16 @@ if (require.main === module) {
     try {
       await connectToDatabase();
 
-      const result = await sendSubscriptionExpiryAlerts(DAYS_BEFORE_EXPIRY);
+      // Fetch days_before_expiry from database configuration
+      const daysBeforeExpiry = await Configuration.getValue(
+        "days_before_expiry",
+        7
+      );
+      console.log(
+        `⚙️ Using configuration: days_before_expiry = ${daysBeforeExpiry}`
+      );
+
+      const result = await sendSubscriptionExpiryAlerts(daysBeforeExpiry);
       console.log("📊 Test Result:", JSON.stringify(result, null, 2));
 
       process.exit(0);
