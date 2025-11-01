@@ -218,7 +218,17 @@ const getSubscriptionEmailTemplate = async (req, res) => {
 <div class="highlight">
   <strong>Your subscription will expire on {{expiryDate}}</strong>
 </div>
-<p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>`
+<p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>
+<div class="benefits">
+  <p><strong>Why Continue with Contacts Management?</strong></p>
+  <ul>
+    <li>Unlimited contacts and advanced contact management</li>
+    <li>Seamless integrations with Gmail, Outlook, iCloud & more</li>
+    <li>Digital business cards and QR code sharing</li>
+    <li>Advanced analytics and insights on your network</li>
+  </ul>
+</div>
+<p><strong>Ready to continue hassle-free?</strong></p>`
     );
 
     res.status(200).json({
@@ -266,7 +276,7 @@ const updateSubscriptionEmailTemplate = async (req, res) => {
     await Configuration.setValue(
       "expiry_email_body",
       body.trim(),
-      "Email body content for subscription expiry alerts. This content will be wrapped in a styled HTML template with logo, benefits section, upgrade button, and footer. Supports placeholders: {{userName}}, {{planName}}, {{expiryDate}}, {{daysLeft}}",
+      "Email body content for subscription expiry alerts. This content will be wrapped in a styled HTML template with logo, upgrade button, and footer. Supports placeholders: {{userName}}, {{planName}}, {{expiryDate}}, {{daysLeft}}",
       "subscription"
     );
 

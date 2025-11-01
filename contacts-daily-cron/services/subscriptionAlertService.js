@@ -120,18 +120,6 @@ function generateEmailFromTemplate(
     <div class="content">
       ${processedBody}
 
-      <div class="benefits">
-        <p><strong>Why Continue with Contacts Management?</strong></p>
-        <ul>
-          <li>Unlimited contacts and advanced contact management</li>
-          <li>Seamless integrations with Gmail, Outlook, iCloud & more</li>
-          <li>Digital business cards and QR code sharing</li>
-          <li>Advanced analytics and insights on your network</li>
-        </ul>
-      </div>
-
-      <p><strong>Ready to continue hassle-free?</strong></p>
-      
       <center>
         <a href="https://contacts.management/pricing" class="button">Upgrade Now</a>
       </center>
@@ -326,7 +314,17 @@ async function sendSubscriptionExpiryAlerts(daysBeforeExpiry = [7]) {
 <div class="highlight">
   <strong>Your subscription will expire on {{expiryDate}}</strong>
 </div>
-<p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>`
+<p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>
+<div class="benefits">
+  <p><strong>Why Continue with Contacts Management?</strong></p>
+  <ul>
+    <li>Unlimited contacts and advanced contact management</li>
+    <li>Seamless integrations with Gmail, Outlook, iCloud & more</li>
+    <li>Digital business cards and QR code sharing</li>
+    <li>Advanced analytics and insights on your network</li>
+  </ul>
+</div>
+<p><strong>Ready to continue hassle-free?</strong></p>`
     );
 
     console.log("📧 Email template loaded from database");
