@@ -51,20 +51,28 @@ module.exports.handler = async (event, context) => {
     // Connect to database
     await connectToDatabase();
 
-    // Fetch days_before_expiry from database configuration
+    // Fetch days_before_expiry from database configuration (now an array)
     const daysBeforeExpiry = await Configuration.getValue(
       "days_before_expiry",
-      7
+      [7]
     );
+
+    // Ensure it's an array
+    const daysArray = Array.isArray(daysBeforeExpiry)
+      ? daysBeforeExpiry
+      : [daysBeforeExpiry];
+
     console.log(
-      `⚙️ Using configuration: days_before_expiry = ${daysBeforeExpiry}`
+      `⚙️ Using configuration: days_before_expiry = [${daysArray.join(", ")}]`
     );
 
     // Run the subscription expiry alerts
     console.log(
-      `📅 Running subscription expiry alerts for ${daysBeforeExpiry} days before expiry...`
+      `📅 Running subscription expiry alerts for ${daysArray.join(
+        ", "
+      )} days before expiry...`
     );
-    const result = await sendSubscriptionExpiryAlerts(daysBeforeExpiry);
+    const result = await sendSubscriptionExpiryAlerts(daysArray);
 
     console.log("✅ Subscription alerts completed successfully");
     console.log("📊 Result:", JSON.stringify(result, null, 2));
@@ -101,16 +109,22 @@ if (require.main === module) {
     try {
       await connectToDatabase();
 
-      // Fetch days_before_expiry from database configuration
+      // Fetch days_before_expiry from database configuration (now an array)
       const daysBeforeExpiry = await Configuration.getValue(
         "days_before_expiry",
-        7
-      );
-      console.log(
-        `⚙️ Using configuration: days_before_expiry = ${daysBeforeExpiry}`
+        [7]
       );
 
-      const result = await sendSubscriptionExpiryAlerts(daysBeforeExpiry);
+      // Ensure it's an array
+      const daysArray = Array.isArray(daysBeforeExpiry)
+        ? daysBeforeExpiry
+        : [daysBeforeExpiry];
+
+      console.log(
+        `⚙️ Using configuration: days_before_expiry = [${daysArray.join(", ")}]`
+      );
+
+      const result = await sendSubscriptionExpiryAlerts(daysArray);
       console.log("📊 Test Result:", JSON.stringify(result, null, 2));
 
       process.exit(0);

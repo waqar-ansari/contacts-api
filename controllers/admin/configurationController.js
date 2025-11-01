@@ -120,14 +120,16 @@ const getSubscriptionExpirySettings = async (req, res) => {
 
     const daysBeforeExpiry = await Configuration.getValue(
       "days_before_expiry",
-      7
+      [7]
     );
 
     res.status(200).json({
       status: "success",
       message: "Subscription expiry settings retrieved successfully",
       data: {
-        days_before_expiry: daysBeforeExpiry,
+        days_before_expiry: Array.isArray(daysBeforeExpiry)
+          ? daysBeforeExpiry
+          : [daysBeforeExpiry],
       },
     });
   } catch (err) {
@@ -141,27 +143,47 @@ const updateSubscriptionExpirySettings = async (req, res) => {
   try {
     const { days_before_expiry } = req.body;
 
-    if (days_before_expiry === undefined || days_before_expiry === null) {
+    if (!days_before_expiry || !Array.isArray(days_before_expiry)) {
       return res.status(400).json({
         status: "error",
-        message: "days_before_expiry is required",
+        message: "days_before_expiry must be an array",
       });
     }
 
-    // Validate the value
-    const daysValue = parseInt(days_before_expiry);
-    if (isNaN(daysValue) || daysValue < 1 || daysValue > 90) {
+    if (days_before_expiry.length === 0) {
       return res.status(400).json({
         status: "error",
-        message: "days_before_expiry must be a number between 1 and 90",
+        message: "At least one day value is required",
       });
     }
 
-    console.log("Updating subscription expiry settings:", daysValue);
+    // Validate each value
+    const validatedDays = [];
+    for (const day of days_before_expiry) {
+      const daysValue = parseInt(day);
+      if (isNaN(daysValue) || daysValue < 1 || daysValue > 90) {
+        return res.status(400).json({
+          status: "error",
+          message: "Each day value must be a number between 1 and 90",
+        });
+      }
+      validatedDays.push(daysValue);
+    }
+
+    // Check for duplicates
+    const uniqueDays = [...new Set(validatedDays)];
+    if (uniqueDays.length !== validatedDays.length) {
+      return res.status(400).json({
+        status: "error",
+        message: "Duplicate day values are not allowed",
+      });
+    }
+
+    console.log("Updating subscription expiry settings:", uniqueDays);
 
     const configuration = await Configuration.setValue(
       "days_before_expiry",
-      daysValue,
+      uniqueDays.sort((a, b) => a - b), // Sort ascending
       "Number of days before subscription expiry to send alert emails",
       "subscription"
     );
@@ -179,6 +201,89 @@ const updateSubscriptionExpirySettings = async (req, res) => {
   }
 };
 
+// GET subscription email template
+const getSubscriptionEmailTemplate = async (req, res) => {
+  try {
+    console.log("Fetching subscription email template");
+
+    const emailSubject = await Configuration.getValue(
+      "expiry_email_subject",
+      "Your Subscription is Expiring Soon"
+    );
+
+    const emailBody = await Configuration.getValue(
+      "expiry_email_body",
+      `<p>Hi {{userName}},</p>
+<p>Your <strong>{{planName}}</strong> subscription is ending soon—just <strong>{{daysLeft}}</strong> day(s) left!</p>
+<div class="highlight">
+  <strong>Your subscription will expire on {{expiryDate}}</strong>
+</div>
+<p>Contacts Management helps you organize, manage, and grow your professional network effortlessly. Don't lose access to your premium features!</p>`
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Email template retrieved successfully",
+      data: {
+        subject: emailSubject,
+        body: emailBody,
+      },
+    });
+  } catch (err) {
+    console.error("Get Email Template Error:", err);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+// PUT subscription email template
+const updateSubscriptionEmailTemplate = async (req, res) => {
+  try {
+    const { subject, body } = req.body;
+
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email subject is required",
+      });
+    }
+
+    if (!body || !body.trim()) {
+      return res.status(400).json({
+        status: "error",
+        message: "Email body is required",
+      });
+    }
+
+    console.log("Updating subscription email template");
+
+    await Configuration.setValue(
+      "expiry_email_subject",
+      subject.trim(),
+      "Email subject for subscription expiry alerts",
+      "subscription"
+    );
+
+    await Configuration.setValue(
+      "expiry_email_body",
+      body.trim(),
+      "Email body content for subscription expiry alerts. This content will be wrapped in a styled HTML template with logo, benefits section, upgrade button, and footer. Supports placeholders: {{userName}}, {{planName}}, {{expiryDate}}, {{daysLeft}}",
+      "subscription"
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Email template updated successfully",
+      data: {
+        subject: subject.trim(),
+        body: body.trim(),
+      },
+    });
+  } catch (err) {
+    console.error("Update Email Template Error:", err);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
 module.exports = {
   getAllConfigurations,
   getConfiguration,
@@ -186,4 +291,6 @@ module.exports = {
   deleteConfiguration,
   getSubscriptionExpirySettings,
   updateSubscriptionExpirySettings,
+  getSubscriptionEmailTemplate,
+  updateSubscriptionEmailTemplate,
 };
