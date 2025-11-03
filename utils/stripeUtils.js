@@ -778,7 +778,7 @@ async function getCustomerTrialingSubscription(customerId) {
   try {
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
-      status: "trialing",
+      status: "trial",
     });
 
     if (subscriptions.data.length > 0) {
@@ -803,9 +803,9 @@ async function deleteTrialingSubscription(subscriptionId) {
     // Get subscription first to verify it's trialing
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-    if (subscription.status !== "trialing") {
+    if (subscription.status !== "trial") {
       console.log(
-        `Subscription ${subscriptionId} is not trialing (status: ${subscription.status}), skipping deletion`
+        `Subscription ${subscriptionId} is not trial (status: ${subscription.status}), skipping deletion`
       );
       return null;
     }
@@ -815,12 +815,12 @@ async function deleteTrialingSubscription(subscriptionId) {
       subscriptionId
     );
     console.log(
-      `Successfully cancelled trialing subscription: ${subscriptionId}`
+      `Successfully cancelled trial subscription: ${subscriptionId}`
     );
 
     return cancelledSubscription;
   } catch (error) {
-    console.error("Error deleting trialing subscription:", error);
+    console.error("Error deleting trial subscription:", error);
     throw error;
   }
 }

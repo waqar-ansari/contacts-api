@@ -1,16 +1,16 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  service: "smtp", // Use your SMTP service
-  host: "smtp.titan.email", // SMTP server address
-  port: 465, // Port for secure connection
-  secure: true, // Use SSL/TLS
-  auth: {
-    user: "noreply@contacts.management",
-    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-    // user: "makvanayash12@gmail.com",
-    // pass: "fybb lnri tmrq otmg", // App Password, not normal password
-  },
+    service: "smtp", // Use your SMTP service
+    host: "smtp.titan.email", // SMTP server address
+    port: 465, // Port for secure connection
+    secure: true, // Use SSL/TLS
+    auth: {
+        user: "noreply@contacts.management",
+        pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+        // user: "makvanayash12@gmail.com",
+        // pass: "fybb lnri tmrq otmg", // App Password, not normal password
+    },
 });
 
 const sendVerificationEmail = async (email, link) => {
@@ -411,8 +411,223 @@ const sendHelpSupportReplyNotification = async (
     await transporter.sendMail(mailOptions);
 };
 
+/**
+ * Build a vCard string from a user object.
+ * ownerUser expected shape: {
+ *   firstname, lastname, email, phonenumbers: [{ countryCode, number }], linkedin, instagram, telegram, twitter, facebook, company, designation
+ * }
+ */
+function buildVCard(ownerUser) {
+    const fn = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
+    const n = `${ownerUser.lastname || ""};${ownerUser.firstname || ""};;;`;
+    const email = ownerUser.email || "";
+    const phones = Array.isArray(ownerUser.phonenumbers)
+        ? ownerUser.phonenumbers
+        : [];
+    const telLines = phones
+        .map((p) => {
+            // phone.type fallback to VOICE
+            const full = (p.countryCode ? `+${p.countryCode}` : "") + (p.number || "");
+            return full ? `TEL;TYPE=CELL:${full}` : "";
+        })
+        .filter(Boolean)
+        .join("\n");
+
+    const url = ownerUser.website || ownerUser.linkedin || "";
+    const org = ownerUser.company || "";
+    const title = ownerUser.designation || "";
+
+    // Simple vCard v3.0
+    let vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:${escapeVC(fn)}
+N:${escapeVC(n)}
+`;
+
+    if (email) vcard += `EMAIL;TYPE=INTERNET:${escapeVC(email)}\n`;
+    if (telLines) vcard += `${telLines}\n`;
+    if (org) vcard += `ORG:${escapeVC(org)}\n`;
+    if (title) vcard += `TITLE:${escapeVC(title)}\n`;
+    if (url) vcard += `URL:${escapeVC(url)}\n`;
+
+    // social links as NOTE
+    const socials = [];
+    if (ownerUser.linkedin) socials.push(`LinkedIn: ${ownerUser.linkedin}`);
+    if (ownerUser.instagram) socials.push(`Instagram: ${ownerUser.instagram}`);
+    if (ownerUser.twitter) socials.push(`Twitter: ${ownerUser.twitter}`);
+    if (ownerUser.telegram) socials.push(`Telegram: ${ownerUser.telegram}`);
+    if (ownerUser.facebook) socials.push(`Facebook: ${ownerUser.facebook}`);
+    if (socials.length) vcard += `NOTE:${escapeVC(socials.join(" | "))}\n`;
+
+    vcard += `REV:${new Date().toISOString()}\nEND:VCARD`;
+
+    return vcard;
+}
+
+function escapeVC(str = "") {
+    return String(str).replace(/\n/g, "\\n").replace(/,/g, "\\,");
+}
+
+/**
+ * HTML template for Owner (UserID) notification when someone adds/saves their profile (temp user).
+ * tempUser object shape { firstname, lastname, email, phonenumber, countryCode, createdAt, linkedin, instagram, telegram, twitter, facebook }
+ */
+function ownerHtmlTemplate(ownerUser, tempUser) {
+    const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim();
+    const phone = tempUser.phonenumber
+        ? `${tempUser.countryCode ? "+" + tempUser.countryCode + " " : ""}${tempUser.phonenumber}`
+        : "Not provided";
+    const createdAt = tempUser.createdAt ? new Date(tempUser.createdAt).toLocaleString() : new Date().toLocaleString();
+
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Someone saved your profile — Contacts Management</title>
+<style>
+  body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
+  .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
+  .header{ text-align:center; margin-bottom:15px;}
+  .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
+  .row{ margin:12px 0;}
+  .label{ color:#6c757d; font-size:13px;}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
+    </div>
+
+    <p><strong>Hi ${ownerUser.firstname || "there"},</strong></p>
+
+    <p>${tempName || "Someone"} just added/saved your shared profile (temporary entry) on Contacts Management on <strong>${createdAt}</strong>.</p>
+
+    <div class="row"><div class="label">Name</div><div>${escapeHtml(tempName) || "-"}</div></div>
+    <div class="row"><div class="label">Email</div><div>${escapeHtml(tempUser.email || "Not provided")}</div></div>
+    <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
+    ${tempUser.linkedin ? `<div class="row"><div class="label">LinkedIn</div><div>${escapeHtml(tempUser.linkedin)}</div></div>` : ""}
+    <p>If you'd like to review or remove this temporary entry, open your Contacts Management dashboard.</p>
+
+    <p>Warm regards,<br/>Contacts Management Team</p>
+
+    <div style="text-align:center;margin-top:18px;">
+      <a class="button" href="https://contacts.management">Open Dashboard</a>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * HTML template for Scanner (temp user) email that includes owner's profile summary and mention of attached vCard.
+ */
+function scannerHtmlTemplate(ownerUser) {
+    const ownerName = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
+    const phoneObj = Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
+    const phone = phoneObj ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}` : "Not provided";
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Profile shared with you — Contacts Management</title>
+<style>
+  body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
+  .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
+  .header{ text-align:center; margin-bottom:15px;}
+  .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
+  .row{ margin:12px 0;}
+  .label{ color:#6c757d; font-size:13px;}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
+    </div>
+
+    <p><strong>Hi,</strong></p>
+
+    <p>You just saved the profile of <strong>${escapeHtml(ownerName) || "-"}</strong> on Contacts Management. We attached their contact as a <strong>vCard (.vcf)</strong> for easy import into your phone or address book.</p>
+
+    <div class="row"><div class="label">Name</div><div>${escapeHtml(ownerName) || "-"}</div></div>
+    <div class="row"><div class="label">Email</div><div>${escapeHtml(ownerUser.email || "Not provided")}</div></div>
+    <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
+
+    <p>To import the vCard: download the attachment and open it on your device.</p>
+
+    <p>Warm regards,<br/>Contacts Management Team</p>
+
+    <div style="text-align:center;margin-top:18px;">
+      <a class="button" href="https://contacts.management">Open App</a>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function escapeHtml(str = "") {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+/**
+ * Send notification to the UserID owner informing them that a temp user (or any scanner) saved/added their profile.
+ * ownerEmail: string
+ * tempUser: object (firstname, lastname, email, phonenumber, countryCode, linkedin...)
+ */
+async function sendOwnerNotification(ownerEmail, ownerUser, tempUser) {
+    if (!ownerEmail) return;
+    const html = ownerHtmlTemplate(ownerUser, tempUser);
+    const mailOptions = {
+        from: '"Contacts Management" <noreply@contacts.management>',
+        to: ownerEmail,
+        subject: "Someone saved your shared profile — Contacts Management",
+        html,
+    };
+
+    return transporter.sendMail(mailOptions);
+}
+
+/**
+ * Send the ownerUser's profile + vCard to recipientEmail (scanner).
+ * recipientEmail: string
+ * ownerUser: the user object whose profile will be sent (UserID user)
+ */
+async function sendProfileAndVcard(recipientEmail, ownerUser) {
+    if (!recipientEmail) return;
+
+    const html = scannerHtmlTemplate(ownerUser);
+    const vcardString = buildVCard(ownerUser);
+    const vcardBuffer = Buffer.from(vcardString, "utf-8");
+
+    const mailOptions = {
+        from: '"Contacts Management" <noreply@contacts.management>',
+        to: recipientEmail,
+        subject: `${ownerUser.firstname || ""} ${ownerUser.lastname || ""} — Contact shared with you`,
+        html,
+        attachments: [
+            {
+                filename: `${(ownerUser.firstname || "contact")}_${(ownerUser.lastname || "")}.vcf`.replace(/\s+/g, "_"),
+                content: vcardBuffer,
+                contentType: "text/vcard",
+            },
+        ],
+    };
+
+    return transporter.sendMail(mailOptions);
+}
+
+
+
 module.exports = {
-  sendVerificationEmail,
-  sendHelpSupportReply,
-  sendHelpSupportReplyNotification,
+    sendVerificationEmail,
+    sendHelpSupportReply,
+    sendHelpSupportReplyNotification,
+    transporter,
+    sendOwnerNotification,
+    sendProfileAndVcard,
+    buildVCard,
 };

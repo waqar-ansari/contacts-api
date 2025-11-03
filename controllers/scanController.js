@@ -4,6 +4,9 @@ const { mongoose } = require("mongoose");
 // ADD this at the top with other imports
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const { getUserCurrentPlan } = require("../utils/stripeUtils");
+// add near top with other imports:
+const { sendOwnerNotification, sendProfileAndVcard } = require("../utils/emailUtils");
+
 
 exports.scanUser = async (req, res) => {
   // CHANGED: accept countryCode from body for unregistered scanner path
@@ -147,22 +150,80 @@ exports.scanUser = async (req, res) => {
       );
 
       if (!alreadyScanned) {
-        user.scannedMe.push({
-          _id: scanner._id,
-          firstname: scanner.firstname || "",
-          lastname: scanner.lastname || "",
-          email: scanner.email || "",
-          // CHANGED: read number + countryCode from scanner.phonenumbers[0]
-          phonenumber: scanner.phonenumbers?.[0]?.number || "",
-          countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-          linkedin: scanner.linkedin || "",
-          instagram: scanner.instagram || "",
-          telegram: scanner.telegram || "",
-          twitter: scanner.twitter || "",
-          facebook: scanner.facebook || "",
-          createdAt: new Date(),
-        });
-        updated = true;
+        // user.scannedMe.push({
+        //   _id: scanner._id,
+        //   firstname: scanner.firstname || "",
+        //   lastname: scanner.lastname || "",
+        //   email: scanner.email || "",
+        //   // CHANGED: read number + countryCode from scanner.phonenumbers[0]
+        //   phonenumber: scanner.phonenumbers?.[0]?.number || "",
+        //   countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+        //   linkedin: scanner.linkedin || "",
+        //   instagram: scanner.instagram || "",
+        //   telegram: scanner.telegram || "",
+        //   twitter: scanner.twitter || "",
+        //   facebook: scanner.facebook || "",
+        //   createdAt: new Date(),
+        // });
+        // updated = true;
+
+        // atomic add to user's scannedMe only if scanner._id is not already present
+        const pushResult = await User.updateOne(
+          {
+            _id: user._id,
+            "scannedMe._id": { $ne: scanner._id }
+          },
+          {
+            $push: {
+              scannedMe: {
+                _id: scanner._id,
+                firstname: scanner.firstname || "",
+                lastname: scanner.lastname || "",
+                email: scanner.email || "",
+                phonenumber: scanner.phonenumbers?.[0]?.number || "",
+                countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                linkedin: scanner.linkedin || "",
+                instagram: scanner.instagram || "",
+                telegram: scanner.telegram || "",
+                twitter: scanner.twitter || "",
+                facebook: scanner.facebook || "",
+                createdAt: new Date()
+              }
+            }
+          }
+        );
+
+        // pushResult.nModified / modifiedCount indicates whether a change occurred
+        updated = !!(pushResult.modifiedCount || pushResult.nModified);
+
+        // ---------- EMAIL: notify owner & send vCard to scanner ----------
+        // try {
+        //   await sendOwnerNotification(user.email, user, {
+        //     firstname: scanner.firstname,
+        //     lastname: scanner.lastname,
+        //     email: scanner.email,
+        //     phonenumber: scanner.phonenumbers?.[0]?.number || "",
+        //     countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+        //     linkedin: scanner.linkedin,
+        //     instagram: scanner.instagram,
+        //     telegram: scanner.telegram,
+        //     twitter: scanner.twitter,
+        //     facebook: scanner.facebook,
+        //     createdAt: new Date(),
+        //   });
+        // } catch (err) {
+        //   console.error("Owner notification failed:", err);
+        // }
+
+        // if (scanner.email) {
+        //   try {
+        //     await sendProfileAndVcard(scanner.email, user);
+        //   } catch (err) {
+        //     console.error("Send vCard to scanner failed:", err);
+        //   }
+        // }
+        // ----------------------------------------------------------------
+
 
         // CHANGED: Contact duplicate check → use $elemMatch for phone object
         // const contactExistsForScanner = await Contact.findOne({
@@ -222,13 +283,13 @@ exports.scanUser = async (req, res) => {
             { emailaddresses: { $in: [scanner.email] } },
             scanner.phonenumbers?.[0]?.number
               ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-                      number: scanner.phonenumbers?.[0]?.number || "",
-                    },
+                phonenumbers: {
+                  $elemMatch: {
+                    countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                    number: scanner.phonenumbers?.[0]?.number || "",
                   },
-                }
+                },
+              }
               : { _id: null },
           ],
         });
@@ -255,9 +316,8 @@ exports.scanUser = async (req, res) => {
             action: "created",
             type: "contact",
             title: "New Contact Added",
-            description: `Contact ${user.firstname || ""} ${
-              user.lastname || ""
-            } was added via QR scan`,
+            description: `Contact ${user.firstname || ""} ${user.lastname || ""
+              } was added via QR scan`,
           });
           await newContact.save();
         }
@@ -270,24 +330,57 @@ exports.scanUser = async (req, res) => {
           entry._id?.toString() === user._id.toString()
       );
 
+      // if (!alreadyInIScanned) {
+      //   scanner.iScanned.push({
+      //     _id: user._id,
+      //     firstname: user.firstname || "",
+      //     lastname: user.lastname || "",
+      //     email: user.email || "",
+      //     // CHANGED: store number + countryCode as sibling fields (consistent with scannedMe)
+      //     phonenumber: user.phonenumbers?.[0]?.number || "",
+      //     countryCode: user.phonenumbers?.[0]?.countryCode || "",
+      //     linkedin: user.linkedin || "",
+      //     instagram: user.instagram || "",
+      //     telegram: user.telegram || "",
+      //     twitter: user.twitter || "",
+      //     facebook: user.facebook || "",
+      //     createdAt: new Date(),
+      //   });
+      //   await scanner.save(); // Save scanner updates
+      // }
+
       if (!alreadyInIScanned) {
-        scanner.iScanned.push({
-          _id: user._id,
-          firstname: user.firstname || "",
-          lastname: user.lastname || "",
-          email: user.email || "",
-          // CHANGED: store number + countryCode as sibling fields (consistent with scannedMe)
-          phonenumber: user.phonenumbers?.[0]?.number || "",
-          countryCode: user.phonenumbers?.[0]?.countryCode || "",
-          linkedin: user.linkedin || "",
-          instagram: user.instagram || "",
-          telegram: user.telegram || "",
-          twitter: user.twitter || "",
-          facebook: user.facebook || "",
-          createdAt: new Date(),
-        });
-        await scanner.save(); // Save scanner updates
+        // atomic add to scanner.iScanned only if user._id not present already
+        const pushScannerResult = await User.updateOne(
+          {
+            _id: scanner._id,
+            "iScanned._id": { $ne: user._id }
+          },
+          {
+            $push: {
+              iScanned: {
+                _id: user._id,
+                firstname: user.firstname || "",
+                lastname: user.lastname || "",
+                email: user.email || "",
+                phonenumber: user.phonenumbers?.[0]?.number || "",
+                countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                linkedin: user.linkedin || "",
+                instagram: user.instagram || "",
+                telegram: user.telegram || "",
+                twitter: user.twitter || "",
+                facebook: user.facebook || "",
+                createdAt: new Date()
+              }
+            }
+          }
+        );
+
+        // optional: you can use this to know whether scanner changed
+        const scannerUpdated = !!(pushScannerResult.modifiedCount || pushScannerResult.nModified);
       }
+
+
     } else {
       // Case 2: Scanner is not registered — store temp data in scannedMe
 
@@ -368,37 +461,93 @@ exports.scanUser = async (req, res) => {
           );
 
         if (!alreadyConnected) {
-          // Add to scannedMe
-          user.scannedMe.push({
-            _id: scanner._id,
-            firstname: scanner.firstname || "",
-            lastname: scanner.lastname || "",
-            email: scanner.email || "",
-            phonenumber: parsedPhone?.number || "",
-            countryCode: parsedPhone?.countryCode || "",
-            linkedin: scanner.linkedin || "",
-            instagram: scanner.instagram || "",
-            telegram: scanner.telegram || "",
-            twitter: scanner.twitter || "",
-            facebook: scanner.facebook || "",
-            createdAt: new Date(),
-          });
+          // // Add to scannedMe
+          // user.scannedMe.push({
+          //   _id: scanner._id,
+          //   firstname: scanner.firstname || "",
+          //   lastname: scanner.lastname || "",
+          //   email: scanner.email || "",
+          //   phonenumber: parsedPhone?.number || "",
+          //   countryCode: parsedPhone?.countryCode || "",
+          //   linkedin: scanner.linkedin || "",
+          //   instagram: scanner.instagram || "",
+          //   telegram: scanner.telegram || "",
+          //   twitter: scanner.twitter || "",
+          //   facebook: scanner.facebook || "",
+          //   createdAt: new Date(),
+          // });
 
-          // Add to iScanned
-          scanner.iScanned.push({
-            _id: user._id,
-            firstname: user.firstname || "",
-            lastname: user.lastname || "",
-            email: user.email || "",
-            phonenumber: user.phonenumbers?.[0]?.number || "",
-            countryCode: user.phonenumbers?.[0]?.countryCode || "",
-            linkedin: user.linkedin || "",
-            instagram: user.instagram || "",
-            telegram: user.telegram || "",
-            twitter: user.twitter || "",
-            facebook: user.facebook || "",
-            createdAt: new Date(),
-          });
+          // // Add to iScanned
+          // scanner.iScanned.push({
+          //   _id: user._id,
+          //   firstname: user.firstname || "",
+          //   lastname: user.lastname || "",
+          //   email: user.email || "",
+          //   phonenumber: user.phonenumbers?.[0]?.number || "",
+          //   countryCode: user.phonenumbers?.[0]?.countryCode || "",
+          //   linkedin: user.linkedin || "",
+          //   instagram: user.instagram || "",
+          //   telegram: user.telegram || "",
+          //   twitter: user.twitter || "",
+          //   facebook: user.facebook || "",
+          //   createdAt: new Date(),
+          // });
+
+          // Add to scannedMe atomically
+          const pushUserResult = await User.updateOne(
+            {
+              _id: user._id,
+              "scannedMe._id": { $ne: scanner._id }
+            },
+            {
+              $push: {
+                scannedMe: {
+                  _id: scanner._id,
+                  firstname: scanner.firstname || "",
+                  lastname: scanner.lastname || "",
+                  email: scanner.email || "",
+                  phonenumber: parsedPhone?.number || "",
+                  countryCode: parsedPhone?.countryCode || "",
+                  linkedin: scanner.linkedin || "",
+                  instagram: scanner.instagram || "",
+                  telegram: scanner.telegram || "",
+                  twitter: scanner.twitter || "",
+                  facebook: scanner.facebook || "",
+                  createdAt: new Date()
+                }
+              }
+            }
+          );
+
+          const userPushed = !!(pushUserResult.modifiedCount || pushUserResult.nModified);
+
+          // Add to scanner.iScanned atomically
+          const pushScannerResult = await User.updateOne(
+            {
+              _id: scanner._id,
+              "iScanned._id": { $ne: user._id }
+            },
+            {
+              $push: {
+                iScanned: {
+                  _id: user._id,
+                  firstname: user.firstname || "",
+                  lastname: user.lastname || "",
+                  email: user.email || "",
+                  phonenumber: user.phonenumbers?.[0]?.number || "",
+                  countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                  linkedin: user.linkedin || "",
+                  instagram: user.instagram || "",
+                  telegram: user.telegram || "",
+                  twitter: user.twitter || "",
+                  facebook: user.facebook || "",
+                  createdAt: new Date()
+                }
+              }
+            }
+          );
+
+
 
           // ✅ Create contact for UserID (about scanner)
           // CHANGED: duplicate check uses $elemMatch
@@ -408,14 +557,14 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [scanner.email] } },
               scanner.phonenumbers?.[0]?.number
                 ? {
-                    phonenumbers: {
-                      $elemMatch: {
-                        countryCode:
-                          scanner.phonenumbers?.[0]?.countryCode || "",
-                        number: scanner.phonenumbers?.[0]?.number || "",
-                      },
+                  phonenumbers: {
+                    $elemMatch: {
+                      countryCode:
+                        scanner.phonenumbers?.[0]?.countryCode || "",
+                      number: scanner.phonenumbers?.[0]?.number || "",
                     },
-                  }
+                  },
+                }
                 : { _id: null },
             ],
           });
@@ -427,8 +576,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                ? [scanner.phonenumbers[0]]
-                : [],
+                  ? [scanner.phonenumbers[0]]
+                  : [],
               linkedin: scanner.linkedin || "",
               instagram: scanner.instagram || "",
               telegram: scanner.telegram || "",
@@ -441,9 +590,8 @@ exports.scanUser = async (req, res) => {
               action: "created",
               type: "contact",
               title: "New Contact Added (Unregistered)",
-              description: `Temporary contact ${firstname || ""} ${
-                lastname || ""
-              } added via QR scan`,
+              description: `Temporary contact ${firstname || ""} ${lastname || ""
+                } added via QR scan`,
             });
             await newContact.save();
           }
@@ -456,13 +604,13 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [user.email] } },
               user.phonenumbers?.[0]?.number
                 ? {
-                    phonenumbers: {
-                      $elemMatch: {
-                        countryCode: user.phonenumbers?.[0]?.countryCode || "",
-                        number: user.phonenumbers?.[0]?.number || "",
-                      },
+                  phonenumbers: {
+                    $elemMatch: {
+                      countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                      number: user.phonenumbers?.[0]?.number || "",
                     },
-                  }
+                  },
+                }
                 : { _id: null },
             ],
           });
@@ -474,8 +622,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone] // ✅ use normalized phone for web/mobile
                 : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                ? [user.phonenumbers[0]]
-                : [],
+                  ? [user.phonenumbers[0]]
+                  : [],
               linkedin: user.linkedin || "",
               instagram: user.instagram || "",
               telegram: user.telegram || "",
@@ -487,8 +635,42 @@ exports.scanUser = async (req, res) => {
             await newContact.save();
           }
 
-          await scanner.save();
-          updated = true;
+          // await scanner.save();
+          // updated = true;
+
+          const scannerPushed = !!(pushScannerResult.modifiedCount || pushScannerResult.nModified);
+          updated = userPushed || scannerPushed;
+
+
+          // ---------- EMAIL: notify owner & send vCard to matched scanner ----------
+          // try {
+          //   await sendOwnerNotification(user.email, user, {
+          //     firstname: scanner.firstname,
+          //     lastname: scanner.lastname,
+          //     email: scanner.email,
+          //     phonenumber: scanner.phonenumbers?.[0]?.number || "",
+          //     countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+          //     linkedin: scanner.linkedin,
+          //     instagram: scanner.instagram,
+          //     telegram: scanner.telegram,
+          //     twitter: scanner.twitter,
+          //     facebook: scanner.facebook,
+          //     createdAt: new Date(),
+          //   });
+          // } catch (err) {
+          //   console.error("Owner notification failed (matched):", err);
+          // }
+
+          // if (scanner.email) {
+          //   try {
+          //     await sendProfileAndVcard(scanner.email, user);
+          //   } catch (err) {
+          //     console.error("Send vCard to matched scanner failed:", err);
+          //   }
+          // }
+          // -----------------------------------------------------------------------
+
+
         }
       } else {
         // PLAN LIMIT CHECK FOR UNREGISTERED (TEMP) SCANNER
@@ -521,16 +703,74 @@ exports.scanUser = async (req, res) => {
         );
 
         if (!alreadyExists) {
-          user.scannedMe.push({
+          // user.scannedMe.push({
+          //   firstname: firstname || "",
+          //   lastname: lastname || "",
+          //   email: email || "",
+          //   // CHANGED: store number + countryCode
+          //   phonenumber: parsedPhone?.number || "",
+          //   countryCode: parsedPhone?.countryCode || "",
+          //   createdAt: new Date(),
+          // });
+          // updated = true;
+
+          // Add temp entry atomically — match by email OR (countryCode+phonenumber)
+          // We'll use a composite id to try avoid duplicates for temp entries:
+          const tempEntry = {
+            _id: new mongoose.Types.ObjectId(), // unique id for this temp entry
             firstname: firstname || "",
             lastname: lastname || "",
             email: email || "",
-            // CHANGED: store number + countryCode
-            phonenumber: parsedPhone?.number || "",
-            countryCode: parsedPhone?.countryCode || "",
-            createdAt: new Date(),
-          });
-          updated = true;
+            phonenumber: parsedPhone?.number || phonenumber || "",
+            countryCode: parsedPhone?.countryCode || countryCode || "",
+            createdAt: new Date()
+          };
+
+          // Use $push with a filter that checks email and phone absence
+          const pushTempResult = await User.updateOne(
+            {
+              _id: user._id,
+              $and: [
+                { $or: [{ "scannedMe.email": { $ne: email } }, { "scannedMe.email": { $exists: false } }] },
+                { $or: [{ "scannedMe.phonenumber": { $ne: tempEntry.phonenumber } }, { "scannedMe.phonenumber": { $exists: false } }] }
+              ]
+            },
+            {
+              $push: { scannedMe: tempEntry }
+            }
+          );
+
+          updated = !!(pushTempResult.modifiedCount || pushTempResult.nModified);
+
+
+          // ---------- EMAIL: notify owner about temporary submitter & send vCard to temp submitter ----------
+          try {
+            await sendOwnerNotification(user.email, user, {
+              firstname: firstname,
+              lastname: lastname,
+              email: email,
+              phonenumber: parsedPhone?.number || phonenumber || "",
+              countryCode: parsedPhone?.countryCode || countryCode || "",
+              linkedin: null,
+              instagram: null,
+              telegram: null,
+              twitter: null,
+              facebook: null,
+              createdAt: new Date(),
+            });
+          } catch (err) {
+            console.error("Owner notification (temp) failed:", err);
+          }
+
+          if (email) {
+            try {
+              await sendProfileAndVcard(email, user);
+            } catch (err) {
+              console.error("Send vCard to temp user failed:", err);
+            }
+          }
+          // -----------------------------------------------------------------------
+
 
           // ✅ Create contact for UserID from temp data
           // CHANGED: duplicate check uses $elemMatch if countryCode present
@@ -541,10 +781,10 @@ exports.scanUser = async (req, res) => {
               phonenumber
                 ? countryCode
                   ? {
-                      phonenumbers: {
-                        $elemMatch: { countryCode, number: phonenumber },
-                      },
-                    }
+                    phonenumbers: {
+                      $elemMatch: { countryCode, number: phonenumber },
+                    },
+                  }
                   : { "phonenumbers.number": phonenumber }
                 : { _id: null },
             ],
@@ -558,8 +798,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : phonenumber
-                ? [{ countryCode: countryCode || "", number: phonenumber }]
-                : [],
+                  ? [{ countryCode: countryCode || "", number: phonenumber }]
+                  : [],
               createdBy: user._id,
             });
             newContact.contact_id = newContact._id;
@@ -569,17 +809,31 @@ exports.scanUser = async (req, res) => {
       }
     }
 
-    if (updated) await user.save();
+    // if (updated) await user.save();
+
+    // const responseData = {
+    //   userScannedMe: user.scannedMe,
+    //   userIScanned: user.iScanned || [],
+    // };
+
+    // if (ScannerID) {
+    //   const scanner = await User.findById(ScannerID).lean(); // get latest data
+    //   responseData.scannerScannedMe = scanner?.scannedMe || [];
+    //   responseData.scannerIScanned = scanner?.iScanned || [];
+    // }
+
+    // if we made atomic updates, refetch the fresh user document for response
+    const freshUser = await User.findById(user._id).lean();
+    const freshScanner = ScannerID ? await User.findById(ScannerID).lean() : null;
 
     const responseData = {
-      userScannedMe: user.scannedMe,
-      userIScanned: user.iScanned || [],
+      userScannedMe: freshUser?.scannedMe || [],
+      userIScanned: freshUser?.iScanned || [],
     };
 
     if (ScannerID) {
-      const scanner = await User.findById(ScannerID).lean(); // get latest data
-      responseData.scannerScannedMe = scanner?.scannedMe || [];
-      responseData.scannerIScanned = scanner?.iScanned || [];
+      responseData.scannerScannedMe = freshScanner?.scannedMe || [];
+      responseData.scannerIScanned = freshScanner?.iScanned || [];
     }
 
     const createdContactsForUser = await Contact.find({ createdBy: user._id })
