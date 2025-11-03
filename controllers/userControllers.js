@@ -23,6 +23,9 @@ const ReferralLog = require("../models/referralLogModel");
 const { normalizePhone } = require("../utils/phoneUtils");
 const Plan = require("../models/planModel");
 const { setupInitialPlan } = require("../utils/planUtils");
+const BlacklistedToken = require("../models/blacklistedTokenModel");
+const jwt = require("jsonwebtoken");
+
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -2297,22 +2300,41 @@ const linkedinCallback = async (req, res) => {
 
 const logoutUser = async (req, res) => {
   try {
-    console.log("hello");
+    const userId = req.user._id || req.user.id;
+    const token = req.token || (req.headers.authorization?.split(" ")[1]);
 
-    const userId = req.user._id; // requires auth middleware
-    const user = await User.findById(userId);
+    if (!token) {
+      return res.status(400).json({ message: "Token not found" });
+    }
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const decoded = jwt.decode(token);
 
-    user.isActive = false; // mark as inactive
-    user.lastSeen = new Date();
-    await user.save();
+    // ✅ Safely compute expiry date
+    let expiresAt;
+    if (decoded && decoded.exp) {
+      expiresAt = new Date(decoded.exp * 1000);
+    } else {
+      // fallback: 1 hour from now (or your JWT lifetime)
+      expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    }
 
-    res.json({ message: "Logout successful" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    // ✅ Save the blacklisted token
+    await BlacklistedToken.create({
+      token,
+      userId,
+      expiresAt,
+    });
+
+    // ✅ Mark user inactive
+    await User.findByIdAndUpdate(userId, { isActive: false, lastSeen: new Date() });
+
+    res.json({ message: "Account Logout..." });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Error during logout", error: error.message });
   }
 };
+
 
 module.exports = {
   signupWithEmail,
