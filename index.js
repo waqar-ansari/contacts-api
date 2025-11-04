@@ -90,6 +90,7 @@ const webhookRoutes = require("./routes/webhookRoutes");
 const quoteRoutes = require("./routes/admin/quoteRoutes");
 const publicQuoteRoutes = require("./routes/public/publicQuoteRoutes");
 const alertMessageEmailSubcriptionEndController = require("./routes/admin/alertMessageEmailSubcriptionEndRoutes");
+const sendNotificationToAllUsers = require("./routes/admin/notificationRoutes");
 
 console.log("Setting up Express app...");
 
@@ -299,6 +300,12 @@ app.use(
   alertMessageEmailSubcriptionEndController
 );
 
+app.use("/admin/notification",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  sendNotificationToAllUsers);
+
+
 app.use("/test", testRoutes);
 // app.use(
 //   "/admin",
@@ -336,7 +343,7 @@ const connectToDatabase = async () => {
     }
 
     console.log("MongoDB URL log:", process.env.MONGO_URL);
-    
+
     // Optimized settings for AWS Lambda
     const connection = await mongoose.connect(process.env.MONGO_URL, {
       maxPoolSize: 10, // Lower pool size for Lambda (not 200!)
@@ -399,7 +406,7 @@ const http = require("http");
 module.exports.handler = serverless(async (event, context) => {
   // CRITICAL: Prevent Lambda from waiting for connections to close
   context.callbackWaitsForEmptyEventLoop = false;
-  
+
   try {
     await connectToDatabase();
     return app(event, context);

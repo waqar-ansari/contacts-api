@@ -145,6 +145,12 @@ const contactSchema = new Schema(
       // default: "Dummy Firstname",
     },
 
+    category: {
+      type: String,
+      enum: ["lead", "scan", "card","manual"],
+      default: "professional",
+    },
+
     tasks: [taskSchema],
 
     meetings: [meetingSchema],
