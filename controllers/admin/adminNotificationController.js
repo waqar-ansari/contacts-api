@@ -1,8 +1,8 @@
 const User = require("../../models/userModel");
 const Notification = require("../../models/notificationModel");
-const { sendPushNotification } = require("../../utils/oneSignal"); // your existing util
+const { sendPushNotification } = require("../../utils/oneSignal");
 
-// Send Notification to ALL users
+// ✅ Send Notification to ALL users (using external_user_ids pattern)
 exports.sendNotificationToAllUsers = async (req, res) => {
   try {
     const { heading, message, url, data = {} } = req.body;
@@ -15,26 +15,21 @@ exports.sendNotificationToAllUsers = async (req, res) => {
       });
     }
 
-    // Fetch all users who have OneSignal identifiers
-    const users = await User.find({
-      $or: [
-        { oneSignalExternalUserIds: { $exists: true, $ne: [] } },
-        { oneSignalPlayerIds: { $exists: true, $ne: [] } },
-      ],
-    });
+    // ✅ Fetch all users
+    const users = await User.find({}, "_id");
+    console.log(`Found ${users.length} users in database.`);
 
     if (!users.length) {
       return res.status(404).json({
         success: false,
-        message: "No users with OneSignal IDs found.",
+        message: "No users found in the database.",
       });
     }
 
-    // Collect all external IDs
-    const externalIds = users.flatMap((u) => u.oneSignalExternalUserIds || []);
-    const playerIds = users.flatMap((u) => u.oneSignalPlayerIds || []);
+    // ✅ Generate OneSignal external IDs (based on userId)
+    const externalIds = users.map((u) => `user_${u._id}`);
 
-    // Save record in DB before sending
+    // ✅ Save notification record first (status: pending)
     const notification = await Notification.create({
       heading,
       message,
@@ -47,29 +42,31 @@ exports.sendNotificationToAllUsers = async (req, res) => {
     });
 
     try {
-      // Prefer external_user_ids if available
+      // ✅ Send push notification to all users using generated external IDs
       await sendPushNotification({
         heading,
         content: message,
-        include_external_user_ids: externalIds.length ? externalIds : [],
-        include_player_ids: externalIds.length ? [] : playerIds,
+        include_external_user_ids: externalIds,
         data,
         url,
       });
 
+      // ✅ Update notification status to sent
       notification.status = "sent";
       await notification.save();
 
       res.status(200).json({
         success: true,
-        message: "Notification sent to all users successfully.",
+        message: `Notification sent to ${externalIds.length} users successfully.`,
         notification,
       });
     } catch (err) {
+      // ✅ Update DB in case of failure
       notification.status = "failed";
       notification.error = err.message;
       await notification.save();
 
+      console.error("❌ OneSignal error:", err.message);
       res.status(500).json({
         success: false,
         message: "Failed to send OneSignal notification.",
@@ -77,7 +74,7 @@ exports.sendNotificationToAllUsers = async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("Error sending admin notification:", err);
+    console.error("❌ Error sending admin notification:", err);
     res.status(500).json({
       success: false,
       message: "Server error while sending notification.",
