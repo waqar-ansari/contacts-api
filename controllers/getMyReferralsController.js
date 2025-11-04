@@ -38,7 +38,7 @@ const getMyReferrals = async (req, res) => {
 
     const verifiedReferralCount = verifiedUsers.length;
     const creditBalance = verifiedReferralCount * referralBonus;
-    const referralUrl = `https://demo.contacts.management/register?ref=${user.referralCode}`;
+    const referralUrl = `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`;
 
     if (!user.myReferrals || user.myReferrals.length === 0) {
       return res.status(200).json({
@@ -254,7 +254,7 @@ const getReferralData = async (req, res) => {
 
     // Get referrals from myReferrals array
     const referrals = user.myReferrals || [];
-    const referralUrl = `https://demo.contacts.management/register?ref=${user.referralCode}`;
+    const referralUrl = `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`;
 
     // Get referral IDs to fetch verification status
     const referralIds = referrals

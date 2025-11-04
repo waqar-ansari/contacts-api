@@ -148,7 +148,7 @@ const contactSchema = new Schema(
     category: {
       type: String,
       enum: ["lead", "scan", "card","manual"],
-      default: "professional",
+      default: "manual",
     },
 
     tasks: [taskSchema],

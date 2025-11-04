@@ -1,24 +1,33 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-    service: "smtp", // Use your SMTP service
-    host: "smtp.titan.email", // SMTP server address
-    port: 465, // Port for secure connection
-    secure: true, // Use SSL/TLS
-    auth: {
-        user: "noreply@contacts.management",
-        pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-        // user: "makvanayash12@gmail.com",
-        // pass: "fybb lnri tmrq otmg", // App Password, not normal password
-    },
+  service: "smtp", // Use your SMTP service
+  host: "smtp.titan.email", // SMTP server address
+  port: 465, // Port for secure connection
+  secure: true, // Use SSL/TLS
+  auth: {
+    user: "noreply@contacts.management",
+    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+    // user: "makvanayash12@gmail.com",
+    // pass: "fybb lnri tmrq otmg", // App Password, not normal password
+  },
+  // optional TLS options:
+  tls: {
+    // do not fail on invalid certs in dev (remove in prod)
+    rejectUnauthorized: false,
+  },
 });
 
+function sendMail(mailOptions) {
+  return transporter.sendMail(mailOptions);
+}
+
 const sendVerificationEmail = async (email, link) => {
-    const mailOptions = {
-        from: '"Contacts Management" <noreply@contacts.management>',
-        to: email,
-        subject: "Contacts.Management : Verify Your E-mail",
-        html: `<html lang="en">
+  const mailOptions = {
+    from: '"Contacts Management" <noreply@contacts.management>',
+    to: email,
+    subject: "Contacts.Management : Verify Your E-mail",
+    html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -162,23 +171,23 @@ const sendVerificationEmail = async (email, link) => {
 </body>
 
 </html>`,
-    };
+  };
 
-    await transporter.sendMail(mailOptions);
+  await transporter.sendMail(mailOptions);
 };
 
 const sendHelpSupportReply = async (
-    userEmail,
-    userName,
-    originalMessage,
-    adminReply,
-    subject
+  userEmail,
+  userName,
+  originalMessage,
+  adminReply,
+  subject
 ) => {
-    const mailOptions = {
-        from: '"Contacts Management Support" <noreply@contacts.management>',
-        to: userEmail,
-        subject: `Re: ${subject || "Your Support Request"}`,
-        html: `<html lang="en">
+  const mailOptions = {
+    from: '"Contacts Management Support" <noreply@contacts.management>',
+    to: userEmail,
+    subject: `Re: ${subject || "Your Support Request"}`,
+    html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -276,26 +285,26 @@ const sendHelpSupportReply = async (
 </body>
 
 </html>`,
-    };
+  };
 
-    await transporter.sendMail(mailOptions);
+  await transporter.sendMail(mailOptions);
 };
 
 const sendHelpSupportReplyNotification = async (
-    userEmail,
-    userName,
-    subject,
-    adminMessage,
-    ticketId
+  userEmail,
+  userName,
+  subject,
+  adminMessage,
+  ticketId
 ) => {
-    const ticketsPageUrl = `${process.env.FRONTEND_URL || "https://contacts.management"
-        }/my-tickets?ticketId=${ticketId}`;
+  const ticketsPageUrl = `${process.env.FRONTEND_URL || "https://contacts.management"
+    }/my-tickets?ticketId=${ticketId}`;
 
-    const mailOptions = {
-        from: '"Contacts Management Support" <noreply@contacts.management>',
-        to: userEmail,
-        subject: `New Reply: ${subject || "Your Support Request"}`,
-        html: `<html lang="en">
+  const mailOptions = {
+    from: '"Contacts Management Support" <noreply@contacts.management>',
+    to: userEmail,
+    subject: `New Reply: ${subject || "Your Support Request"}`,
+    html: `<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -406,9 +415,9 @@ const sendHelpSupportReplyNotification = async (
 </body>
 
 </html>`,
-    };
+  };
 
-    await transporter.sendMail(mailOptions);
+  await transporter.sendMail(mailOptions);
 };
 
 /**
@@ -418,54 +427,54 @@ const sendHelpSupportReplyNotification = async (
  * }
  */
 function buildVCard(ownerUser) {
-    const fn = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
-    const n = `${ownerUser.lastname || ""};${ownerUser.firstname || ""};;;`;
-    const email = ownerUser.email || "";
-    const phones = Array.isArray(ownerUser.phonenumbers)
-        ? ownerUser.phonenumbers
-        : [];
-    const telLines = phones
-        .map((p) => {
-            // phone.type fallback to VOICE
-            const full = (p.countryCode ? `+${p.countryCode}` : "") + (p.number || "");
-            return full ? `TEL;TYPE=CELL:${full}` : "";
-        })
-        .filter(Boolean)
-        .join("\n");
+  const fn = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
+  const n = `${ownerUser.lastname || ""};${ownerUser.firstname || ""};;;`;
+  const email = ownerUser.email || "";
+  const phones = Array.isArray(ownerUser.phonenumbers)
+    ? ownerUser.phonenumbers
+    : [];
+  const telLines = phones
+    .map((p) => {
+      // phone.type fallback to VOICE
+      const full = (p.countryCode ? `+${p.countryCode}` : "") + (p.number || "");
+      return full ? `TEL;TYPE=CELL:${full}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
 
-    const url = ownerUser.website || ownerUser.linkedin || "";
-    const org = ownerUser.company || "";
-    const title = ownerUser.designation || "";
+  const url = ownerUser.website || ownerUser.linkedin || "";
+  const org = ownerUser.company || "";
+  const title = ownerUser.designation || "";
 
-    // Simple vCard v3.0
-    let vcard = `BEGIN:VCARD
+  // Simple vCard v3.0
+  let vcard = `BEGIN:VCARD
 VERSION:3.0
 FN:${escapeVC(fn)}
 N:${escapeVC(n)}
 `;
 
-    if (email) vcard += `EMAIL;TYPE=INTERNET:${escapeVC(email)}\n`;
-    if (telLines) vcard += `${telLines}\n`;
-    if (org) vcard += `ORG:${escapeVC(org)}\n`;
-    if (title) vcard += `TITLE:${escapeVC(title)}\n`;
-    if (url) vcard += `URL:${escapeVC(url)}\n`;
+  if (email) vcard += `EMAIL;TYPE=INTERNET:${escapeVC(email)}\n`;
+  if (telLines) vcard += `${telLines}\n`;
+  if (org) vcard += `ORG:${escapeVC(org)}\n`;
+  if (title) vcard += `TITLE:${escapeVC(title)}\n`;
+  if (url) vcard += `URL:${escapeVC(url)}\n`;
 
-    // social links as NOTE
-    const socials = [];
-    if (ownerUser.linkedin) socials.push(`LinkedIn: ${ownerUser.linkedin}`);
-    if (ownerUser.instagram) socials.push(`Instagram: ${ownerUser.instagram}`);
-    if (ownerUser.twitter) socials.push(`Twitter: ${ownerUser.twitter}`);
-    if (ownerUser.telegram) socials.push(`Telegram: ${ownerUser.telegram}`);
-    if (ownerUser.facebook) socials.push(`Facebook: ${ownerUser.facebook}`);
-    if (socials.length) vcard += `NOTE:${escapeVC(socials.join(" | "))}\n`;
+  // social links as NOTE
+  const socials = [];
+  if (ownerUser.linkedin) socials.push(`LinkedIn: ${ownerUser.linkedin}`);
+  if (ownerUser.instagram) socials.push(`Instagram: ${ownerUser.instagram}`);
+  if (ownerUser.twitter) socials.push(`Twitter: ${ownerUser.twitter}`);
+  if (ownerUser.telegram) socials.push(`Telegram: ${ownerUser.telegram}`);
+  if (ownerUser.facebook) socials.push(`Facebook: ${ownerUser.facebook}`);
+  if (socials.length) vcard += `NOTE:${escapeVC(socials.join(" | "))}\n`;
 
-    vcard += `REV:${new Date().toISOString()}\nEND:VCARD`;
+  vcard += `REV:${new Date().toISOString()}\nEND:VCARD`;
 
-    return vcard;
+  return vcard;
 }
 
 function escapeVC(str = "") {
-    return String(str).replace(/\n/g, "\\n").replace(/,/g, "\\,");
+  return String(str).replace(/\n/g, "\\n").replace(/,/g, "\\,");
 }
 
 /**
@@ -520,26 +529,26 @@ function escapeVC(str = "") {
 // }
 
 function ownerHtmlTemplate(ownerUser, tempUser) {
-    const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim();
-    const phone = tempUser.phonenumber
-        ? `${tempUser.countryCode ? "+" + tempUser.countryCode + " " : ""}${tempUser.phonenumber}`
-        : "Not provided";
-    const createdAt = tempUser.createdAt
-        ? new Date(tempUser.createdAt).toLocaleString()
-        : new Date().toLocaleString();
+  const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim();
+  const phone = tempUser.phonenumber
+    ? `${tempUser.countryCode ? "+" + tempUser.countryCode + " " : ""}${tempUser.phonenumber}`
+    : "Not provided";
+  const createdAt = tempUser.createdAt
+    ? new Date(tempUser.createdAt).toLocaleString()
+    : new Date().toLocaleString();
 
-    const escapeHtml = (unsafe) =>
-        unsafe
-            ? unsafe.replace(/[&<"'>]/g, (m) => ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;",
-            }[m]))
-            : "";
+  const escapeHtml = (unsafe) =>
+    unsafe
+      ? unsafe.replace(/[&<"'>]/g, (m) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[m]))
+      : "";
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -658,18 +667,18 @@ function ownerHtmlTemplate(ownerUser, tempUser) {
             <span class="info-label">Mobile:</span> ${escapeHtml(phone)}
           </div>
           ${tempUser.linkedin
-            ? `<div class="info-item"><span class="info-label">LinkedIn:</span> ${escapeHtml(tempUser.linkedin)}</div>`
-            : ""
-        }
+      ? `<div class="info-item"><span class="info-label">LinkedIn:</span> ${escapeHtml(tempUser.linkedin)}</div>`
+      : ""
+    }
         </div>
 
         <p>
           If you'd like to review, please log in to your
-          <a href="https://demo.contacts.management/" target="_blank">Contacts Management</a>
+          <a href="https://contacts-user-web.vercel.app/" target="_blank">Contacts Management</a>
           dashboard.
         </p>
 
-        <a href="https://demo.contacts.management/" class="button">Go to Dashboard</a>
+        <a href="https://contacts-user-web.vercel.app/" class="button">Go to Dashboard</a>
 
         <p style="margin-top: 25px;">
           Warm regards,<br />
@@ -735,32 +744,32 @@ function ownerHtmlTemplate(ownerUser, tempUser) {
 // }
 
 function scannerHtmlTemplate(ownerUser, tempUser, vcfDownloadUrl) {
-    const ownerName = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
-    const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim() || "there";
+  const ownerName = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
+  const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim() || "there";
 
-    const phoneObj =
-        Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
-    const phone = phoneObj
-        ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}`
-        : "Not provided";
+  const phoneObj =
+    Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
+  const phone = phoneObj
+    ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}`
+    : "Not provided";
 
-    const escapeHtml = (unsafe) =>
-        unsafe
-            ? unsafe.replace(/[&<"'>]/g, (m) => ({
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;",
-            }[m]))
-            : "";
+  const escapeHtml = (unsafe) =>
+    unsafe
+      ? unsafe.replace(/[&<"'>]/g, (m) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[m]))
+      : "";
 
-    const logoUrl =
-        "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png";
-    const registerUrl = "https://demo.contacts.management/register";
-    const unsubscribeUrl = "https://demo.contacts.management/unsubscribe";
+  const logoUrl =
+    "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png";
+  const registerUrl = "https://contacts-user-web.vercel.app/register";
+  const unsubscribeUrl = "https://contacts-user-web.vercel.app/unsubscribe";
 
-    return `<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -873,16 +882,16 @@ function scannerHtmlTemplate(ownerUser, tempUser, vcfDownloadUrl) {
  * tempUser: object (firstname, lastname, email, phonenumber, countryCode, linkedin...)
  */
 async function sendOwnerNotification(ownerEmail, ownerUser, tempUser) {
-    if (!ownerEmail) return;
-    const html = ownerHtmlTemplate(ownerUser, tempUser);
-    const mailOptions = {
-        from: '"Contacts Management" <noreply@contacts.management>',
-        to: ownerEmail,
-        subject: "you have a new lead in contacts management - " + `${tempUser.firstname || ""} ${tempUser.lastname || ""}`,
-        html,
-    };
+  if (!ownerEmail) return;
+  const html = ownerHtmlTemplate(ownerUser, tempUser);
+  const mailOptions = {
+    from: '"Contacts Management" <noreply@contacts.management>',
+    to: ownerEmail,
+    subject: "you have a new lead in contacts management - " + `${tempUser.firstname || ""} ${tempUser.lastname || ""}`,
+    html,
+  };
 
-    return transporter.sendMail(mailOptions);
+  return transporter.sendMail(mailOptions);
 }
 
 /**
@@ -891,39 +900,40 @@ async function sendOwnerNotification(ownerEmail, ownerUser, tempUser) {
  * ownerUser: the user object whose profile will be sent (UserID user)
  */
 async function sendProfileAndVcard(recipientEmail, ownerUser, tempUser) {
-    if (!recipientEmail) return;
+  if (!recipientEmail) return;
 
-    // pass both users into HTML template
-    const html = scannerHtmlTemplate(ownerUser, tempUser);
-    const vcardString = buildVCard(ownerUser);
-    const vcardBuffer = Buffer.from(vcardString, "utf-8");
+  // pass both users into HTML template
+  const html = scannerHtmlTemplate(ownerUser, tempUser);
+  const vcardString = buildVCard(ownerUser);
+  const vcardBuffer = Buffer.from(vcardString, "utf-8");
 
-    const mailOptions = {
-        from: '"Contacts Management" <noreply@contacts.management>',
-        to: recipientEmail,
-        subject: `Thank you for connecting with ${ownerUser.firstname || ""} ${ownerUser.lastname || ""} — download contact information`,
-        html,
-        attachments: [
-            {
-                filename: `${(ownerUser.firstname || "contact")}_${(ownerUser.lastname || "")}.vcf`.replace(/\s+/g, "_"),
-                content: vcardBuffer,
-                contentType: "text/vcard",
-            },
-        ],
-    };
+  const mailOptions = {
+    from: '"Contacts Management" <noreply@contacts.management>',
+    to: recipientEmail,
+    subject: `Thank you for connecting with ${ownerUser.firstname || ""} ${ownerUser.lastname || ""} — download contact information`,
+    html,
+    attachments: [
+      {
+        filename: `${(ownerUser.firstname || "contact")}_${(ownerUser.lastname || "")}.vcf`.replace(/\s+/g, "_"),
+        content: vcardBuffer,
+        contentType: "text/vcard",
+      },
+    ],
+  };
 
-    return transporter.sendMail(mailOptions);
+  return transporter.sendMail(mailOptions);
 }
 
 
 
 
 module.exports = {
-    sendVerificationEmail,
-    sendHelpSupportReply,
-    sendHelpSupportReplyNotification,
-    transporter,
-    sendOwnerNotification,
-    sendProfileAndVcard,
-    buildVCard,
+  sendVerificationEmail,
+  sendHelpSupportReply,
+  sendHelpSupportReplyNotification,
+  transporter,
+  sendMail,
+  sendOwnerNotification,
+  sendProfileAndVcard,
+  buildVCard,
 };

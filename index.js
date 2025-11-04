@@ -91,6 +91,7 @@ const quoteRoutes = require("./routes/admin/quoteRoutes");
 const publicQuoteRoutes = require("./routes/public/publicQuoteRoutes");
 const alertMessageEmailSubcriptionEndController = require("./routes/admin/alertMessageEmailSubcriptionEndRoutes");
 const sendNotificationToAllUsers = require("./routes/admin/notificationRoutes");
+const sendEmailToAllUsers = require("./routes/admin/adminEmailSentforUsersRoutes");
 
 console.log("Setting up Express app...");
 
@@ -305,6 +306,10 @@ app.use("/admin/notification",
   checkRole(["superadmin"]),
   sendNotificationToAllUsers);
 
+app.use("/admin/email",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  sendEmailToAllUsers);
 
 app.use("/test", testRoutes);
 // app.use(

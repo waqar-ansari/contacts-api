@@ -35,7 +35,7 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
 
     // Reset link (unchanged)
-    const resetLink = `https://demo.contacts.management/email/reset-password?token=${token}`;
+    const resetLink = `https://contacts-user-web.vercel.app/email/reset-password?token=${token}`;
     console.log("resetLink:", resetLink);
 
     // HTML (unchanged from your original)

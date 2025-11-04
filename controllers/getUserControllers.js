@@ -205,7 +205,7 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          referralUrl: `https://demo.contacts.management/register?ref=${user.referralCode}`,
+          referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
           creditBalance: creditBalance,
           accounts: [
             {
@@ -358,7 +358,7 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          referralUrl: `https://demo.contacts.management/register?ref=${user.referralCode}`,
+          referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
           creditBalance: user.creditBalance || 0,
           qrCode: qrCodeDataURL,
           accounts: [
@@ -438,7 +438,7 @@ const getUserData = async (req, res) => {
       referralCode: user.referralCode || null,
       trialStartDate: stripeData?.trialStart || null,
       trialEndDate: stripeData?.trialEnd || null,
-      referralUrl: `https://demo.contacts.management/register?ref=${user.referralCode}`,
+      referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
       accounts: [
         {

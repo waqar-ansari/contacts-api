@@ -56,9 +56,9 @@ exports.sendNotificationToAllUsers = async (req, res) => {
       await notification.save();
 
       res.status(200).json({
-        success: true,
+        success: "success",
         message: `Notification sent to ${externalIds.length} users successfully.`,
-        notification,
+        data: notification,
       });
     } catch (err) {
       // ✅ Update DB in case of failure
@@ -68,7 +68,7 @@ exports.sendNotificationToAllUsers = async (req, res) => {
 
       console.error("❌ OneSignal error:", err.message);
       res.status(500).json({
-        success: false,
+        status: "error",
         message: "Failed to send OneSignal notification.",
         error: err.message,
       });
@@ -76,8 +76,30 @@ exports.sendNotificationToAllUsers = async (req, res) => {
   } catch (err) {
     console.error("❌ Error sending admin notification:", err);
     res.status(500).json({
-      success: false,
+      status: "error",
       message: "Server error while sending notification.",
+      error: err.message,
+    });
+  }
+};
+
+exports.getAllNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find()
+      .sort({ createdAt: -1 })
+      .populate("sentBy", "firstname lastname email")
+      .populate("sentToUsers", "firstname lastname email");
+    res.status(200).json({
+      success: "success",
+      message: "Notifications fetched.",
+      data: notifications,
+    });
+  }
+  catch (err) {
+    console.error("❌ Error fetching notifications:", err);
+    res.status(500).json({
+      status: "error",
+      message: "Server error while fetching notifications.",
       error: err.message,
     });
   }

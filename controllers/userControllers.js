@@ -563,14 +563,14 @@ const signupWithEmail = async (req, res) => {
 
     console.log(newUser.creditBalance);
 
-    let referUrl = `https://demo.contacts.management/register?ref=${newUser.referralCode}`;
+    let referUrl = `https://contacts-user-web.vercel.app/register?ref=${newUser.referralCode}`;
 
     let verificationLink = "";
 
     if (referralCodeParam) {
-      verificationLink = `https://demo.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}&ref=${referralCodeParam}`;
+      verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}&ref=${referralCodeParam}`;
     } else {
-      verificationLink = `https://demo.contacts.management/user-verification?verificationToken=${newUser.emailVerificationToken}`;
+      verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}`;
     }
 
     // Send verification email
@@ -1011,7 +1011,7 @@ const signupWithPhoneNumber = async (req, res) => {
     }
 
     const token = createTokenforUser(user);
-    const referUrl = `https://demo.contacts.management/register?ref=${user.referralCode}`;
+    const referUrl = `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`;
 
     return res.status(201).json({
       status: "success",
@@ -1065,7 +1065,7 @@ const resendVerificationLink = async (req, res) => {
     await user.save();
 
     // Build link and send email
-    const verificationLink = `https://demo.contacts.management/user-verification?verificationToken=${user.emailVerificationToken}`;
+    const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${user.emailVerificationToken}`;
     await sendVerificationEmail(user.email, verificationLink);
 
     return res.status(200).json({
@@ -1719,7 +1719,7 @@ const googleCallback = async (req, res) => {
         .update(referralCodeRaw)
         .digest("hex")
         .slice(0, 16);
-      referralUrl = `https://demo.contacts.management/register?ref=${userReferralCode}`;
+      referralUrl = `https://contacts-user-web.vercel.app/register?ref=${userReferralCode}`;
       user = await User.create({
         email,
         firstname,

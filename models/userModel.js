@@ -476,6 +476,11 @@ const userSchema = new Schema(
       sparse: true, // only enforce uniqueness when present
     },
 
+    userSubscribed: {
+      type: Boolean,
+      default: true,
+    },
+
     // userModel.js (schema additions)
     oneSignalPlayerIds: [{ type: String }], // optional - store device/player ids
     oneSignalExternalUserIds: [{ type: String }], // recommended - store phone-based external ids like "919876543210"
