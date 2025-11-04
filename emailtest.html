@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Contact vCard</title>
+</head>
+
+<body style="margin:0; padding:0; background-color:#f4f6f8;">
+    <!-- Outer wrapper -->
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+        style="background-color:#f4f6f8;">
+        <tr>
+            <td align="center" style="padding:20px;">
+                <!-- Email container -->
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600"
+                    style="max-width:600px; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+
+                    <!-- Header / Logo -->
+                    <tr>
+                        <td align="center" style="padding:20px 24px 10px 24px; background-color:#ffffff;">
+                            <img src="{{logo_url}}" alt="Company logo" width="160"
+                                style="display:block; border:0; outline:none; text-decoration:none;">
+                        </td>
+                    </tr>
+
+                    <!-- Divider -->
+                    <tr>
+                        <td style="border-top:1px solid #eef0f2;"></td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td
+                            style="padding:28px 32px 18px 32px; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#1f2937; line-height:1.5;">
+
+                            <p style="margin:0 0 18px 0; font-size:16px;">
+                                Hi <strong>{{lead_name}}</strong>,
+                            </p>
+
+                            <p style="margin:0 0 18px 0; font-size:15px; color:#374151;">
+                                Thanks for sharing your contact details with <strong>{{profile_user_name}}</strong>.
+                                We’ve attached their vCard (.vcf) for your reference — click the button below to
+                                download and save it to your contacts.
+                            </p>
+
+                            <!-- Download button (Outlook-safe) -->
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0"
+                                style="margin:18px 0 22px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{vcf_download_url}}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="8%" stroke="f" fillcolor="#0b76ff">
+                        <w:anchorlock/>
+                        <center style="color:#ffffff;font-family:Arial, sans-serif;font-size:16px;font-weight:600;">Download vCard</center>
+                      </v:roundrect>
+                    <![endif]-->
+                                        <!--[if !mso]><!-- -->
+                                        <a href="{{vcf_download_url}}" target="_blank"
+                                            style="display:inline-block;padding:12px 22px;border-radius:6px;background-color:#5D6064;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;font-family:inherit;">
+                                            Download vCard
+                                        </a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin:0 0 16px 0; font-size:15px; color:#374151;">
+                                Want your own sharable contact card? Create a free profile and start connecting in seconds.
+                            </p>
+
+                            <!-- Register button -->
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0"
+                                style="margin:12px 0 0 0;">
+                                <tr>
+                                    <td align="center">
+                                        <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{register_url}}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="8%" stroke="f" fillcolor="#06b6d4">
+                        <w:anchorlock/>
+                        <center style="color:#ffffff;font-family:Arial, sans-serif;font-size:16px;font-weight:600;">Register Now — It’s Free</center>
+                      </v:roundrect>
+                    <![endif]-->
+                                        <!--[if !mso]><!-- -->
+                                        <a href="{{register_url}}" target="_blank"
+                                            style="display:inline-block;padding:12px 22px;border-radius:6px;background-color:#000000;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;font-family:inherit;">
+                                            Register Now — It’s Free
+                                        </a>
+                                        <!--<![endif]-->
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin:22px 0 0 0; font-size:14px; color:#6b7280;">
+                                Thank you,<br>
+                                <strong>The Contact Management Team</strong>
+                            </p>
+
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td
+                            style="background-color:#fafafa; padding:16px 32px; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Arial; font-size:12px; color:#9ca3af; text-align:center;">
+                            <p style="margin:0 0 6px 0;">If you prefer not to receive these emails, you can <a
+                                    href="{{unsubscribe_url}}"
+                                    style="color:#6b7280; text-decoration:underline;">unsubscribe</a>.</p>
+                            <p style="margin:6px 0 0 0;">Company Name • 123 Your Street • City, Country</p>
+                        </td>
+                    </tr>
+
+                </table>
+                <!-- End container -->
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>

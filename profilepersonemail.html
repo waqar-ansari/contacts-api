@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Contact Information</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: #f5f7fa;
+        margin: 0;
+        padding: 0;
+        color: #333333;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: 30px auto;
+        background: #ffffff;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .email-header {
+        background-color: #0052cc;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .email-header img {
+        max-width: 140px;
+      }
+
+      .email-body {
+        padding: 30px;
+      }
+
+      .email-body h2 {
+        font-size: 20px;
+        color: #222222;
+        margin-bottom: 15px;
+      }
+
+      .email-body p {
+        font-size: 15px;
+        line-height: 1.6;
+        margin: 8px 0;
+      }
+
+      .info-box {
+        background-color: #f1f5ff;
+        border-left: 4px solid #0052cc;
+        padding: 15px 20px;
+        border-radius: 6px;
+        margin: 20px 0;
+      }
+
+      .info-item {
+        margin: 8px 0;
+        font-size: 15px;
+      }
+
+      .info-label {
+        font-weight: 600;
+        color: #0052cc;
+        margin-right: 5px;
+      }
+
+      .email-footer {
+        background-color: #f0f0f0;
+        text-align: center;
+        padding: 15px;
+        font-size: 13px;
+        color: #777777;
+      }
+
+      a.button {
+        display: inline-block;
+        margin-top: 15px;
+        background-color: #0052cc;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      a.button:hover {
+        background-color: #003d99;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <!-- Header with logo -->
+      <div class="email-header">
+        <img src="https://yourdomain.com/logo.png" alt="Contacts Management Logo" />
+      </div>
+
+      <!-- Email Body -->
+      <div class="email-body">
+        <h2>Hi <strong>{{profilePersonName}}</strong>,</h2>
+
+        <p>
+          <strong>Yash Makvana</strong> has sent you contact information as below:
+        </p>
+
+        <div class="info-box">
+          <div class="info-item">
+            <span class="info-label">Name:</span> {{name}}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Email:</span> {{email}}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Mobile:</span> {{mobile}}
+          </div>
+        </div>
+
+        <p>
+          If you'd like to review, please log in to your
+          <a href="https://demo.contacts.management/" target="_blank">Contacts Management</a>
+          account under <strong>New Lead</strong>.
+        </p>
+
+        <a href="https://demo.contacts.management/" class="button">Go to Dashboard</a>
+
+        <p style="margin-top: 25px;">
+          Warm regards,<br />
+          <strong>Contacts Management Team</strong>
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="email-footer">
+        © 2025 Contacts Management. All rights reserved.
+      </div>
+    </div>
+  </body>
+</html>

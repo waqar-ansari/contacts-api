@@ -472,106 +472,400 @@ function escapeVC(str = "") {
  * HTML template for Owner (UserID) notification when someone adds/saves their profile (temp user).
  * tempUser object shape { firstname, lastname, email, phonenumber, countryCode, createdAt, linkedin, instagram, telegram, twitter, facebook }
  */
+// function ownerHtmlTemplate(ownerUser, tempUser) {
+//     const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim();
+//     const phone = tempUser.phonenumber
+//         ? `${tempUser.countryCode ? "+" + tempUser.countryCode + " " : ""}${tempUser.phonenumber}`
+//         : "Not provided";
+//     const createdAt = tempUser.createdAt ? new Date(tempUser.createdAt).toLocaleString() : new Date().toLocaleString();
+
+//     return `<!doctype html>
+// <html>
+// <head>
+// <meta charset="utf-8" />
+// <title>Someone saved your profile — Contacts Management</title>
+// <style>
+//   body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
+//   .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
+//   .header{ text-align:center; margin-bottom:15px;}
+//   .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
+//   .row{ margin:12px 0;}
+//   .label{ color:#6c757d; font-size:13px;}
+// </style>
+// </head>
+// <body>
+//   <div class="container">
+//     <div class="header">
+//       <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
+//     </div>
+
+//     <p><strong>Hi ${ownerUser.firstname || "there"},</strong></p>
+
+//     <p>${tempName || "Someone"} just added/saved your shared profile (temporary entry) on Contacts Management on <strong>${createdAt}</strong>.</p>
+
+//     <div class="row"><div class="label">Name</div><div>${escapeHtml(tempName) || "-"}</div></div>
+//     <div class="row"><div class="label">Email</div><div>${escapeHtml(tempUser.email || "Not provided")}</div></div>
+//     <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
+//     ${tempUser.linkedin ? `<div class="row"><div class="label">LinkedIn</div><div>${escapeHtml(tempUser.linkedin)}</div></div>` : ""}
+//     <p>If you'd like to review or remove this temporary entry, open your Contacts Management dashboard.</p>
+
+//     <p>Warm regards,<br/>Contacts Management Team</p>
+
+//     <div style="text-align:center;margin-top:18px;">
+//       <a class="button" href="https://contacts.management">Open Dashboard</a>
+//     </div>
+//   </div>
+// </body>
+// </html>`;
+// }
+
 function ownerHtmlTemplate(ownerUser, tempUser) {
     const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim();
     const phone = tempUser.phonenumber
         ? `${tempUser.countryCode ? "+" + tempUser.countryCode + " " : ""}${tempUser.phonenumber}`
         : "Not provided";
-    const createdAt = tempUser.createdAt ? new Date(tempUser.createdAt).toLocaleString() : new Date().toLocaleString();
+    const createdAt = tempUser.createdAt
+        ? new Date(tempUser.createdAt).toLocaleString()
+        : new Date().toLocaleString();
 
-    return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<title>Someone saved your profile — Contacts Management</title>
-<style>
-  body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
-  .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
-  .header{ text-align:center; margin-bottom:15px;}
-  .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
-  .row{ margin:12px 0;}
-  .label{ color:#6c757d; font-size:13px;}
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
+    const escapeHtml = (unsafe) =>
+        unsafe
+            ? unsafe.replace(/[&<"'>]/g, (m) => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;",
+            }[m]))
+            : "";
+
+    return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Contact Information</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: #f5f7fa;
+        margin: 0;
+        padding: 0;
+        color: #333333;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: 30px auto;
+        background: #ffffff;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .email-header {
+        background-color: #0052cc;
+        text-align: center;
+        padding: 20px;
+      }
+
+      .email-header img {
+        max-width: 140px;
+      }
+
+      .email-body {
+        padding: 30px;
+      }
+
+      .email-body h2 {
+        font-size: 20px;
+        color: #222222;
+        margin-bottom: 15px;
+      }
+
+      .email-body p {
+        font-size: 15px;
+        line-height: 1.6;
+        margin: 8px 0;
+      }
+
+      .info-box {
+        background-color: #f1f5ff;
+        border-left: 4px solid #0052cc;
+        padding: 15px 20px;
+        border-radius: 6px;
+        margin: 20px 0;
+      }
+
+      .info-item {
+        margin: 8px 0;
+        font-size: 15px;
+      }
+
+      .info-label {
+        font-weight: 600;
+        color: #0052cc;
+        margin-right: 5px;
+      }
+
+      .email-footer {
+        background-color: #f0f0f0;
+        text-align: center;
+        padding: 15px;
+        font-size: 13px;
+        color: #777777;
+      }
+
+      a.button {
+        display: inline-block;
+        margin-top: 15px;
+        background-color: #0052cc;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      a.button:hover {
+        background-color: #003d99;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <!-- Header with logo -->
+      <div class="email-header">
+        <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management Logo" />
+      </div>
+
+      <!-- Email Body -->
+      <div class="email-body">
+        <h2>Hi <strong>${escapeHtml(ownerUser.firstname || "there")}</strong>,</h2>
+
+        <p>
+          <strong>${escapeHtml(tempName || "Someone")}</strong> has sent you contact information as below:
+        </p>
+
+        <div class="info-box">
+          <div class="info-item">
+            <span class="info-label">Name:</span> ${escapeHtml(tempName) || "-"}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Email:</span> ${escapeHtml(tempUser.email || "Not provided")}
+          </div>
+          <div class="info-item">
+            <span class="info-label">Mobile:</span> ${escapeHtml(phone)}
+          </div>
+          ${tempUser.linkedin
+            ? `<div class="info-item"><span class="info-label">LinkedIn:</span> ${escapeHtml(tempUser.linkedin)}</div>`
+            : ""
+        }
+        </div>
+
+        <p>
+          If you'd like to review, please log in to your
+          <a href="https://demo.contacts.management/" target="_blank">Contacts Management</a>
+          dashboard.
+        </p>
+
+        <a href="https://demo.contacts.management/" class="button">Go to Dashboard</a>
+
+        <p style="margin-top: 25px;">
+          Warm regards,<br />
+          <strong>Contacts Management Team</strong>
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="email-footer">
+        © 2025 Contacts Management. All rights reserved.
+      </div>
     </div>
-
-    <p><strong>Hi ${ownerUser.firstname || "there"},</strong></p>
-
-    <p>${tempName || "Someone"} just added/saved your shared profile (temporary entry) on Contacts Management on <strong>${createdAt}</strong>.</p>
-
-    <div class="row"><div class="label">Name</div><div>${escapeHtml(tempName) || "-"}</div></div>
-    <div class="row"><div class="label">Email</div><div>${escapeHtml(tempUser.email || "Not provided")}</div></div>
-    <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
-    ${tempUser.linkedin ? `<div class="row"><div class="label">LinkedIn</div><div>${escapeHtml(tempUser.linkedin)}</div></div>` : ""}
-    <p>If you'd like to review or remove this temporary entry, open your Contacts Management dashboard.</p>
-
-    <p>Warm regards,<br/>Contacts Management Team</p>
-
-    <div style="text-align:center;margin-top:18px;">
-      <a class="button" href="https://contacts.management">Open Dashboard</a>
-    </div>
-  </div>
-</body>
+  </body>
 </html>`;
 }
+
 
 /**
  * HTML template for Scanner (temp user) email that includes owner's profile summary and mention of attached vCard.
  */
-function scannerHtmlTemplate(ownerUser) {
+// function scannerHtmlTemplate(ownerUser) {
+//     const ownerName = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
+//     const phoneObj = Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
+//     const phone = phoneObj ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}` : "Not provided";
+//     return `<!doctype html>
+// <html>
+// <head>
+// <meta charset="utf-8" />
+// <title>Profile shared with you — Contacts Management</title>
+// <style>
+//   body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
+//   .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
+//   .header{ text-align:center; margin-bottom:15px;}
+//   .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
+//   .row{ margin:12px 0;}
+//   .label{ color:#6c757d; font-size:13px;}
+// </style>
+// </head>
+// <body>
+//   <div class="container">
+//     <div class="header">
+//       <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
+//     </div>
+
+//     <p><strong>Hi,</strong></p>
+
+//     <p>You just saved the profile of <strong>${escapeHtml(ownerName) || "-"}</strong> on Contacts Management. We attached their contact as a <strong>vCard (.vcf)</strong> for easy import into your phone or address book.</p>
+
+//     <div class="row"><div class="label">Name</div><div>${escapeHtml(ownerName) || "-"}</div></div>
+//     <div class="row"><div class="label">Email</div><div>${escapeHtml(ownerUser.email || "Not provided")}</div></div>
+//     <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
+
+//     <p>To import the vCard: download the attachment and open it on your device.</p>
+
+//     <p>Warm regards,<br/>Contacts Management Team</p>
+
+//     <div style="text-align:center;margin-top:18px;">
+//       <a class="button" href="https://contacts.management">Open App</a>
+//     </div>
+//   </div>
+// </body>
+// </html>`;
+// }
+
+function scannerHtmlTemplate(ownerUser, tempUser, vcfDownloadUrl) {
     const ownerName = `${ownerUser.firstname || ""} ${ownerUser.lastname || ""}`.trim();
-    const phoneObj = Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
-    const phone = phoneObj ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}` : "Not provided";
+    const tempName = `${tempUser.firstname || ""} ${tempUser.lastname || ""}`.trim() || "there";
+
+    const phoneObj =
+        Array.isArray(ownerUser.phonenumbers) && ownerUser.phonenumbers[0];
+    const phone = phoneObj
+        ? `${phoneObj.countryCode ? "+" + phoneObj.countryCode + " " : ""}${phoneObj.number}`
+        : "Not provided";
+
+    const escapeHtml = (unsafe) =>
+        unsafe
+            ? unsafe.replace(/[&<"'>]/g, (m) => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;",
+            }[m]))
+            : "";
+
+    const logoUrl =
+        "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png";
+    const registerUrl = "https://demo.contacts.management/register";
+    const unsubscribeUrl = "https://demo.contacts.management/unsubscribe";
+
     return `<!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>Profile shared with you — Contacts Management</title>
-<style>
-  body { font-family: Arial, sans-serif; color:#2d313a; background:#fff; margin:0; padding:0; }
-  .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e9ecef;border-radius:8px;}
-  .header{ text-align:center; margin-bottom:15px;}
-  .button{ display:inline-block; padding:10px 16px; border-radius:6px; text-decoration:none; background:#007bff; color:#fff; font-weight:600;}
-  .row{ margin:12px 0;}
-  .label{ color:#6c757d; font-size:13px;}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contact vCard</title>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <img src="https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png" alt="Contacts Management" style="width:180px;">
-    </div>
 
-    <p><strong>Hi,</strong></p>
+<body style="margin:0; padding:0; background-color:#f4f6f8;">
+  <!-- Outer wrapper -->
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f4f6f8;">
+    <tr>
+      <td align="center" style="padding:20px;">
+        <!-- Email container -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600"
+          style="max-width:600px; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
 
-    <p>You just saved the profile of <strong>${escapeHtml(ownerName) || "-"}</strong> on Contacts Management. We attached their contact as a <strong>vCard (.vcf)</strong> for easy import into your phone or address book.</p>
+          <!-- Header / Logo -->
+          <tr>
+            <td align="center" style="padding:20px 24px 10px 24px; background-color:#ffffff;">
+              <img src="${logoUrl}" alt="Contacts Management Logo" width="160"
+                style="display:block; border:0; outline:none; text-decoration:none;">
+            </td>
+          </tr>
 
-    <div class="row"><div class="label">Name</div><div>${escapeHtml(ownerName) || "-"}</div></div>
-    <div class="row"><div class="label">Email</div><div>${escapeHtml(ownerUser.email || "Not provided")}</div></div>
-    <div class="row"><div class="label">Phone</div><div>${escapeHtml(phone)}</div></div>
+          <!-- Divider -->
+          <tr>
+            <td style="border-top:1px solid #eef0f2;"></td>
+          </tr>
 
-    <p>To import the vCard: download the attachment and open it on your device.</p>
+          <!-- Content -->
+          <tr>
+            <td style="padding:28px 32px 18px 32px; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#1f2937; line-height:1.5;">
+              
+              <p style="margin:0 0 18px 0; font-size:16px;">
+                Hi <strong>${escapeHtml(tempName)}</strong>,
+              </p>
 
-    <p>Warm regards,<br/>Contacts Management Team</p>
+              <p style="margin:0 0 18px 0; font-size:15px; color:#374151;">
+                Thanks for sharing your contact details with <strong>${escapeHtml(ownerName)}</strong>.
+                We've attached their vCard (.vcf) for your reference — click the button below to
+                download and save it to your contacts.
+              </p>
 
-    <div style="text-align:center;margin-top:18px;">
-      <a class="button" href="https://contacts.management">Open App</a>
-    </div>
-  </div>
+              <!-- Download button -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:18px 0 22px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${vcfDownloadUrl}" target="_blank"
+                      style="display:inline-block;padding:12px 22px;border-radius:6px;background-color:#5D6064;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;font-family:inherit;">
+                      Download vCard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 16px 0; font-size:15px; color:#374151;">
+                Want your own sharable contact card? Create a free profile and start connecting in seconds.
+              </p>
+
+              <!-- Register button -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:12px 0 0 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${registerUrl}" target="_blank"
+                      style="display:inline-block;padding:12px 22px;border-radius:6px;background-color:#000000;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;font-family:inherit;">
+                      Register Now — It’s Free
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:22px 0 0 0; font-size:14px; color:#6b7280;">
+                Thank you,<br>
+                <strong>The Contacts Management Team</strong>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#fafafa; padding:16px 32px; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Arial; font-size:12px; color:#9ca3af; text-align:center;">
+              <p style="margin:0 0 6px 0;">If you prefer not to receive these emails, you can 
+                <a href="${unsubscribeUrl}" style="color:#6b7280; text-decoration:underline;">unsubscribe</a>.
+              </p>
+              <p style="margin:6px 0 0 0;">Contacts Management • India</p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- End container -->
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
 
-function escapeHtml(str = "") {
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-}
+
+// function escapeHtml(str = "") {
+//     return String(str)
+//         .replace(/&/g, "&amp;")
+//         .replace(/</g, "&lt;")
+//         .replace(/>/g, "&gt;");
+// }
 
 /**
  * Send notification to the UserID owner informing them that a temp user (or any scanner) saved/added their profile.
@@ -584,7 +878,7 @@ async function sendOwnerNotification(ownerEmail, ownerUser, tempUser) {
     const mailOptions = {
         from: '"Contacts Management" <noreply@contacts.management>',
         to: ownerEmail,
-        subject: "Someone saved your shared profile — Contacts Management",
+        subject: "you have a new lead in contacts management - " + `${tempUser.firstname || ""} ${tempUser.lastname || ""}`,
         html,
     };
 
@@ -596,17 +890,18 @@ async function sendOwnerNotification(ownerEmail, ownerUser, tempUser) {
  * recipientEmail: string
  * ownerUser: the user object whose profile will be sent (UserID user)
  */
-async function sendProfileAndVcard(recipientEmail, ownerUser) {
+async function sendProfileAndVcard(recipientEmail, ownerUser, tempUser) {
     if (!recipientEmail) return;
 
-    const html = scannerHtmlTemplate(ownerUser);
+    // pass both users into HTML template
+    const html = scannerHtmlTemplate(ownerUser, tempUser);
     const vcardString = buildVCard(ownerUser);
     const vcardBuffer = Buffer.from(vcardString, "utf-8");
 
     const mailOptions = {
         from: '"Contacts Management" <noreply@contacts.management>',
         to: recipientEmail,
-        subject: `${ownerUser.firstname || ""} ${ownerUser.lastname || ""} — Contact shared with you`,
+        subject: `Thank you for connecting with ${ownerUser.firstname || ""} ${ownerUser.lastname || ""} — download contact information`,
         html,
         attachments: [
             {
@@ -619,6 +914,7 @@ async function sendProfileAndVcard(recipientEmail, ownerUser) {
 
     return transporter.sendMail(mailOptions);
 }
+
 
 
 

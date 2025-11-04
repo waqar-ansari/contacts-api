@@ -764,7 +764,11 @@ exports.scanUser = async (req, res) => {
 
           if (email) {
             try {
-              await sendProfileAndVcard(email, user);
+              await sendProfileAndVcard(email, user, {
+                firstname: firstname,
+                lastname: lastname,
+              });
+              // await sendProfileAndVcard(scanner.email, user, scanner);
             } catch (err) {
               console.error("Send vCard to temp user failed:", err);
             }
