@@ -144,10 +144,9 @@ const contactSchema = new Schema(
       type: String,
       // default: "Dummy Firstname",
     },
-
     category: {
       type: String,
-      enum: ["lead", "scan", "card","manual"],
+      enum: ["lead", "qrScan", "businessCardScan", "manual"],
       default: "manual",
     },
 

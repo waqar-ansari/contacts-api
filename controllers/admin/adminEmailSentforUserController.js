@@ -380,6 +380,9 @@ exports.sendEmailToFilteredUsers = async (req, res) => {
         // Fetch matching users
         const users = await User.find(query, { email: 1, firstname: 1, lastname: 1 }).lean();
 
+        console.log(users);
+        
+
         if (!users || users.length === 0) {
             return res.status(200).json({ ok: true, message: "No matching users found", sent: 0 });
         }

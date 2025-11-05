@@ -122,7 +122,7 @@ exports.sendWeeklyReport = async (req, res) => {
       const userId = user._id;
       const userFullName = `${user.firstname || ""} ${user.lastname || ""}`.trim() || "User";
 
-      const categories = ["lead", "scan", "card", "manual"];
+      const categories = ["lead", "qrScan", "businessCardScan", "manual"];
       const counts = {};
 
       for (const cat of categories) {

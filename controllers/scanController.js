@@ -298,7 +298,7 @@ exports.scanUser = async (req, res) => {
           const newContact = new Contact({
             firstname: scanner.firstname || "",
             lastname: scanner.lastname || "",
-            category: "scan",
+            category: "qrScan",
             emailaddresses: [scanner.email || ""],
             // CHANGED: save whole object
             phonenumbers:

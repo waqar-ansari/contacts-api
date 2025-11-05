@@ -562,14 +562,58 @@ const addEditContact = async (req, res) => {
     let contactData;
     if (isCreating) {
       const planName = currentPlan?.name?.toLowerCase() || "starter";
-      let contactLimit = 1000; // default for Free
+
+      // Default limits
+      const OVERALL_LIMIT = 1000;
+      const STARTER_QR_LIMIT = 50;
+      const STARTER_BUSINESS_LIMIT = 50;
+
+      let overallContactLimit = OVERALL_LIMIT;
       if (planName === "pro") {
-        contactLimit = Infinity; // unlimited
+        overallContactLimit = Infinity;
       }
+
+      // Count total contacts (for overall limit)
       const currentContactCount = await Contact.countDocuments({
         createdBy: user._id,
       });
-      if (currentContactCount >= contactLimit) {
+
+      // ---- STARTER PLAN SCAN LIMIT LOGIC ----
+      if (planName === "starter") {
+        if (category === "qrScan") {
+          const qrCount = await Contact.countDocuments({
+            createdBy: user._id,
+            category: "qrScan",
+          });
+
+          if (qrCount >= STARTER_QR_LIMIT) {
+            return res.status(403).json({
+              status: "error",
+              message:
+                "You have reached the maximum number of QR scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
+            });
+          }
+        }
+
+        if (category === "businessCardScan") {
+          const businessCount = await Contact.countDocuments({
+            createdBy: user._id,
+            category: "businessCardScan",
+          });
+
+          if (businessCount >= STARTER_BUSINESS_LIMIT) {
+            return res.status(403).json({
+              status: "error",
+              message:
+                "You have reached the maximum number of Business Card scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
+            });
+          }
+        }
+      }
+      // ---- END STARTER PLAN SCAN LIMIT LOGIC ----
+
+      // ---- OVERALL LIMIT CHECK (for non-Pro users) ----
+      if (currentContactCount >= overallContactLimit) {
         return res.status(403).json({
           status: "error",
           message:
@@ -578,6 +622,27 @@ const addEditContact = async (req, res) => {
               : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
         });
       }
+
+      // let contactLimit = 1000; // default for Free
+      // if (planName === "pro") {
+      //   contactLimit = Infinity; // unlimited
+      // }
+      // if (planName === "starter") {
+      //   category == "qrScan"; // enforce category for Starter plan
+
+      // }
+      // const currentContactCount = await Contact.countDocuments({
+      //   createdBy: user._id,
+      // });
+      // if (currentContactCount >= contactLimit) {
+      //   return res.status(403).json({
+      //     status: "error",
+      //     message:
+      //       planName === "pro"
+      //         ? "You have reached your contact limit. Please contact support."
+      //         : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
+      //   });
+      // }
 
       if (taskProvided && task_id) {
         return res.status(400).json({

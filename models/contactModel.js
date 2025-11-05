@@ -147,7 +147,7 @@ const contactSchema = new Schema(
 
     category: {
       type: String,
-      enum: ["lead", "scan", "card","manual"],
+      enum: ["lead", "qrScan", "businessCardScan","manual"],
       default: "manual",
     },
 
