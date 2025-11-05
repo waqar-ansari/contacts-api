@@ -312,12 +312,12 @@ app.use("/admin/email",
   checkRole(["superadmin"]),
   sendEmailToAllUsers);
 
-app.use("/admin/user-weekly-report", weeklyReportRoutes);
+// app.use("/admin/user-weekly-report", weeklyReportRoutes);
 
-app.use("/admin/user-weekly-report/send-weekly-report",
-  checkForAuthentication(),
-  checkRole(["superadmin"]),
-  weeklyReportRoutes);
+// app.use("/admin/user-weekly-report/send-weekly-report",
+//   checkForAuthentication(),
+//   checkRole(["superadmin"]),
+//   weeklyReportRoutes);
 
 app.use("/test", testRoutes);
 // app.use(
