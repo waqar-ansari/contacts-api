@@ -92,6 +92,7 @@ const publicQuoteRoutes = require("./routes/public/publicQuoteRoutes");
 const alertMessageEmailSubcriptionEndController = require("./routes/admin/alertMessageEmailSubcriptionEndRoutes");
 const sendNotificationToAllUsers = require("./routes/admin/notificationRoutes");
 const sendEmailToAllUsers = require("./routes/admin/adminEmailSentforUsersRoutes");
+const weeklyReportRoutes = require("./routes/admin/weeklyReportRoutes");
 
 console.log("Setting up Express app...");
 
@@ -310,6 +311,13 @@ app.use("/admin/email",
   checkForAuthentication(),
   checkRole(["superadmin"]),
   sendEmailToAllUsers);
+
+app.use("/admin/user-weekly-report", weeklyReportRoutes);
+
+app.use("/admin/user-weekly-report/send-weekly-report",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  weeklyReportRoutes);
 
 app.use("/test", testRoutes);
 // app.use(

@@ -11,3 +11,13 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
+weeklyReportTrigger:
+  handler: lambda/weeklyReportTrigger.handler
+  description: "Automatically triggers weekly report email every Monday"
+  events:
+    - schedule:
+        # rate: cron(0 3 ? * MON *) # Every Monday at 8:30 AM IST (3:00 UTC)
+        # rate: rate(5 minutes)
+        rate: rate(1 day) # every 24 hours
+        # rate: rate(1 hour)     # every 1 hour
+        enabled: true

@@ -298,6 +298,7 @@ exports.scanUser = async (req, res) => {
           const newContact = new Contact({
             firstname: scanner.firstname || "",
             lastname: scanner.lastname || "",
+            category: "scan",
             emailaddresses: [scanner.email || ""],
             // CHANGED: save whole object
             phonenumbers:
@@ -572,6 +573,7 @@ exports.scanUser = async (req, res) => {
             const newContact = new Contact({
               firstname: scanner.firstname || "",
               lastname: scanner.lastname || "",
+              category: "lead",
               emailaddresses: [scanner.email || ""],
               phonenumbers: parsedPhone
                 ? [parsedPhone]
@@ -618,6 +620,7 @@ exports.scanUser = async (req, res) => {
             const newContact = new Contact({
               firstname: user.firstname || "",
               lastname: user.lastname || "",
+              category: "lead",
               emailaddresses: [user.email || ""],
               phonenumbers: parsedPhone
                 ? [parsedPhone] // ✅ use normalized phone for web/mobile
@@ -799,6 +802,7 @@ exports.scanUser = async (req, res) => {
               firstname: firstname || "",
               lastname: lastname || "",
               emailaddresses: [email || ""],
+              category: "lead",
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : phonenumber
