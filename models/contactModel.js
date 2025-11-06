@@ -44,6 +44,7 @@ const contactSchema = new Schema(
     contact_id: {
       type: Schema.Types.ObjectId,
       // type: mongoose.Schema.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
       unique: true,
     },
     firstname: {
@@ -147,8 +148,33 @@ const contactSchema = new Schema(
 
     category: {
       type: String,
-      enum: ["lead", "qrScan", "businessCardScan","manual"],
+      enum: ["lead", "qrScan", "businessCardScan", "manual"],
       default: "manual",
+    },
+
+    qrScanContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    businessCardScanContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    leadContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    manualContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    totalContactCount: {
+      type: Number,
+      default: 0,
     },
 
     tasks: [taskSchema],

@@ -10,6 +10,134 @@ const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const Plan = require("../models/planModel");
 const { getUserCurrentPlan } = require("../utils/stripeUtils");
 const { sendPushNotificationToUser } = require("../utils/oneSignal");
+const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
+// ---------- PLAN + QUOTA HELPERS ----------
+/**
+ * Ensure quota before creating/updating a contact.
+ * - ownerId: user id
+ * - category: target category for the contact ("qrScan","businessCardScan","lead","manual")
+ * - excludeContactId: optional ObjectId (string) to exclude from counts (useful when updating an existing contact)
+ */
+// async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null) {
+//   const owner = await User.findById(ownerId);
+//   if (!owner) throw new Error("Owner not found for quota check");
+
+//   const plan = await getUserCurrentPlan(owner);
+//   const planName = (plan?.name || "starter").toLowerCase();
+
+//   // Starter plan limits:
+//   const STARTER_TOTAL_LIMIT = 1000;
+//   const STARTER_QR_LIMIT = 50;
+//   const STARTER_BUSINESS_LIMIT = 50;
+//   const STARTER_LEAD_LIMIT = 50; // keep if you want lead limited, else set Infinity
+
+//   // Determine per-category limit depending on plan
+//   const perCategoryLimitsForStarter = {
+//     qrScan: STARTER_QR_LIMIT,
+//     businessCardScan: STARTER_BUSINESS_LIMIT,
+//     lead: STARTER_LEAD_LIMIT,
+//     manual: Infinity, // manual has no per-category limit for Starter
+//   };
+
+//   // If pro -> unlimited everything
+//   const isPro = planName === "pro";
+
+//   // Count current totals excluding an existing contact (useful for updates)
+//   const excludeClause = excludeContactId && mongoose.Types.ObjectId.isValid(excludeContactId)
+//     ? { _id: { $ne: excludeContactId } }
+//     : {};
+
+//   // const totalCount = await Contact.countDocuments({
+//   //   createdBy: ownerId,
+//   //   ...excludeClause,
+//   // });
+//   const totalCount = await User.findById(ownerId).then(u => u.totalContactCount || 0);
+//   const leadContactCount = await User.findById(ownerId).then(u => u.leadContactCount || 0);
+//   const businessCardScanContactCount = await User.findById(ownerId).then(u => u.businessCardScanContactCount || 0);
+//   const qrScanContactCount = await User.findById(ownerId).then(u => u.qrScanContactCount || 0);
+//   const manualContactCount = await User.findById(ownerId).then(u => u.manualContactCount || 0);
+//   // Category specific count (exclude the contact if provided)
+//   // const categoryCount = await Contact.countDocuments({
+//   //   createdBy: ownerId,
+//   //   category,
+//   //   ...excludeClause,
+//   // });
+
+//   // Enforce total limit for Starter
+//   if (!isPro && totalCount >= STARTER_TOTAL_LIMIT) {
+//     throw new Error(
+//       `Total contact limit reached for Starter plan (${totalCount}/${STARTER_TOTAL_LIMIT}). Upgrade to Pro for unlimited contacts.`
+//     );
+//   }
+
+//   if (category === "lead") {
+//     if (!isPro && leadContactCount >= STARTER_LEAD_LIMIT) {
+//       throw new Error(
+//         `Plan limit reached for ${category} (${leadContactCount}/${STARTER_LEAD_LIMIT}). Upgrade to Pro for more.`
+//       );
+//     }
+//   } else if (category === "businessCardScan") {
+//     if (!isPro && businessCardScanContactCount >= STARTER_BUSINESS_LIMIT) {
+//       throw new Error(
+//         `Plan limit reached for ${category} (${businessCardScanContactCount}/${STARTER_BUSINESS_LIMIT}). Upgrade to Pro for more.`
+//       );
+//     }
+//   } else if (category === "qrScan") {
+//     if (!isPro && qrScanContactCount >= STARTER_QR_LIMIT) {
+//       throw new Error(
+//         `Plan limit reached for ${category} (${qrScanContactCount}/${STARTER_QR_LIMIT}). Upgrade to Pro for more.`
+//       );
+//     }
+//   } else if (category === "manual") {
+//     if (!isPro && manualContactCount >= Infinity) {
+//       throw new Error(
+//         `Plan limit reached for ${category} (${manualContactCount}/∞). Upgrade to Pro for more.`
+//       );
+//     }
+//   }
+
+
+//   // Enforce per-category limit (only if the category has a finite limit on Starter)
+//   // if (!isPro) {
+//   //   const catLimit = perCategoryLimitsForStarter[category] ?? Infinity;
+//   //   if (catLimit !== Infinity && categoryCount >= catLimit) {
+//   //     throw new Error(
+//   //       `Plan limit reached for ${category} (${categoryCount}/${catLimit}). Upgrade to Pro for more.`
+//   //     );
+//   //   }
+//   // }
+
+//   // Return remaining (useful if you want to show it)
+//   return {
+//     remainingTotal: isPro ? Infinity : STARTER_TOTAL_LIMIT - totalCount,
+//     remainingTotal: isPro ? Infinity : STARTER_LEAD_LIMIT - leadContactCount,
+//     remainingTotal: isPro ? Infinity : STARTER_BUSINESS_LIMIT - businessCardScanContactCount,
+//     remainingTotal: isPro ? Infinity : Infinity - manualContactCount,
+//     remainingCategory: isPro ? Infinity : STARTER_QR_LIMIT - qrScanContactCount,
+//     // remainingCategory: isPro ? Infinity : (perCategoryLimitsForStarter[category] === Infinity ? Infinity : perCategoryLimitsForStarter[category] - categoryCount),
+//   };
+// }
+
+
+// async function incrementOwnerCategoryCounter(ownerId, category) {
+//   const map = {
+//     qrScan: "qrScanContactCount",
+//     businessCardScan: "businessCardScanContactCount",
+//     lead: "leadContactCount",
+//     manual: "manualContactCount",
+//   };
+
+//   const field = map[category];
+//   if (!field) return;
+
+//   // Increment both the specific category counter and the totalContactCount
+//   await User.updateOne(
+//     { _id: ownerId },
+//     { $inc: { [field]: 1, totalContactCount: 1 } }
+//   ).catch((err) =>
+//     console.error("⚠️ Failed to increment owner category/total counter:", err)
+//   );
+// }
 
 const addEditContact = async (req, res) => {
   try {
@@ -166,10 +294,6 @@ const addEditContact = async (req, res) => {
         }
       }
     }
-
-    // ---------- End Normalize Phone Numbers ----------
-
-    // console.log("Parsed Phones:", phonenumbers, parsedPhones);
 
     // ---------- ✅ Check Duplicate Email or Phone ----------
     const emailList = cleanedEmails;
@@ -368,7 +492,6 @@ const addEditContact = async (req, res) => {
     let meetingWasCreated = false;
 
     // ---------- Handle Task ----------
-    // const taskProvided = taskTitle || taskDescription || taskDueDate || taskDueTime || typeof taskIsCompleted !== "";
     const taskProvided =
       // !!taskTitle ||
       !!taskDescription ||
@@ -561,67 +684,78 @@ const addEditContact = async (req, res) => {
 
     let contactData;
     if (isCreating) {
-      const planName = currentPlan?.name?.toLowerCase() || "starter";
+      // await ensureScanQuotaForOwner(user._id, category);
 
-      // Default limits
-      const OVERALL_LIMIT = 1000;
-      const STARTER_QR_LIMIT = 50;
-      const STARTER_BUSINESS_LIMIT = 50;
-
-      let overallContactLimit = OVERALL_LIMIT;
-      if (planName === "pro") {
-        overallContactLimit = Infinity;
-      }
-
-      // Count total contacts (for overall limit)
-      const currentContactCount = await Contact.countDocuments({
-        createdBy: user._id,
-      });
-
-      // ---- STARTER PLAN SCAN LIMIT LOGIC ----
-      if (planName === "starter") {
-        if (category === "qrScan") {
-          const qrCount = await Contact.countDocuments({
-            createdBy: user._id,
-            category: "qrScan",
-          });
-
-          if (qrCount >= STARTER_QR_LIMIT) {
-            return res.status(403).json({
-              status: "error",
-              message:
-                "You have reached the maximum number of QR scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
-            });
-          }
-        }
-
-        if (category === "businessCardScan") {
-          const businessCount = await Contact.countDocuments({
-            createdBy: user._id,
-            category: "businessCardScan",
-          });
-
-          if (businessCount >= STARTER_BUSINESS_LIMIT) {
-            return res.status(403).json({
-              status: "error",
-              message:
-                "You have reached the maximum number of Business Card scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
-            });
-          }
-        }
-      }
-      // ---- END STARTER PLAN SCAN LIMIT LOGIC ----
-
-      // ---- OVERALL LIMIT CHECK (for non-Pro users) ----
-      if (currentContactCount >= overallContactLimit) {
+      try {
+        await ensureScanQuotaForOwner(user._id, category);
+      } catch (quotaError) {
         return res.status(403).json({
           status: "error",
-          message:
-            planName === "pro"
-              ? "You have reached your contact limit. Please contact support."
-              : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
+          message: quotaError.message,
         });
       }
+
+      // const planName = currentPlan?.name?.toLowerCase() || "starter";
+
+      // // Default limits
+      // const OVERALL_LIMIT = 1000;
+      // const STARTER_QR_LIMIT = 50;
+      // const STARTER_BUSINESS_LIMIT = 50;
+
+      // let overallContactLimit = OVERALL_LIMIT;
+      // if (planName === "pro") {
+      //   overallContactLimit = Infinity;
+      // }
+
+      // // Count total contacts (for overall limit)
+      // const currentContactCount = await Contact.countDocuments({
+      //   createdBy: user._id,
+      // });
+
+      // // ---- STARTER PLAN SCAN LIMIT LOGIC ----
+      // if (planName === "starter") {
+      //   if (category === "qrScan") {
+      //     const qrCount = await Contact.countDocuments({
+      //       createdBy: user._id,
+      //       category: "qrScan",
+      //     });
+
+      //     if (qrCount >= STARTER_QR_LIMIT) {
+      //       return res.status(403).json({
+      //         status: "error",
+      //         message:
+      //           "You have reached the maximum number of QR scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
+      //       });
+      //     }
+      //   }
+
+      //   if (category === "businessCardScan") {
+      //     const businessCount = await Contact.countDocuments({
+      //       createdBy: user._id,
+      //       category: "businessCardScan",
+      //     });
+
+      //     if (businessCount >= STARTER_BUSINESS_LIMIT) {
+      //       return res.status(403).json({
+      //         status: "error",
+      //         message:
+      //           "You have reached the maximum number of Business Card scanned contacts (50) for the Starter plan. Upgrade to Pro for more scanned contacts.",
+      //       });
+      //     }
+      //   }
+      // }
+      // // ---- END STARTER PLAN SCAN LIMIT LOGIC ----
+
+      // // ---- OVERALL LIMIT CHECK (for non-Pro users) ----
+      // if (currentContactCount >= overallContactLimit) {
+      //   return res.status(403).json({
+      //     status: "error",
+      //     message:
+      //       planName === "pro"
+      //         ? "You have reached your contact limit. Please contact support."
+      //         : "You have reached the maximum number of contacts allowed for your plan. Upgrade to Pro for unlimited contacts.",
+      //   });
+      // }
 
       // let contactLimit = 1000; // default for Free
       // if (planName === "pro") {
@@ -685,7 +819,12 @@ const addEditContact = async (req, res) => {
       }
 
       contactData = await Contact.create(contactPayload);
-
+      // await incrementOwnerCategoryCounter(user._id, category);
+      try {
+        await incrementOwnerCategoryCounter(user._id, category);
+      } catch (err) {
+        console.error("Failed to increment owner category/total counter:", err);
+      }
       //activity logging
       await logActivityToContact(contactData._id, {
         action: "contact_created",
@@ -694,22 +833,6 @@ const addEditContact = async (req, res) => {
         description: ` ${firstname} ${lastname}`,
       });
     } else {
-      // const updateFields = {
-      //   firstname,
-      //   lastname,
-      //   company,
-      //   designation,
-      //   linkedin,
-      //   instagram,
-      //   telegram,
-      //   twitter,
-      //   facebook,
-      //   // emailaddresses,
-      //   // phonenumbers: parsedPhones,
-      //   isFavourite,
-      //   notes,
-      //   website,
-      // };
 
       // ---------- Build updateFields only with provided values ----------
       const updateFields = {};
@@ -734,6 +857,7 @@ const addEditContact = async (req, res) => {
       addIfProvided("isFavourite", isFavourite);
       addIfProvided("notes", notes);
       addIfProvided("website", website);
+      addIfProvided("category", category);
 
 
       // Apply phone updates only when client intended a change
@@ -796,6 +920,55 @@ const addEditContact = async (req, res) => {
         updateFields,
         { new: true }
       );
+
+      //       // --- Fetch existing contact for comparison (and authorization)
+      // const existingContact = await Contact.findOne({
+      //   _id: contact_id,
+      //   createdBy: req.user._id,
+      // });
+      // if (!existingContact) {
+      //   return res.status(404).json({
+      //     status: "error",
+      //     message: "Contact not found or unauthorized access",
+      //   });
+      // }
+
+      // // If category is being changed, ensure quota and prepare counter updates
+      // let categoryChanged = false;
+      // let oldCategory = existingContact.category || "manual";
+      // let newCategory = typeof category !== "undefined" ? category : oldCategory;
+
+      // if (typeof category !== "undefined" && newCategory !== oldCategory) {
+      //   // Ensure quota for the new category (exclude the current contact from counts)
+      //   await ensureScanQuotaForOwner(req.user._id, newCategory, contact_id);
+
+      //   categoryChanged = true;
+      // }
+
+      // // Now do the update
+      // contactData = await Contact.findOneAndUpdate(
+      //   { _id: contact_id, createdBy: req.user._id },
+      //   updateFields,
+      //   { new: true }
+      // );
+
+      // if (!contactData) {
+      //   return res.status(404).json({
+      //     status: "error",
+      //     message: "Contact not found or unauthorized access",
+      //   });
+      // }
+
+      // // After successful update, if category changed, adjust owner counters
+      // if (categoryChanged) {
+      //   try {
+      //     // decrement old category counter & total; increment new category counter & total
+      //     await decrementOwnerCategoryCounter(req.user._id, oldCategory);
+      //     await incrementOwnerCategoryCounter(req.user._id, newCategory);
+      //   } catch (err) {
+      //     console.error("Failed to update owner counters after category change:", err);
+      //   }
+      // }
 
       if (!contactData) {
         return res.status(404).json({
@@ -1041,41 +1214,6 @@ const addEditContact = async (req, res) => {
         }
       } // end if meetingWasCreated
 
-      // // Log contact_updated ONLY if no task, meeting, or tag was updated
-      // const nothingElseChanged = !taskObj && !meetingObj && !tagsProvided;
-
-      // if (nothingElseChanged) {
-      //   await logActivityToContact(contactData._id, {
-      //     action: "contact_updated",
-      //     type: "contact",
-      //     title: "Contact Updated",
-      //     description: `${contactData.firstname} ${contactData.lastname}`,
-      //   });
-      // }
-
-
-      // ✅ Detect if any contact fields (excluding tags/tasks/meetings) were updated
-      // const contactFieldsChanged = Object.keys(updateFields).some(
-      //   (key) =>
-      //     [
-      //       "firstname",
-      //       "lastname",
-      //       "company",
-      //       "designation",
-      //       "linkedin",
-      //       "instagram",
-      //       "telegram",
-      //       "twitter",
-      //       "facebook",
-      //       "isFavourite",
-      //       "notes",
-      //       "website",
-      //       "contactImageURL",
-      //       "phonenumbers",
-      //       "emailaddresses",
-      //     ].includes(key)
-      // );
-
       // ---------- Detect if actual contact fields were updated ----------
       const CONTACT_FIELD_KEYS = [
         "firstname",
@@ -1249,5 +1387,7 @@ const addEditContact = async (req, res) => {
       .json({ status: "error", message: "An error occurred" });
   }
 };
+
+
 
 module.exports = { addEditContact };

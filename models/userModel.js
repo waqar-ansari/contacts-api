@@ -188,6 +188,31 @@ const userSchema = new Schema(
       // default: null, // ✅ makes sure null is used instead of ""
     },
 
+    qrScanContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    businessCardScanContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    leadContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    manualContactCount: {
+      type: Number,
+      default: 0,
+    },
+
+    totalContactCount: {
+      type: Number,
+      default: 0,
+    },
+
     googleId: { type: String }, // ✅ Store Google user ID as String
     googleEmail: String,
     googleAccessToken: String,

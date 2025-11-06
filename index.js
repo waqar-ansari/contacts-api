@@ -27,6 +27,8 @@ console.log("Connecting to MongoDB...");
 const userRoutes = require("./routes/userRoutes");
 const editProfileRoutes = require("./routes/editProfileRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const getContactCountRoutes = require("./routes/getContactCountRoutes");
+const incrementBusinessCardScan = require("./routes/businessCardCountRoutes");
 const assignedContactTag = require("./routes/assignedContactTag");
 const getContactRoutes = require("./routes/getContactRoutes");
 const getContactEmailRoutes = require("./routes/getContactEmailRoutes");
@@ -154,6 +156,8 @@ app.use(
   upload.single("contactImage"),
   contactRoutes
 );
+app.use("/getContactCount", checkForAuthentication(), getContactCountRoutes);
+app.use("/businessCardCount", checkForAuthentication(), incrementBusinessCardScan);
 app.use("/assign-unassign-tag", checkForAuthentication(), assignedContactTag);
 app.use("/disconnect", checkForAuthentication(), disconnectAccountRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
