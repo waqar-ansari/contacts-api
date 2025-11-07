@@ -8,8 +8,6 @@ const nodemailer = require("nodemailer");
 //   auth: {
 //     user: "noreply@contacts.management",
 //     pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-//     // user: "makvanayash12@gmail.com",
-//     // pass: "fybb lnri tmrq otmg", // App Password, not normal password
 //   },
 //   // optional TLS options:
 //   tls: {

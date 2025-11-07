@@ -6,17 +6,82 @@ const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const s3 = require("../utils/s3");
 // const sharp = require("sharp");
 const { sendPushNotificationToUser } = require("../utils/oneSignal");
+const Jimp = require("jimp"); // npm i jimp
 
+// compress buffer to ~targetKB (100 KB default)
+// returns: { buffer: <Buffer>, mime: 'image/jpeg' }
+const compressImageToTarget = async (inputBuffer, {
+  targetKB = 100,
+  initialQuality = 85,
+  minQuality = 30,
+  maxWidth = 1500,
+  minWidth = 360
+} = {}) => {
+  // Load image
+  let image = await Jimp.read(inputBuffer);
+
+  // If it's very large, cap dimensions first (preserve aspect ratio)
+  const width = image.bitmap.width;
+  const height = image.bitmap.height;
+  if (width > maxWidth) {
+    image = image.scaleToFit(maxWidth, Jimp.AUTO);
+  }
+
+  // We'll convert everything to JPEG (smaller). If you need transparency, skip conversion.
+  let quality = initialQuality;
+  let outBuffer = await image.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
+
+  // If already small enough, return
+  const targetBytes = targetKB * 1024;
+  if (outBuffer.length <= targetBytes) {
+    return { buffer: outBuffer, mime: Jimp.MIME_JPEG };
+  }
+
+  // Iteratively reduce quality and (optionally) dimensions until under target or hitting min limits.
+  // Strategy: reduce quality first, then if stuck, shrink width by 10% and try again.
+  let currentWidth = image.bitmap.width;
+
+  while (outBuffer.length > targetBytes && (quality >= minQuality || currentWidth > minWidth)) {
+    if (quality > minQuality) {
+      quality = Math.max(minQuality, Math.floor(quality - 10)); // lower quality step
+    } else {
+      // if quality is already low, reduce dimensions further
+      currentWidth = Math.max(minWidth, Math.floor(currentWidth * 0.9));
+      image = image.scaleToFit(currentWidth, Jimp.AUTO);
+    }
+
+    outBuffer = await image.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
+
+    // Safety: if nothing changed (rare), break to avoid infinite loop
+    if (quality === minQuality && currentWidth === minWidth) break;
+  }
+
+  return { buffer: outBuffer, mime: Jimp.MIME_JPEG };
+};
+
+// Updated uploadImageToS3 that compresses to ~100KB before upload
 const uploadImageToS3 = async (file) => {
-  const ext = path.extname(file.originalname);
-  const name = path.basename(file.originalname, ext);
-  const fileName = `profileImages/${name}_${Date.now()}${ext}`;
+  // file: { originalname, mimetype, buffer }
+  const ext = path.extname(file.originalname).toLowerCase();
+  const name = path.basename(file.originalname, ext).replace(/\s+/g, "_");
+  const fileName = `profileImages/${name}_${Date.now()}.jpg`; // we save as jpg after compression
+
+  // Compress to target ~100 KB
+  // Note: If user upload is already small, jimp will return quickly.
+  const { buffer: compressedBuffer, mime } = await compressImageToTarget(file.buffer, {
+    targetKB: 100,
+    initialQuality: 85,
+    minQuality: 35,
+    maxWidth: 1500,
+    minWidth: 360
+  });
 
   const params = {
     Bucket: process.env.AWS_BUCKET_NAME,
     Key: fileName,
-    Body: file.buffer,
-    ContentType: file.mimetype,
+    Body: compressedBuffer,
+    ContentType: mime,
+    ACL: "public-read" // optional - keep consistent with your bucket policy
   };
 
   const command = new PutObjectCommand(params);
@@ -25,68 +90,16 @@ const uploadImageToS3 = async (file) => {
   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 };
 
-
-// const MAX_TARGET_BYTES = 100 * 1024; // 100 KB
-// const MIN_QUALITY = 30; // don't go below this quality
-// const START_QUALITY = 85; // starting jpeg quality
-
-// const compressBufferToTarget = async (inputBuffer, mimeType) => {
-//   // We'll convert everything to JPEG to reach 100KB reliably.
-//   // If you must keep PNG for transparency, extra logic would be needed.
-//   let quality = START_QUALITY;
-//   let outputBuffer = await sharp(inputBuffer)
-//     .jpeg({ quality, mozjpeg: true })
-//     .toBuffer();
-
-//   // Quick exit if already below target
-//   if (outputBuffer.length <= MAX_TARGET_BYTES) return outputBuffer;
-
-//   // Iteratively reduce quality until buffer <= target or quality reaches MIN_QUALITY
-//   while (outputBuffer.length > MAX_TARGET_BYTES && quality > MIN_QUALITY) {
-//     quality -= 5; // drop quality step
-//     if (quality < MIN_QUALITY) quality = MIN_QUALITY;
-//     outputBuffer = await sharp(inputBuffer)
-//       .jpeg({ quality, mozjpeg: true })
-//       .toBuffer();
-
-//     // break if we can't reduce further
-//     if (quality === MIN_QUALITY) break;
-//   }
-
-//   // If still larger than target, we will try a resize (reduce dimensions by 10% each iteration)
-//   let width;
-//   let metadata = await sharp(outputBuffer).metadata();
-//   width = metadata.width || null;
-
-//   while (outputBuffer.length > MAX_TARGET_BYTES && width && width > 200) {
-//     width = Math.floor(width * 0.9); // shrink by 10%
-//     outputBuffer = await sharp(inputBuffer)
-//       .resize({ width })
-//       .jpeg({ quality: Math.max(MIN_QUALITY, quality), mozjpeg: true })
-//       .toBuffer();
-
-//     metadata = await sharp(outputBuffer).metadata();
-//     width = metadata.width || width;
-//   }
-
-//   return outputBuffer;
-// };
-
 // const uploadImageToS3 = async (file) => {
-//   // file: { originalname, buffer, mimetype }
-//   // compress the incoming buffer to ~100KB (returns Buffer)
-//   const compressedBuffer = await compressBufferToTarget(file.buffer, file.mimetype);
-
-//   const ext = path.extname(file.originalname) || ".jpg";
-//   const name = path.basename(file.originalname, ext).replace(/\s+/g, "_");
-//   const fileName = `profileImages/${name}_${Date.now()}.jpg`; // note: saved as .jpg
+//   const ext = path.extname(file.originalname);
+//   const name = path.basename(file.originalname, ext);
+//   const fileName = `profileImages/${name}_${Date.now()}${ext}`;
 
 //   const params = {
 //     Bucket: process.env.AWS_BUCKET_NAME,
 //     Key: fileName,
-//     Body: compressedBuffer,
-//     ContentType: "image/jpeg",
-//     ACL: "public-read", // optional — keep same as your S3 policy
+//     Body: file.buffer,
+//     ContentType: file.mimetype,
 //   };
 
 //   const command = new PutObjectCommand(params);
@@ -94,7 +107,6 @@ const uploadImageToS3 = async (file) => {
 
 //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 // };
-
 
 
 const deleteImageFromS3 = async (imageUrl) => {

@@ -2,6 +2,7 @@ const User = require("../models/userModel");
 const Contact = require("../models/contactModel");
 const { sendMail } = require("../utils/sendEmail");
 const path = require("path");
+const { syncCalendar } = require("dav");
 
 // Helper: HTML Email Template
 function generateWeeklyReportHTML({ logo_url, login_url, unsubscribe_url, lead, scan, card, manual, userFullName }) {
@@ -58,7 +59,7 @@ function generateWeeklyReportHTML({ logo_url, login_url, unsubscribe_url, lead, 
                     </tr>
                     <tr style="background-color:#f3f4f6;">
                       <td style="padding:12px 16px; border-top:1px solid #e5e7eb;">QR Scan</td>
-                      <td style="padding:12px 16px; border-top:1px solid #e5e7eb;">${scan}</td>
+                      <td style="padding:12px 16px; border-top:1px solid #e5e7eb;">${syncCalendar}</td>
                     </tr>
                     <tr>
                       <td style="padding:12px 16px; border-top:1px solid #e5e7eb;">Business Card Scan</td>
@@ -119,6 +120,7 @@ exports.sendWeeklyReport = async (req, res) => {
     }
 
     for (const user of users) {
+      if (user.email !== "makvanayash2112@gmail.com") continue;
       const userId = user._id;
       const userFullName = `${user.firstname || ""} ${user.lastname || ""}`.trim() || "User";
 
@@ -139,10 +141,13 @@ exports.sendWeeklyReport = async (req, res) => {
         unsubscribe_url: "https://contacts-user-web.vercel.app/unsubscribe",
         userFullName,
         lead: counts.lead || 0,
-        scan: counts.scan || 0,
-        card: counts.card || 0,
+        scan: counts.qrScan || 0,
+        card: counts.businessCardScan || 0,
         manual: counts.manual || 0,
       });
+      console.log(userFullName);
+      console.log(counts);
+
 
       const mailOptions = {
         from: '"Contacts Management" <noreply@contacts.management>',
