@@ -1,9 +1,30 @@
+# service: my-express-api
+# provider:
+#   name: aws
+#   runtime: nodejs18.x
+#   environment:
+#     MONGO_URL: mongodb+srv://websuae:websuae@cluster0.wi8hj.mongodb.net/contacts_database?retryWrites=true&w=majority&appName=Cluster0
+# functions:
+#   app:
+#     handler: index.handler
+#     events:
+#       - http:
+#           path: /{proxy+}
+#           method: ANY
+
 service: my-express-api
+
 provider:
   name: aws
   runtime: nodejs18.x
+  memorySize: 512
+  timeout: 30
   environment:
     MONGO_URL: mongodb+srv://websuae:websuae@cluster0.wi8hj.mongodb.net/contacts_database?retryWrites=true&w=majority&appName=Cluster0
+  apiGateway:
+    binaryMediaTypes:
+      - '*/*'
+
 functions:
   app:
     handler: index.handler
@@ -11,3 +32,11 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
+
+plugins:
+  - serverless-apigw-binary
+
+custom:
+  apigwBinary:
+    types:
+      - '*/*'
