@@ -92,6 +92,16 @@ const createPlan = async (req, res) => {
         .json({ success: false, message: "Features must be an array" });
     }
 
+    // Process features to ensure proper ordering
+    const processedFeatures = features
+      ? features.map((feature, index) => ({
+          text: feature.text,
+          isAvailable:
+            feature.isAvailable !== undefined ? feature.isAvailable : true,
+          order: feature.order !== undefined ? feature.order : index,
+        }))
+      : [];
+
     // Check if plan already exists
     const planExists = await Plan.findOne({
       name,
@@ -154,7 +164,7 @@ const createPlan = async (req, res) => {
       price,
       pricePeriod: pricePeriod || "month",
       description,
-      features: features || [],
+      features: processedFeatures,
       isPopular: isPopular || false,
       isActive: isActive || true,
       stripeProductId,
@@ -231,6 +241,16 @@ const updatePlan = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Features must be an array" });
+    }
+
+    // Process features to ensure proper ordering
+    if (req.body.features) {
+      req.body.features = req.body.features.map((feature, index) => ({
+        text: feature.text,
+        isAvailable:
+          feature.isAvailable !== undefined ? feature.isAvailable : true,
+        order: feature.order !== undefined ? feature.order : index,
+      }));
     }
 
     // Check if name is being changed and if it conflicts with another plan

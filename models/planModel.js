@@ -40,6 +40,7 @@ const planSchema = new mongoose.Schema(
       {
         text: { type: String, required: true },
         isAvailable: { type: Boolean, default: true },
+        order: { type: Number, default: 0 },
       },
     ],
     isActive: {
