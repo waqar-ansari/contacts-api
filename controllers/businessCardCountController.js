@@ -125,6 +125,7 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 
 // === MAIN API CONTROLLER ===
 exports.incrementBusinessCardScan = async (req, res) => {
+    const useTestMode = req.stripe_test_mode || false;
     try {
         const ownerId = req.user._id;
 
@@ -134,7 +135,7 @@ exports.incrementBusinessCardScan = async (req, res) => {
 
         // Step 1: Check scan quota
         try {
-            await ensureScanQuotaForOwner(ownerId, "businessCardScan");
+            await ensureScanQuotaForOwner(ownerId, "businessCardScan", null, useTestMode);
         } catch (quotaError) {
             return res.status(403).json({
                 status: "error",

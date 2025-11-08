@@ -12,9 +12,10 @@ const {
   getUserCurrentPlan,
   getUserStripeSubscriptionData,
 } = require("../utils/stripeUtils");
-const { setupInitialPlan } = require("../utils/planUtils");
 
 const getUserData = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
+
   try {
     const {
       searchWhatsappTemplates = "",
@@ -46,8 +47,11 @@ const getUserData = async (req, res) => {
     let creditBalance = 0;
     if (user.role !== "admin") {
       try {
-        const customer = await getOrCreateStripeCustomer(user);
-        const stripeCreditBalance = await getStripeCreditBalance(customer.id);
+        const customer = await getOrCreateStripeCustomer(user, useTestMode);
+        const stripeCreditBalance = await getStripeCreditBalance(
+          customer.id,
+          useTestMode
+        );
         creditBalance = Math.abs(stripeCreditBalance); // Convert to dollars
       } catch (error) {
         console.error("Error getting Stripe credit balance:", error);
@@ -410,10 +414,10 @@ const getUserData = async (req, res) => {
       });
     }
 
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     // Fetch Stripe subscription data if user has a subscription
-    const stripeData = await getUserStripeSubscriptionData(user);
+    const stripeData = await getUserStripeSubscriptionData(user, useTestMode);
 
     const data = {
       id: user._id,
@@ -614,7 +618,6 @@ const getUserData = async (req, res) => {
   }
 };
 
-
 // ✅ GET API — Get all quotes (for all users)
 const getAllQuotes = async (req, res) => {
   try {
@@ -635,6 +638,5 @@ const getAllQuotes = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 module.exports = { getUserData, getAllQuotes };

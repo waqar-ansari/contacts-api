@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/userModel");  // ✅ ADD THIS
 // const { ensureScanQuotaForOwner } = require("../utils/contactCount");
-// const { getUserCurrentPlan } = require("../utils/stripeUtils");
 
 exports.getContactCounts = async (req, res) => {
     try {
@@ -18,7 +17,6 @@ exports.getContactCounts = async (req, res) => {
         }
 
         // Get user's current plan (optional if you want to verify)
-        // const plan = await getUserCurrentPlan(user);
         // const isPro = plan?.name?.toLowerCase() === "pro";
 
         // For each category, reuse your ensureScanQuotaForOwner helper

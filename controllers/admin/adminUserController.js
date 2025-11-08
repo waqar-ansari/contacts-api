@@ -8,11 +8,8 @@ const s3 = require("../../utils/s3");
 const {
   getOrCreateStripeCustomer,
   getStripeCreditBalance,
-  createStripeSubscription,
-  cancelStripeSubscription,
   updateSubscriptionForAdmin,
   getUserStripeSubscriptionData,
-  getCustomerPrimarySubscription,
   getUserCurrentPlan,
   customerHasPaymentMethod,
   cancelAllCustomerSubscriptions,

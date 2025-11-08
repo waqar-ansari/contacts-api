@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 const User = require("../models/userModel"); // ✅ REQUIRED
 const { getUserCurrentPlan } = require("./stripeUtils");
 
-async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null) {
+async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null, useTestMode = false) {
     const owner = await User.findById(ownerId);
     if (!owner) throw new Error("Owner not found for quota check");
 
-    const plan = await getUserCurrentPlan(owner);
+    const plan = await getUserCurrentPlan(owner, useTestMode);
     const planName = (plan?.name || "starter").toLowerCase();
 
     // Starter plan limits:

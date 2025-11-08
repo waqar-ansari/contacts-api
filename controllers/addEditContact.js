@@ -139,6 +139,7 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 // }
 
 const addEditContact = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     const user = await User.findById(req.user._id);
 
@@ -685,7 +686,7 @@ const addEditContact = async (req, res) => {
       // await ensureScanQuotaForOwner(user._id, category);
 
       try {
-        await ensureScanQuotaForOwner(user._id, category);
+        await ensureScanQuotaForOwner(user._id, category, null, useTestMode);
       } catch (quotaError) {
         return res.status(403).json({
           status: "error",

@@ -13,6 +13,8 @@ const {
 // @route   GET /api/admin/coupons
 // @access  Private/SuperAdmin
 const getAllCoupons = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
+
   try {
     const {
       page = 1,
@@ -119,6 +121,7 @@ const getCouponById = async (req, res) => {
 // @route   POST /api/admin/coupons
 // @access  Private/SuperAdmin
 const createCoupon = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     const {
       name,
@@ -194,14 +197,17 @@ const createCoupon = async (req, res) => {
 
     // Create Stripe coupon first
     try {
-      const stripeCoupon = await createStripeCoupon({
-        couponCode: couponCode,
-        discountType,
-        discountValue,
-        expiryDate,
-        maxUsage,
-        name,
-      });
+      const stripeCoupon = await createStripeCoupon(
+        {
+          couponCode: couponCode,
+          discountType,
+          discountValue,
+          expiryDate,
+          maxUsage,
+          name,
+        },
+        useTestMode
+      );
       stripeCouponId = stripeCoupon.id;
       console.log(`Created Stripe coupon: ${stripeCouponId}`);
 
@@ -213,7 +219,8 @@ const createCoupon = async (req, res) => {
           {
             active: isActive,
             max_redemptions: maxUsage || undefined,
-          }
+          },
+          useTestMode
         );
         stripePromotionCodeId = stripePromotionCode.id;
         console.log(`Created Stripe promotion code: ${stripePromotionCodeId}`);
@@ -221,7 +228,7 @@ const createCoupon = async (req, res) => {
         console.error("Stripe promotion code creation error:", promoCodeError);
         // If promotion code creation fails, clean up the coupon
         try {
-          await deleteStripeCoupon(stripeCouponId);
+          await deleteStripeCoupon(stripeCouponId, useTestMode);
         } catch (cleanupError) {
           console.error("Error cleaning up Stripe coupon:", cleanupError);
         }
@@ -265,7 +272,7 @@ const createCoupon = async (req, res) => {
       // If MongoDB save fails, clean up both Stripe coupon and promotion code
       if (stripeCouponId) {
         try {
-          await deleteStripeCoupon(stripeCouponId);
+          await deleteStripeCoupon(stripeCouponId, useTestMode);
           console.log(`Cleaned up Stripe coupon: ${stripeCouponId}`);
         } catch (cleanupError) {
           console.error("Error cleaning up Stripe coupon:", cleanupError);
@@ -273,7 +280,7 @@ const createCoupon = async (req, res) => {
       }
       if (stripePromotionCodeId) {
         try {
-          await deleteStripePromotionCode(stripePromotionCodeId);
+          await deleteStripePromotionCode(stripePromotionCodeId, useTestMode);
           console.log(
             `Cleaned up Stripe promotion code: ${stripePromotionCodeId}`
           );
@@ -308,6 +315,7 @@ const createCoupon = async (req, res) => {
 // @route   PUT /api/admin/coupons/:id
 // @access  Private/SuperAdmin
 const updateCoupon = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -405,7 +413,8 @@ const updateCoupon = async (req, res) => {
             expiryDate: expiryDate || coupon.expiryDate,
             maxUsage: maxUsage !== undefined ? maxUsage : coupon.maxUsage,
             name: name || coupon.name,
-          }
+          },
+          useTestMode
         );
         newStripeCouponId = newStripeCoupon.id;
         console.log(`Updated Stripe coupon: ${newStripeCouponId}`);
@@ -421,7 +430,8 @@ const updateCoupon = async (req, res) => {
               max_redemptions:
                 (maxUsage !== undefined ? maxUsage : coupon.maxUsage) ||
                 undefined,
-            }
+            },
+            useTestMode
           );
           newStripePromotionCodeId = newStripePromotionCode.id;
           console.log(
@@ -431,7 +441,7 @@ const updateCoupon = async (req, res) => {
           console.error("Stripe promotion code update error:", promoCodeError);
           // If promotion code update fails, clean up the new coupon and restore old one
           try {
-            await deleteStripeCoupon(newStripeCouponId);
+            await deleteStripeCoupon(newStripeCouponId, useTestMode);
           } catch (cleanupError) {
             console.error("Error cleaning up new Stripe coupon:", cleanupError);
           }
@@ -459,7 +469,8 @@ const updateCoupon = async (req, res) => {
           {
             active: isActive,
             max_redemptions: coupon.maxUsage || undefined,
-          }
+          },
+          useTestMode
         );
         newStripePromotionCodeId = updatedPromoCode.id;
         console.log(
@@ -522,6 +533,7 @@ const updateCoupon = async (req, res) => {
 // @route   DELETE /api/admin/coupons/:id
 // @access  Private/SuperAdmin
 const deleteCoupon = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -541,7 +553,7 @@ const deleteCoupon = async (req, res) => {
     // Delete Stripe promotion code if it exists
     if (coupon.stripePromotionCodeId) {
       try {
-        await deleteStripePromotionCode(coupon.stripePromotionCodeId);
+        await deleteStripePromotionCode(coupon.stripePromotionCodeId, useTestMode);
         console.log(
           `Deleted Stripe promotion code: ${coupon.stripePromotionCodeId}`
         );
@@ -554,7 +566,7 @@ const deleteCoupon = async (req, res) => {
     // Delete Stripe coupon if it exists
     if (coupon.stripeCouponId) {
       try {
-        await deleteStripeCoupon(coupon.stripeCouponId);
+        await deleteStripeCoupon(coupon.stripeCouponId, useTestMode);
         console.log(`Deleted Stripe coupon: ${coupon.stripeCouponId}`);
       } catch (stripeError) {
         console.error("Stripe coupon deletion error:", stripeError);
@@ -587,6 +599,7 @@ const deleteCoupon = async (req, res) => {
 // @route   PATCH /api/admin/coupons/:id/status
 // @access  Private/SuperAdmin
 const toggleCouponStatus = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -619,7 +632,7 @@ const toggleCouponStatus = async (req, res) => {
             maxUsage: coupon.maxUsage,
             name: coupon.name,
             mongoId: coupon._id.toString(),
-          });
+          },useTestMode);
           coupon.stripeCouponId = stripeCoupon.id;
           console.log(
             `Created Stripe coupon on activation: ${stripeCoupon.id}`
@@ -633,7 +646,8 @@ const toggleCouponStatus = async (req, res) => {
               {
                 active: true,
                 max_redemptions: coupon.maxUsage || undefined,
-              }
+              },
+              useTestMode
             );
             coupon.stripePromotionCodeId = stripePromotionCode.id;
             console.log(
@@ -642,14 +656,14 @@ const toggleCouponStatus = async (req, res) => {
           } catch (promoCodeError) {
             console.error("Error creating promotion code:", promoCodeError);
             // Clean up the coupon if promotion code creation fails
-            await deleteStripeCoupon(stripeCoupon.id);
+            await deleteStripeCoupon(stripeCoupon.id, useTestMode);
             throw promoCodeError;
           }
         }
       } else if (!coupon.isActive && wasActive) {
         // Deactivating coupon - delete Stripe promotion code and coupon
         if (coupon.stripePromotionCodeId) {
-          await deleteStripePromotionCode(coupon.stripePromotionCodeId);
+          await deleteStripePromotionCode(coupon.stripePromotionCodeId, useTestMode);
           console.log(
             `Deleted Stripe promotion code on deactivation: ${coupon.stripePromotionCodeId}`
           );
@@ -657,7 +671,7 @@ const toggleCouponStatus = async (req, res) => {
         }
 
         if (coupon.stripeCouponId) {
-          await deleteStripeCoupon(coupon.stripeCouponId);
+          await deleteStripeCoupon(coupon.stripeCouponId, useTestMode);
           console.log(
             `Deleted Stripe coupon on deactivation: ${coupon.stripeCouponId}`
           );

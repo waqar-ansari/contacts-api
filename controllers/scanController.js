@@ -141,6 +141,8 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 
 
 exports.scanUser = async (req, res) => {
+
+  const useTestMode = req.stripe_test_mode || false;
   // CHANGED: accept countryCode from body for unregistered scanner path
   const {
     UserID,
@@ -152,6 +154,7 @@ exports.scanUser = async (req, res) => {
     countryCode,
     apiType = "web",
   } = req.body;
+
 
   try {
     // Get the user who is being scanned
@@ -217,7 +220,7 @@ exports.scanUser = async (req, res) => {
       }
 
       // Get scanner's current plan from subscription
-      const scannerPlan = await getUserCurrentPlan(scanner);
+      const scannerPlan = await getUserCurrentPlan(scanner, useTestMode);
 
       // ---- PLAN LIMIT CHECK FOR REGISTERED SCANNER ----
       const planName = scannerPlan?.name?.toLowerCase() || "starter";
@@ -331,7 +334,7 @@ exports.scanUser = async (req, res) => {
 
         // quota check for the owner of the new contact (owner is `user._id` here)
         try {
-          await ensureScanQuotaForOwner(user._id, 'qrScan'); // throws if limit reached
+          await ensureScanQuotaForOwner(user._id, 'qrScan', null, useTestMode); // throws if limit reached
         } catch (err) {
           return res.status(403).json({ status: 'error', message: err.message });
         }
@@ -448,7 +451,7 @@ exports.scanUser = async (req, res) => {
         const scanner = matchedScanner;
 
         // PLAN LIMIT CHECK FOR REGISTERED (matched) SCANNER
-        const scannerPlan = await getUserCurrentPlan(matchedScanner);
+        const scannerPlan = await getUserCurrentPlan(matchedScanner, useTestMode);
         const planName = scannerPlan?.name?.toLowerCase() || "starter";
         let scanLimit = 50;
         if (planName === "pro") scanLimit = Infinity;
@@ -567,7 +570,7 @@ exports.scanUser = async (req, res) => {
           });
           // await ensureScanQuotaForOwner(user._id, 'lead');
           try {
-            await ensureScanQuotaForOwner(user._id, 'lead'); // throws if limit reached
+            await ensureScanQuotaForOwner(user._id, 'lead', null, useTestMode); // throws if limit reached
           } catch (err) {
             return res.status(403).json({ status: 'error', message: err.message });
           }
@@ -760,7 +763,7 @@ exports.scanUser = async (req, res) => {
           });
           // await ensureScanQuotaForOwner(user._id, 'lead');
           try {
-            await ensureScanQuotaForOwner(user._id, 'lead'); // throws if limit reached
+            await ensureScanQuotaForOwner(user._id, 'lead', null, useTestMode); // throws if limit reached
           } catch (err) {
             return res.status(403).json({ status: 'error', message: err.message });
           }

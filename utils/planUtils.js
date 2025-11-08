@@ -87,7 +87,7 @@ async function getProPlan() {
  * @returns {Object} Updated user data with plan details and Stripe customer info
  * @returns {Object} {plan: ObjectId|null, stripeCustomer: Object|null}
  */
-async function setupInitialPlan(user, plan = null) {
+async function setupInitialPlan(user, useTestMode = false) {
   try {
     if (!user) {
       console.error("User object is required for setupInitialPlan");
@@ -120,7 +120,7 @@ async function setupInitialPlan(user, plan = null) {
 
     try {
       // Get or create Stripe customer
-      const customer = await getOrCreateStripeCustomer(user);
+      const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
       // Create 14-day Pro trial subscription
       const subscriptionOptions = {
@@ -137,7 +137,8 @@ async function setupInitialPlan(user, plan = null) {
       const subscription = await createStripeSubscription(
         customer.id,
         proPlan.stripePriceId,
-        subscriptionOptions
+        subscriptionOptions,
+        useTestMode
       );
 
       console.log(

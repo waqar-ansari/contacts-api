@@ -12,21 +12,21 @@ const emailLimiter = pLimit(10);
 /**
  * Get user's plan + expiry date
  */
-async function getUserCurrentPlan(user) {
+async function getUserCurrentPlan(user, useTestMode = false) {
     try {
         if (!user.stripeCustomerId) {
             const starterPlan = await Plan.findOne({ name: "Starter", isActive: true });
             return { plan: starterPlan, expiresAt: user.trialEnd || null };
         }
 
-        const subscription = await getCustomerPrimarySubscription(user.stripeCustomerId);
+        const subscription = await getCustomerPrimarySubscription(user.stripeCustomerId, useTestMode);
         if (!subscription) {
             const starterPlan = await Plan.findOne({ name: "Starter", isActive: true });
             return { plan: starterPlan, expiresAt: user.trialEnd || null };
         }
 
         const priceId = subscription.items?.data?.[0]?.price?.id;
-        const plan = await getPlanFromPriceId(priceId);
+        const plan = await getPlanFromPriceId(priceId, useTestMode);
 
         const endDate =
             subscription.trial_end
@@ -50,6 +50,7 @@ async function getUserCurrentPlan(user) {
  * Faster API with concurrency control
  */
 exports.sendSubscriptionExpiryAlerts = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
     try {
         const { days } = req.body;
         if (!days || isNaN(days)) return res.status(400).json({ message: "Invalid 'days' value" });
@@ -75,7 +76,7 @@ exports.sendSubscriptionExpiryAlerts = async (req, res) => {
         await Promise.all(
             allUsers.map((user) =>
                 stripeLimiter(async () => {
-                    const { plan, expiresAt } = await getUserCurrentPlan(user);
+                    const { plan, expiresAt } = await getUserCurrentPlan(user,useTestMode);
                     if (!expiresAt) return;
 
                     const expiryMoment = moment(expiresAt);

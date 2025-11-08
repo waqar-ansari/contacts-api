@@ -1,8 +1,5 @@
 const User = require("../models/userModel");
-const {
-  getOrCreateStripeCustomer,
-  getStripeCreditBalance,
-} = require("../utils/stripeUtils");
+
 
 const getMyReferrals = async (req, res) => {
   try {

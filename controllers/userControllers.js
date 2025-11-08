@@ -26,7 +26,6 @@ const { setupInitialPlan } = require("../utils/planUtils");
 const BlacklistedToken = require("../models/blacklistedTokenModel");
 const jwt = require("jsonwebtoken");
 
-
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -45,9 +44,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-      number: (p.number || "").toString().replace(/^\+/, ""),
-    }))
+        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        number: (p.number || "").toString().replace(/^\+/, ""),
+      }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -119,38 +118,6 @@ async function addOrUpdateReferral(referrerId, referredUser) {
     await referrer.save();
   }
 
-  // Credit logic is now handled in signupWithEmail to avoid race conditions
-  // if (needSaveReferrer) {
-  //   // Add credits to referrer using Stripe billing credits
-  //   try {
-  //     const referrerCustomer = await getOrCreateStripeCustomer(referrer);
-  //     await addStripeCredits(
-  //       referrerCustomer.id,
-  //       1000,
-  //       "Referral bonus - new user signup"
-  //     ); // $10 in cents
-  //     console.log(
-  //       `Added $10 credit to referrer ${referrer._id} for referring ${referredUser._id}`
-  //     );
-  //   } catch (error) {
-  //     console.error("Error adding Stripe credits to referrer:", error);
-  //   }
-  //   await referrer.save();
-  // }
-
-  // // Also add credit to referredUser
-  // try {
-  //   const referredCustomer = await getOrCreateStripeCustomer(referredUser);
-  //   await addStripeCredits(
-  //     referredCustomer.id,
-  //     1000,
-  //     "Welcome bonus - signup with referral"
-  //   ); // $10 in cents
-  //   console.log(`Added $10 welcome credit to new user ${referredUser._id}`);
-  // } catch (error) {
-  //   console.error("Error adding Stripe credits to referred user:", error);
-  // }
-
   // Create ReferralLog if not exists (by email or phone)
   try {
     const orQueries = [];
@@ -195,6 +162,7 @@ const signupWithEmail = async (req, res) => {
       lastname = "",
       verifyToken = "",
     } = req.body;
+    const useTestMode = req.stripe_test_mode || false;
 
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
     // const tenantId = req.query.tenantId || req.body.tenantId || "";
@@ -220,7 +188,7 @@ const signupWithEmail = async (req, res) => {
       // Setup initial plan after email verification (skip for superadmin)
       let planData = null;
       if (user.role !== "superadmin") {
-        planData = await setupInitialPlan(user);
+        planData = await setupInitialPlan(user, useTestMode);
         console.log(
           "set up initial plan for user during sign up after verification:",
           planData
@@ -257,7 +225,8 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${user.firstname || "User"
+                  `Referral bonus - ${
+                    user.firstname || "User"
                   } verified their email`
                 );
                 console.log(
@@ -344,12 +313,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-            scannedMe: {
-              $elemMatch: {
-                $or: matchConditions,
+              scannedMe: {
+                $elemMatch: {
+                  $or: matchConditions,
+                },
               },
-            },
-          })
+            })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -367,8 +336,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                user.phonenumbers[0].countryCode +
-                user.phonenumbers[0].number))
+                  user.phonenumbers[0].countryCode +
+                    user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -583,8 +552,7 @@ const signupWithEmail = async (req, res) => {
 
     return res.status(201).json({
       status: "success",
-      message:
-        "Signup started. Verify Email to Active Account.",
+      message: "Signup started. Verify Email to Active Account.",
       data: {
         _id: newUser._id,
         email: newUser.email,
@@ -603,6 +571,7 @@ const signupWithEmail = async (req, res) => {
 };
 
 const signupWithPhoneNumber = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     const {
       countryCode,
@@ -706,9 +675,7 @@ const signupWithPhoneNumber = async (req, res) => {
 
       return res.status(200).json({
         status: "pending",
-        message: resendOtp
-          ? "OTP Resent to WhatsApp"
-          : "OTP Sent to WhatsApp",
+        message: resendOtp ? "OTP Resent to WhatsApp" : "OTP Sent to WhatsApp",
       });
     }
 
@@ -951,7 +918,7 @@ const signupWithPhoneNumber = async (req, res) => {
     // Setup initial plan using utility (skip for superadmin)
     let planData = null;
     if (user.role !== "superadmin") {
-      planData = await setupInitialPlan(user);
+      planData = await setupInitialPlan(user, useTestMode);
 
       // Handle referral credits if user was referred
       if (user.referredBy) {
@@ -980,12 +947,14 @@ const signupWithPhoneNumber = async (req, res) => {
             if (hasFirstPurchase) {
               // Add directly to Stripe customer account
               const referrerCustomer = await getOrCreateStripeCustomer(
-                referringUser
+                referringUser,
+                useTestMode
               );
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${user.firstname || "User"
+                `Referral bonus - ${
+                  user.firstname || "User"
                 } verified phone number`
               );
               console.log(
@@ -1084,6 +1053,7 @@ const resendVerificationLink = async (req, res) => {
 };
 
 const unifiedLogin = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
     const {
       email = "",
@@ -1211,7 +1181,7 @@ const unifiedLogin = async (req, res) => {
           countryCode: normCountry,
           password,
         });
-        const customer = await getOrCreateStripeCustomer(user);
+        await getOrCreateStripeCustomer(user, useTestMode);
         console.log("set up initial plan for user during login:");
 
         const now = new Date();
@@ -1340,7 +1310,8 @@ const unifiedLogin = async (req, res) => {
               // Add credits to referrer using Stripe billing credits
               try {
                 const referrerCustomer = await getOrCreateStripeCustomer(
-                  referrer
+                  referrer,
+                  useTestMode
                 );
                 await addStripeCredits(
                   referrerCustomer.id,
@@ -1358,7 +1329,10 @@ const unifiedLogin = async (req, res) => {
 
             // Add credits to user using Stripe billing credits
             try {
-              const userCustomer = await getOrCreateStripeCustomer(user);
+              const userCustomer = await getOrCreateStripeCustomer(
+                user,
+                useTestMode
+              );
               await addStripeCredits(
                 userCustomer.id,
                 1000,
@@ -1516,7 +1490,7 @@ const startGoogleLogin = (req, res) => {
 
 const googleCallback = async (req, res) => {
   // const { code } = req.query;
-
+  const useTestMode = req.stripe_test_mode || false;
   const { code, state } = req.query;
   let referralCode = "";
   // let tenantId = "";
@@ -1710,7 +1684,7 @@ const googleCallback = async (req, res) => {
 
       let planData = null;
       if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(tempUser);
+        planData = await setupInitialPlan(tempUser, useTestMode);
       }
 
       const referralCodeRaw = email + Date.now();
@@ -1932,6 +1906,7 @@ const startLinkedInLogin = (req, res) => {
 const linkedinCallback = async (req, res) => {
   // const { code } = req.query;
   const { code, state } = req.query;
+  const useTestMode = req.stripe_test_mode || false;
 
   let referralCode = "";
   try {
@@ -2029,10 +2004,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-            ? "Email"
-            : user.signupMethod === "phoneNumber"
-              ? "Phone Number"
-              : "Other";
+          ? "Email"
+          : user.signupMethod === "phoneNumber"
+          ? "Phone Number"
+          : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
@@ -2132,7 +2107,7 @@ const linkedinCallback = async (req, res) => {
 
       let planData = null;
       if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(tempUser);
+        planData = await setupInitialPlan(tempUser, useTestMode);
       }
 
       const referralCodeRaw = email + Date.now();
@@ -2301,7 +2276,7 @@ const linkedinCallback = async (req, res) => {
 const logoutUser = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const token = req.token || (req.headers.authorization?.split(" ")[1]);
+    const token = req.token || req.headers.authorization?.split(" ")[1];
 
     if (!token) {
       return res.status(400).json({ message: "Token not found" });
@@ -2326,15 +2301,19 @@ const logoutUser = async (req, res) => {
     });
 
     // ✅ Mark user inactive
-    await User.findByIdAndUpdate(userId, { isActive: false, lastSeen: new Date() });
+    await User.findByIdAndUpdate(userId, {
+      isActive: false,
+      lastSeen: new Date(),
+    });
 
     res.json({ message: "Account Logout..." });
   } catch (error) {
     console.error("Logout error:", error);
-    res.status(500).json({ message: "Error during logout", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error during logout", error: error.message });
   }
 };
-
 
 module.exports = {
   signupWithEmail,
