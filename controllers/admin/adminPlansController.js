@@ -119,7 +119,7 @@ const createPlan = async (req, res) => {
           },
           metadata: {
             planName: name,
-            createdBy: "admin-panel",
+            createdBy: "contacts-api",
           },
         });
         stripePriceId = stripePrice.id;
