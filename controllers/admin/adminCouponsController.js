@@ -245,7 +245,7 @@ const createCoupon = async (req, res) => {
         message: "Failed to create Stripe coupon: " + stripeError.message,
       });
     }
-
+    console.log("using stripe_test_mode", useTestMode);
     const coupon = new Coupon({
       name,
       couponCode: couponCode,

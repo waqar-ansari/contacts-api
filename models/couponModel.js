@@ -14,6 +14,10 @@ const couponSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    stripe_test_mode:{
+      type: Boolean,
+      default: false,
+    },
     discountType: {
       type: String,
       enum: ["percentage", "fixed"],
