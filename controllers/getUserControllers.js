@@ -3,6 +3,8 @@ const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
 const AdminQuote = require("../models/QuoteModel");
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+
 
 // const LZString = require("lz-string");
 const zlib = require("zlib");
@@ -208,7 +210,7 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
+          referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
           creditBalance: creditBalance,
           accounts: [
             {
@@ -361,7 +363,7 @@ const getUserData = async (req, res) => {
           referralCode: user.referralCode || null,
           trialStartDate: user.trialStart || null,
           trialEndDate: user.trialEnd || null,
-          referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
+          referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
           creditBalance: user.creditBalance || 0,
           qrCode: qrCodeDataURL,
           accounts: [
@@ -441,7 +443,7 @@ const getUserData = async (req, res) => {
       referralCode: user.referralCode || null,
       trialStartDate: stripeData?.trialStart || null,
       trialEndDate: stripeData?.trialEnd || null,
-      referralUrl: `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`,
+      referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
       accounts: [
         {

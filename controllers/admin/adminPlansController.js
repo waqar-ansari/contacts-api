@@ -7,15 +7,14 @@ const User = require("../../models/userModel");
 // @route   GET /api/admin/plans
 // @access  Private/Admin
 const getAllPlans = async (req, res) => {
-  const stripe_test_mode =
-    (await User.findById(req?.user?._id))?.stripe_test_mode || false;
+ 
   try {
     const plans = await Plan.find({
-      $or: [{ stripe_test_mode: stripe_test_mode }, { name: "Starter" }],
+      $or: [{ stripe_test_mode: req?.user?.stripe_test_mode || false }, { name: "Starter" }],
     });
     res.json({
       success: true,
-      stripe_test_mode: stripe_test_mode,
+     stripe_test_mode: req?.user?.stripe_test_mode || false,
       count: plans.length,
       data: plans,
     });

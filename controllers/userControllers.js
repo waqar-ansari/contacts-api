@@ -25,6 +25,8 @@ const Plan = require("../models/planModel");
 const { setupInitialPlan } = require("../utils/planUtils");
 const BlacklistedToken = require("../models/blacklistedTokenModel");
 const jwt = require("jsonwebtoken");
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -534,14 +536,14 @@ const signupWithEmail = async (req, res) => {
 
     console.log(newUser.creditBalance);
 
-    let referUrl = `https://contacts-user-web.vercel.app/register?ref=${newUser.referralCode}`;
+    let referUrl = `${FRONTEND_URL}/register?ref=${newUser.referralCode}`;
 
     let verificationLink = "";
 
     if (referralCodeParam) {
-      verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}&ref=${referralCodeParam}`;
+      verificationLink = `${FRONTEND_URL}/user-verification?verificationToken=${newUser.emailVerificationToken}&ref=${referralCodeParam}`;
     } else {
-      verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${newUser.emailVerificationToken}`;
+      verificationLink = `${FRONTEND_URL}/user-verification?verificationToken=${newUser.emailVerificationToken}`;
     }
 
     // Send verification email
@@ -983,7 +985,7 @@ const signupWithPhoneNumber = async (req, res) => {
     }
 
     const token = createTokenforUser(user);
-    const referUrl = `https://contacts-user-web.vercel.app/register?ref=${user.referralCode}`;
+    const referUrl = `${FRONTEND_URL}/register?ref=${user.referralCode}`;
 
     return res.status(201).json({
       status: "success",
@@ -1037,7 +1039,7 @@ const resendVerificationLink = async (req, res) => {
     await user.save();
 
     // Build link and send email
-    const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${user.emailVerificationToken}`;
+    const verificationLink = `${FRONTEND_URL}/user-verification?verificationToken=${user.emailVerificationToken}`;
     await sendVerificationEmail(user.email, verificationLink);
 
     return res.status(200).json({
@@ -1700,7 +1702,7 @@ const googleCallback = async (req, res) => {
         .update(referralCodeRaw)
         .digest("hex")
         .slice(0, 16);
-      referralUrl = `https://contacts-user-web.vercel.app/register?ref=${userReferralCode}`;
+      referralUrl = `${FRONTEND_URL}/register?ref=${userReferralCode}`;
       user = await User.create({
         email,
         firstname,

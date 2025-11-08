@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 const transporter = nodemailer.createTransport({
   service: "smtp", // Use your SMTP service
@@ -690,11 +691,11 @@ function ownerHtmlTemplate(ownerUser, tempUser) {
 
         <p>
           If you'd like to review, please log in to your
-          <a href="https://contacts-user-web.vercel.app/" target="_blank">Contacts Management</a>
+          <a href="${FRONTEND_URL}/" target="_blank">Contacts Management</a>
           dashboard.
         </p>
 
-        <a href="https://contacts-user-web.vercel.app/" class="button">Go to Dashboard</a>
+        <a href="${FRONTEND_URL}/" class="button">Go to Dashboard</a>
 
         <p style="margin-top: 25px;">
           Warm regards,<br />
@@ -782,8 +783,8 @@ function scannerHtmlTemplate(ownerUser, tempUser, vcfDownloadUrl) {
 
   const logoUrl =
     "https://contacts-api-bucket.s3.eu-north-1.amazonaws.com/iconsAndImages/logoWithName.png";
-  const registerUrl = "https://contacts-user-web.vercel.app/register";
-  const unsubscribeUrl = "https://contacts-user-web.vercel.app/unsubscribe";
+  const registerUrl = `${FRONTEND_URL}/register`;
+  const unsubscribeUrl = `${FRONTEND_URL}/unsubscribe`;
 
   return `<!doctype html>
 <html lang="en">

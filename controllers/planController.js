@@ -6,7 +6,13 @@ const User = require("../models/userModel");
  */
 exports.getPlans = async (req, res) => {
   try {
-    const plans = await Plan.find({ isActive: true });
+    const plans = await Plan.find({
+      isActive: true,
+      $or: [
+        { stripe_test_mode: req?.user?.stripe_test_mode || false },
+        { name: "Starter" },
+      ],
+    });
     res.status(200).json({ success: true, plans });
   } catch (error) {
     console.error("❌ Error fetching plans:", error);

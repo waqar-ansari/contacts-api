@@ -208,7 +208,7 @@ app.use(
   upload.single("helpAndSupportAttachments"),
   helpSupportRoutes
 );
-app.use("/plans", planRoutes); // Public route for getting plans
+app.use("/plans", checkForAuthentication(), planRoutes); // Public route for getting plans
 app.use("/user/payment", checkForAuthentication(), paymentRoutes);
 app.use("/api-key", checkForAuthentication(), apiKeyRoutes);
 app.use("/quote", publicQuoteRoutes); // Public route for getting quotes

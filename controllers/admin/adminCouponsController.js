@@ -27,7 +27,7 @@ const getAllCoupons = async (req, res) => {
     } = req.query;
 
     // Build filter object
-    const filter = {};
+    const filter = {stripe_test_mode: useTestMode};
 
     if (search) {
       filter.$or = [
@@ -256,6 +256,7 @@ const createCoupon = async (req, res) => {
       isActive,
       stripeCouponId,
       stripePromotionCodeId,
+      stripe_test_mode: useTestMode,
       createdBy: req.user._id,
     });
 

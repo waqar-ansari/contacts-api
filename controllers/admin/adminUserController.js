@@ -34,7 +34,7 @@ const getAllUsers = async (req, res) => {
     const search = req.query.search || "";
 
     // Build search query
-    let searchQuery = { role: "user" };
+    let searchQuery = { role: "user", stripe_test_mode: useTestMode };
     if (search) {
       searchQuery.$or = [
         { firstname: { $regex: search, $options: "i" } },

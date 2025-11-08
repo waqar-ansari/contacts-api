@@ -4,6 +4,7 @@ const User = require('../models/userModel');
 const sendEmail = require('../utils/sendEmailResetPassword');
 const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp'); // ✅ Assuming you already have this
 
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 // // Forgot Password - Send Reset Link
 
@@ -43,7 +44,7 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
 
     // Reset link (unchanged)
-    const resetLink = `https://contacts-user-web.vercel.app/email/reset-password?token=${token}`;
+    const resetLink = `${FRONTEND_URL}/email/reset-password?token=${token}`;
     console.log("resetLink:", resetLink);
 
     // HTML (unchanged from your original)

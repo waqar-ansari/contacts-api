@@ -89,6 +89,7 @@ const { sendPushNotificationToUser } = require("../utils/oneSignal");
 
 //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 // };
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 const uploadImageToS3 = async (file) => {
   const ext = path.extname(file.originalname);
@@ -620,7 +621,7 @@ const editProfile = async (req, res) => {
       //           const token = crypto.randomBytes(32).toString("hex");
       //           user.emailVerificationToken = token;
 
-      //           const verificationLink = `https://contacts-user-web.vercel.app/user-verification?verificationToken=${token}`;
+      //           const verificationLink = `${FRONTEND_URL}/user-verification?verificationToken=${token}`;
       // console.log(verificationLink);
 
       //           await sendVerificationEmail(trimmedEmail, verificationLink);
