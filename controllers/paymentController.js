@@ -1,4 +1,4 @@
-const { stripe } = require("../config/stripe");
+const { stripe, stripeTest } = require("../config/stripe");
 const Plan = require("../models/planModel");
 const User = require("../models/userModel");
 const {
@@ -19,6 +19,7 @@ const {
   hasUserMadeFirstPurchase,
   transferCacheCreditsToStripe,
   checkSubscriptionDetails,
+  createStripeCustomer,
 } = require("../utils/stripeUtils");
 
 /**
@@ -72,9 +73,10 @@ const validatePlanUpgrade = (currentPlan, newPlan) => {
 /**
  * Check if user has any active Stripe subscriptions
  * @param {Object} user - User object
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Active subscription info
  */
-const checkActiveSubscription = async (user) => {
+const checkActiveSubscription = async (user, useTestMode = false) => {
   const result = {
     hasActiveSubscription: false,
     subscriptionId: null,
@@ -87,7 +89,8 @@ const checkActiveSubscription = async (user) => {
 
   try {
     const subscription = await getCustomerPrimarySubscription(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     if (subscription) {
@@ -115,6 +118,7 @@ const checkActiveSubscription = async (user) => {
 const getCreditBalance = async (req, res) => {
   try {
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
 
     const user = await User.findById(userId).select(
       "stripeCustomerId cache_credits"
@@ -131,13 +135,16 @@ const getCreditBalance = async (req, res) => {
     // Check if user has made their first purchase
     if (user.stripeCustomerId) {
       const hasFirstPurchase = await hasUserMadeFirstPurchase(
-        user.stripeCustomerId
+        user.stripeCustomerId,
+        useTestMode
       );
 
       if (hasFirstPurchase) {
         // Get credit balance from Stripe
-        const customer = await getOrCreateStripeCustomer(user);
-        creditBalance = Math.abs(await getStripeCreditBalance(customer.id));
+        const customer = await getOrCreateStripeCustomer(user, useTestMode);
+        creditBalance = Math.abs(
+          await getStripeCreditBalance(customer.id, useTestMode)
+        );
       } else {
         // Get credit balance from cache_credits (convert to cents)
         creditBalance = Math.round((user.cache_credits || 0) * 100);
@@ -153,7 +160,7 @@ const getCreditBalance = async (req, res) => {
       customerId: user.stripeCustomerId,
       source:
         user.stripeCustomerId &&
-        (await hasUserMadeFirstPurchase(user.stripeCustomerId))
+        (await hasUserMadeFirstPurchase(user.stripeCustomerId, useTestMode))
           ? "stripe"
           : "cache",
     });
@@ -175,6 +182,8 @@ const getCreditBalance = async (req, res) => {
 const toggleAutoRenewal = async (req, res) => {
   try {
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -185,7 +194,7 @@ const toggleAutoRenewal = async (req, res) => {
     }
 
     // Check if user has active subscription
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkActiveSubscription(user, useTestMode);
 
     if (!activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
@@ -195,7 +204,7 @@ const toggleAutoRenewal = async (req, res) => {
     }
 
     // Get current subscription from Stripe
-    const subscription = await stripe.subscriptions.retrieve(
+    const subscription = await stripeInstance.subscriptions.retrieve(
       activeSubInfo.subscriptionId
     );
 
@@ -211,7 +220,7 @@ const toggleAutoRenewal = async (req, res) => {
     // Toggle auto-renewal
     const newCancelAtPeriodEnd = !subscription.cancel_at_period_end;
 
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription = await stripeInstance.subscriptions.update(
       activeSubInfo.subscriptionId,
       {
         cancel_at_period_end: newCancelAtPeriodEnd,
@@ -248,6 +257,8 @@ const toggleAutoRenewal = async (req, res) => {
 const getPaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId).select(
       "stripeCustomerId cache_credits"
@@ -265,13 +276,15 @@ const getPaymentStatus = async (req, res) => {
     if (user.stripeCustomerId) {
       try {
         const hasFirstPurchase = await hasUserMadeFirstPurchase(
-          user.stripeCustomerId
+          user.stripeCustomerId,
+          useTestMode
         );
 
         if (hasFirstPurchase) {
           // Get from Stripe and convert to dollars
           const stripeCreditBalance = await getStripeCreditBalance(
-            user.stripeCustomerId
+            user.stripeCustomerId,
+            useTestMode
           );
           creditBalance = Math.abs(stripeCreditBalance) / 100;
         } else {
@@ -289,22 +302,25 @@ const getPaymentStatus = async (req, res) => {
     }
 
     // Check for active subscription
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkActiveSubscription(user, useTestMode);
     let subscriptionDetails = null;
 
     if (activeSubInfo.hasActiveSubscription) {
       try {
-        const stripeData = await getUserStripeSubscriptionData(user);
+        const stripeData = await getUserStripeSubscriptionData(
+          user,
+          useTestMode
+        );
         if (stripeData) {
           // Get the full Stripe subscription to access metadata
-          const fullSubscription = await stripe.subscriptions.retrieve(
+          const fullSubscription = await stripeInstance.subscriptions.retrieve(
             activeSubInfo.subscriptionId
           );
 
           // Check for scheduled subscriptions
           let scheduledPlan = null;
           try {
-            const schedules = await stripe.subscriptionSchedules.list({
+            const schedules = await stripeInstance.subscriptionSchedules.list({
               customer: user.stripeCustomerId,
               limit: 10,
             });
@@ -363,7 +379,7 @@ const getPaymentStatus = async (req, res) => {
     }
 
     // Get current plan from subscription
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     res.json({
       success: true,
@@ -401,6 +417,8 @@ const previewUpgrade = async (req, res) => {
   try {
     const { planId, couponCode } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // === STEP 1: VALIDATE PLAN AND USER ===
     const plan = await Plan.findById(planId);
@@ -427,8 +445,8 @@ const previewUpgrade = async (req, res) => {
     }
 
     // === STEP 2: VERIFY ACTIVE SUBSCRIPTION EXISTS ===
-    const currentPlan = await getUserCurrentPlan(user);
-    const activeSubInfo = await checkActiveSubscription(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
+    const activeSubInfo = await checkActiveSubscription(user, useTestMode);
 
     if (!activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
@@ -450,7 +468,7 @@ const previewUpgrade = async (req, res) => {
     }
 
     // === STEP 4: RETRIEVE EXISTING SUBSCRIPTION DETAILS ===
-    const existingSubscription = await stripe.subscriptions.retrieve(
+    const existingSubscription = await stripeInstance.subscriptions.retrieve(
       activeSubInfo.subscriptionId,
       {
         expand: ["items.data.price"], // Get full price details
@@ -470,7 +488,10 @@ const previewUpgrade = async (req, res) => {
       // === STEP 5: VALIDATE COUPON (IF PROVIDED) ===
       let couponData = null;
       if (couponCode) {
-        const couponValidation = await validateCoupon(couponCode.trim());
+        const couponValidation = await validateCoupon(
+          couponCode.trim(),
+          useTestMode
+        );
         if (!couponValidation.isValid) {
           return res.status(400).json({
             success: false,
@@ -507,7 +528,7 @@ const previewUpgrade = async (req, res) => {
       }
 
       // Get the upcoming invoice preview from Stripe
-      const upcomingInvoice = await stripe.invoices.createPreview(
+      const upcomingInvoice = await stripeInstance.invoices.createPreview(
         invoicePreviewParams
       );
 
@@ -567,7 +588,7 @@ const previewUpgrade = async (req, res) => {
 
       // === STEP 9: CALCULATE CREDIT USAGE ===
       const availableCredits = Math.abs(
-        await getStripeCreditBalance(user.stripeCustomerId)
+        await getStripeCreditBalance(user.stripeCustomerId, useTestMode)
       );
 
       // Credits can only be used up to the immediate charge amount
@@ -729,10 +750,10 @@ const upgradeSubscription = async (req, res) => {
     }
 
     // Get current plan from active subscription
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     // Check for active subscription
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkActiveSubscription(user, useTestMode);
     console.log("Active subscription info:", activeSubInfo);
 
     if (!activeSubInfo.hasActiveSubscription) {
@@ -757,7 +778,10 @@ const upgradeSubscription = async (req, res) => {
     let couponData = null;
 
     if (couponCode) {
-      const couponValidation = await validateCoupon(couponCode.trim());
+      const couponValidation = await validateCoupon(
+        couponCode.trim(),
+        useTestMode
+      );
       if (!couponValidation.isValid) {
         return res.status(400).json({
           success: false,
@@ -769,7 +793,7 @@ const upgradeSubscription = async (req, res) => {
     }
 
     // Get the existing subscription
-    const existingSubscription = await stripe.subscriptions.retrieve(
+    const existingSubscription = await stripeInstance.subscriptions.retrieve(
       activeSubInfo.subscriptionId
     );
 
@@ -785,7 +809,7 @@ const upgradeSubscription = async (req, res) => {
     let scheduledSubscriptions = [];
 
     try {
-      const schedules = await stripe.subscriptionSchedules.list({
+      const schedules = await stripeInstance.subscriptionSchedules.list({
         customer: user.stripeCustomerId,
         limit: 10,
       });
@@ -859,13 +883,13 @@ const upgradeSubscription = async (req, res) => {
     }
 
     // Upgrade the subscription with immediate proration
-    const upgradedSubscription = await stripe.subscriptions.update(
+    const upgradedSubscription = await stripeInstance.subscriptions.update(
       activeSubInfo.subscriptionId,
       updateData
     );
 
     // Get the latest invoice for proration amount
-    const latestInvoice = await stripe.invoices.retrieve(
+    const latestInvoice = await stripeInstance.invoices.retrieve(
       upgradedSubscription.latest_invoice
     );
 
@@ -873,7 +897,7 @@ const upgradeSubscription = async (req, res) => {
     if (hasScheduledSubscriptions) {
       for (const schedule of scheduledSubscriptions) {
         try {
-          await stripe.subscriptionSchedules.cancel(schedule.id);
+          await stripeInstance.subscriptionSchedules.cancel(schedule.id);
           console.log(`Cancelled scheduled subscription: ${schedule.id}`);
         } catch (cancelError) {
           console.error(
@@ -941,6 +965,8 @@ const createCheckoutSession = async (req, res) => {
   try {
     const { planId, autoRenewal = true } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -969,7 +995,7 @@ const createCheckoutSession = async (req, res) => {
     }
 
     // Check for active subscription - redirect to upgrade endpoint if exists
-    const activeSubInfo = await checkSubscriptionDetails(user);
+    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -980,10 +1006,13 @@ const createCheckoutSession = async (req, res) => {
     }
 
     // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+      customer.id,
+      useTestMode
+    ));
     // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeInstance.checkout.sessions.create({
       ui_mode: "embedded",
       customer: customer.id,
       line_items: [
@@ -1044,6 +1073,8 @@ const createHostedCheckoutSession = async (req, res) => {
   try {
     const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -1072,7 +1103,7 @@ const createHostedCheckoutSession = async (req, res) => {
     }
 
     // Check for active subscription - redirect to upgrade endpoint if exists
-    const activeSubInfo = await checkSubscriptionDetails(user);
+    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -1083,9 +1114,12 @@ const createHostedCheckoutSession = async (req, res) => {
     }
 
     // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+      customer.id,
+      useTestMode
+    ));
 
     // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
     const sessionParams = {
@@ -1118,7 +1152,9 @@ const createHostedCheckoutSession = async (req, res) => {
       },
     };
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    const session = await stripeInstance.checkout.sessions.create(
+      sessionParams
+    );
 
     console.log("Created hosted checkout session for new subscription:", {
       id: session.id,
@@ -1157,6 +1193,8 @@ const getCheckoutSessionDetails = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -1166,7 +1204,7 @@ const getCheckoutSessionDetails = async (req, res) => {
     }
 
     // Retrieve the checkout session from Stripe
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
 
     // Verify the session belongs to this user
     if (session.metadata.userId !== userId.toString()) {
@@ -1196,7 +1234,8 @@ const getCheckoutSessionDetails = async (req, res) => {
 
     if (user && user.stripeCustomerId) {
       isFirstPurchase = !(await hasUserMadeFirstPurchase(
-        user.stripeCustomerId
+        user.stripeCustomerId,
+        useTestMode
       ));
     }
 
@@ -1289,14 +1328,19 @@ const getPaymentMethods = async (req, res) => {
       });
     }
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Get payment methods from Stripe
-    const paymentMethods = await stripe.paymentMethods.list({
+    const paymentMethods = await stripeInstance.paymentMethods.list({
       customer: user.stripeCustomerId,
       type: "card",
     });
 
     // Get customer to check default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const customer = await stripeInstance.customers.retrieve(
+      user.stripeCustomerId
+    );
 
     const formattedPaymentMethods = paymentMethods.data.map((pm) => ({
       id: pm.id,
@@ -1350,17 +1394,20 @@ const addPaymentMethod = async (req, res) => {
       });
     }
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
     // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, {
+    await stripeInstance.paymentMethods.attach(paymentMethodId, {
       customer: customer.id,
     });
 
     // Set as default if requested or if it's the first payment method
     if (setAsDefault) {
-      await stripe.customers.update(customer.id, {
+      await stripeInstance.customers.update(customer.id, {
         invoice_settings: {
           default_payment_method: paymentMethodId,
         },
@@ -1368,7 +1415,9 @@ const addPaymentMethod = async (req, res) => {
     }
 
     // Get the updated payment method details
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    const paymentMethod = await stripeInstance.paymentMethods.retrieve(
+      paymentMethodId
+    );
 
     res.json({
       success: true,
@@ -1420,8 +1469,11 @@ const setDefaultPaymentMethod = async (req, res) => {
       });
     }
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Update customer's default payment method
-    await stripe.customers.update(user.stripeCustomerId, {
+    await stripeInstance.customers.update(user.stripeCustomerId, {
       invoice_settings: {
         default_payment_method: paymentMethodId,
       },
@@ -1466,8 +1518,13 @@ const updatePaymentMethod = async (req, res) => {
       });
     }
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Verify that the payment method belongs to this customer
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    const paymentMethod = await stripeInstance.paymentMethods.retrieve(
+      paymentMethodId
+    );
     if (paymentMethod.customer !== user.stripeCustomerId) {
       return res.status(403).json({
         success: false,
@@ -1481,7 +1538,7 @@ const updatePaymentMethod = async (req, res) => {
       updateData.billing_details = billingDetails;
     }
 
-    const updatedPaymentMethod = await stripe.paymentMethods.update(
+    const updatedPaymentMethod = await stripeInstance.paymentMethods.update(
       paymentMethodId,
       updateData
     );
@@ -1536,8 +1593,13 @@ const deletePaymentMethod = async (req, res) => {
       });
     }
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Verify that the payment method belongs to this customer
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    const paymentMethod = await stripeInstance.paymentMethods.retrieve(
+      paymentMethodId
+    );
     if (paymentMethod.customer !== user.stripeCustomerId) {
       return res.status(403).json({
         success: false,
@@ -1546,13 +1608,15 @@ const deletePaymentMethod = async (req, res) => {
     }
 
     // Check if this is the default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const customer = await stripeInstance.customers.retrieve(
+      user.stripeCustomerId
+    );
     const isDefaultPaymentMethod =
       customer.invoice_settings?.default_payment_method === paymentMethodId;
 
     if (isDefaultPaymentMethod) {
       // Get all payment methods to check if there are others
-      const paymentMethods = await stripe.paymentMethods.list({
+      const paymentMethods = await stripeInstance.paymentMethods.list({
         customer: user.stripeCustomerId,
         type: "card",
       });
@@ -1563,7 +1627,7 @@ const deletePaymentMethod = async (req, res) => {
           (pm) => pm.id !== paymentMethodId
         );
         if (otherPaymentMethod) {
-          await stripe.customers.update(user.stripeCustomerId, {
+          await stripeInstance.customers.update(user.stripeCustomerId, {
             invoice_settings: {
               default_payment_method: otherPaymentMethod.id,
             },
@@ -1571,7 +1635,7 @@ const deletePaymentMethod = async (req, res) => {
         }
       } else {
         // This is the last payment method, clear the default
-        await stripe.customers.update(user.stripeCustomerId, {
+        await stripeInstance.customers.update(user.stripeCustomerId, {
           invoice_settings: {
             default_payment_method: null,
           },
@@ -1580,7 +1644,7 @@ const deletePaymentMethod = async (req, res) => {
     }
 
     // Detach the payment method from the customer
-    await stripe.paymentMethods.detach(paymentMethodId);
+    await stripeInstance.paymentMethods.detach(paymentMethodId);
 
     res.json({
       success: true,
@@ -1605,6 +1669,8 @@ const downgradeSubscription = async (req, res) => {
   try {
     const { planId } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -1625,10 +1691,10 @@ const downgradeSubscription = async (req, res) => {
     }
 
     // Get current plan from active subscription
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     // Check for active subscription
-    const activeSubInfo = await checkActiveSubscription(user);
+    const activeSubInfo = await checkActiveSubscription(user, useTestMode);
 
     if (!activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
@@ -1654,7 +1720,7 @@ const downgradeSubscription = async (req, res) => {
     }
 
     // Get the existing subscription
-    const existingSubscription = await stripe.subscriptions.retrieve(
+    const existingSubscription = await stripeInstance.subscriptions.retrieve(
       activeSubInfo.subscriptionId
     );
     console.log("Existing subscription:", existingSubscription);
@@ -1668,7 +1734,7 @@ const downgradeSubscription = async (req, res) => {
     // Check if there's already a scheduled downgrade and cancel it
     if (existingSubscription.metadata?.scheduledDowngradeId) {
       try {
-        await stripe.subscriptionSchedules.cancel(
+        await stripeInstance.subscriptionSchedules.cancel(
           existingSubscription.metadata.scheduledDowngradeId
         );
         console.log(
@@ -1685,31 +1751,32 @@ const downgradeSubscription = async (req, res) => {
     // Schedule the downgrade to take effect at period end
     // We use subscription schedules for this - create from scratch instead of from_subscription
     try {
-      const subscriptionSchedule = await stripe.subscriptionSchedules.create({
-        customer: user.stripeCustomerId,
-        start_date: existingSubscription.items.data[0].current_period_end,
-        end_behavior: "release",
-        phases: [
-          {
-            items: [
-              {
-                price: plan.stripePriceId,
-                quantity: 1,
+      const subscriptionSchedule =
+        await stripeInstance.subscriptionSchedules.create({
+          customer: user.stripeCustomerId,
+          start_date: existingSubscription.items.data[0].current_period_end,
+          end_behavior: "release",
+          phases: [
+            {
+              items: [
+                {
+                  price: plan.stripePriceId,
+                  quantity: 1,
+                },
+              ],
+              metadata: {
+                userId: userId.toString(),
+                planId: planId.toString(),
+                planName: plan.name,
+                downgradedFrom: currentPlan?._id?.toString() || "unknown",
+                downgradedAt: new Date().toISOString(),
               },
-            ],
-            metadata: {
-              userId: userId.toString(),
-              planId: planId.toString(),
-              planName: plan.name,
-              downgradedFrom: currentPlan?._id?.toString() || "unknown",
-              downgradedAt: new Date().toISOString(),
             },
-          },
-        ],
-      });
+          ],
+        });
 
       // Cancel the current subscription at period end
-      await stripe.subscriptions.update(activeSubInfo.subscriptionId, {
+      await stripeInstance.subscriptions.update(activeSubInfo.subscriptionId, {
         cancel_at_period_end: true,
         metadata: {
           ...existingSubscription.metadata,
@@ -1968,6 +2035,9 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     } = req.body;
     const userId = req.user._id;
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     if (!planId || !paymentMethodId) {
       return res.status(400).json({
         success: false,
@@ -2004,7 +2074,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     }
 
     // Check if user already has an active subscription
-    const activeSubInfo = await checkSubscriptionDetails(user);
+    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -2017,15 +2087,19 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     // Get or create Stripe customer
     let stripeCustomerId = user.stripeCustomerId;
     if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.firstName
-          ? `${user.firstName} ${user.lastName || ""}`.trim()
-          : user.email,
-        metadata: {
-          userId: userId.toString(),
-        },
-      });
+      // const customer = await stripe.customers.create({
+      //   email: user.email,
+      //   name: user.firstName
+      //     ? `${user.firstName} ${user.lastName || ""}`.trim()
+      //     : user.email,
+      //   metadata: {
+      //     userId: userId.toString(),
+      //     name: "contacts_api",
+      //   },
+      // });
+
+      const customer = await createStripeCustomer(user, useTestMode);
+
       stripeCustomerId = customer.id;
 
       // Update user with Stripe customer ID
@@ -2040,7 +2114,10 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     let finalPlanPrice = originalPlanPrice;
 
     if (couponCode) {
-      const couponValidation = await validateCoupon(couponCode.trim());
+      const couponValidation = await validateCoupon(
+        couponCode.trim(),
+        useTestMode
+      );
       if (!couponValidation.isValid) {
         return res.status(400).json({
           success: false,
@@ -2059,7 +2136,9 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     }
 
     // Verify payment method belongs to customer
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    const paymentMethod = await stripeInstance.paymentMethods.retrieve(
+      paymentMethodId
+    );
     if (paymentMethod.customer !== stripeCustomerId) {
       return res.status(400).json({
         success: false,
@@ -2069,7 +2148,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
 
     // Get user's credit balance from Stripe
     const availableCreditsInCents = Math.abs(
-      await getStripeCreditBalance(stripeCustomerId)
+      await getStripeCreditBalance(stripeCustomerId, useTestMode)
     );
     const planPriceInCents = finalPlanPrice; // Use discounted price
 
@@ -2121,10 +2200,15 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       subscriptionData.cancel_at_period_end = true;
     }
     ///CHECK IF THIS IS THE USER'S FIRST PURCHASE before macking our first purchase
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(stripeCustomerId));
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+      stripeCustomerId,
+      useTestMode
+    ));
 
     ///CREATE THE SUBSCRIPTION
-    const subscription = await stripe.subscriptions.create(subscriptionData);
+    const subscription = await stripeInstance.subscriptions.create(
+      subscriptionData
+    );
 
     // Delete any trialing subscription after creating new one
     if (activeSubInfo.hasTrialingSubscription) {
@@ -2132,7 +2216,10 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
         `Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId} after creating new subscription`
       );
       try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        await deleteTrialingSubscription(
+          activeSubInfo.trialingSubscriptionId,
+          useTestMode
+        );
         console.log(
           `Successfully deleted trialing subscription ${activeSubInfo.trialingSubscriptionId}`
         );
@@ -2157,7 +2244,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
         paymentIntent.status === "requires_confirmation"
       ) {
         try {
-          const confirmedPI = await stripe.paymentIntents.confirm(
+          const confirmedPI = await stripeInstance.paymentIntents.confirm(
             paymentIntent.id,
             {
               payment_method: paymentMethodId,
@@ -2167,13 +2254,13 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
           console.log("Payment intent confirmed:", confirmedPI.status);
 
           // Retrieve updated subscription after payment confirmation
-          finalSubscription = await stripe.subscriptions.retrieve(
+          finalSubscription = await stripeInstance.subscriptions.retrieve(
             subscription.id
           );
         } catch (confirmError) {
           console.error("Error confirming payment intent:", confirmError);
           // If payment fails, cancel the subscription
-          await stripe.subscriptions.cancel(subscription.id);
+          await stripeInstance.subscriptions.cancel(subscription.id);
           throw new Error(
             `Payment confirmation failed: ${confirmError.message}`
           );
@@ -2188,7 +2275,8 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
         const updatedUser = await User.findById(userId);
         if (updatedUser.cache_credits && updatedUser.cache_credits > 0) {
           const transferResult = await transferCacheCreditsToStripe(
-            updatedUser
+            updatedUser,
+            useTestMode
           );
           if (transferResult.success) {
             console.log(
@@ -2236,6 +2324,7 @@ const getBillingHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     const { limit = 50, startingAfter } = req.query;
+    const useTestMode = req.stripe_test_mode || false;
 
     const user = await User.findById(userId).select("stripeCustomerId");
     if (!user) {
@@ -2264,7 +2353,8 @@ const getBillingHistory = async (req, res) => {
 
     // Get formatted billing history
     const billingHistory = await getFormattedBillingHistory(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     // Calculate summary statistics
@@ -2336,6 +2426,8 @@ const getInvoiceDetails = async (req, res) => {
   try {
     const userId = req.user._id;
     const { invoiceId } = req.params;
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId).select("stripeCustomerId");
     if (!user) {
@@ -2353,7 +2445,7 @@ const getInvoiceDetails = async (req, res) => {
     }
 
     // Retrieve the invoice from Stripe with expanded data
-    const invoice = await stripe.invoices.retrieve(invoiceId, {
+    const invoice = await stripeInstance.invoices.retrieve(invoiceId, {
       expand: [
         "payment_intent.payment_method",
         "payment_intent.charges.data.payment_method_details",

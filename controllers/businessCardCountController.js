@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const Contact = require("../models/contactModel");
-const { getUserCurrentPlan } = require("../utils/stripeUtils");
 const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
 
 // async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null) {

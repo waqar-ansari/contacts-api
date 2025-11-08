@@ -8,7 +8,6 @@ const { createGoogleMeetEvent } = require("../utils/googleCalendar");
 const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const Plan = require("../models/planModel");
-const { getUserCurrentPlan } = require("../utils/stripeUtils");
 const { sendPushNotificationToUser } = require("../utils/oneSignal");
 const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
 // ---------- PLAN + QUOTA HELPERS ----------
@@ -150,7 +149,6 @@ const addEditContact = async (req, res) => {
     }
 
     // Get current plan from subscription
-    const currentPlan = await getUserCurrentPlan(user);
 
     let {
       contact_id,

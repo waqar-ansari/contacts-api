@@ -11,10 +11,21 @@ const stripeConfig = {
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
 };
 
+const stripeConfigTest = {
+  // Use test keys for development/sandbox
+  publishableKey: process.env.STRIPE_PUBLISHABLE_KEY_TEST,
+  secretKey: process.env.STRIPE_SECRET_KEY_TEST,
+
+  // Webhook secret for verifying webhook events
+  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET_TEST,
+};
+
 // Initialize Stripe with secret key
 const stripeInstance = stripe(stripeConfig.secretKey);
+const stripeTestInstance = stripe(stripeConfigTest.secretKey);
 
 module.exports = {
   stripe: stripeInstance,
+  stripeTest: stripeTestInstance,
   stripeConfig,
 };

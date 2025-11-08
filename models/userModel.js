@@ -237,6 +237,7 @@ const userSchema = new Schema(
     smtpPass: { type: String },
     smtpSecure: { type: Boolean, default: true },
     smtpConnected: { type: Boolean, default: false },
+    stripe_test_mode: { type: Boolean, default: false },
 
     emailVerificationToken: String,
     isVerified: {
@@ -651,7 +652,7 @@ userSchema.static(
     const query = email
       ? { email }
       : // : { phonenumbers: { $in: [phonenumber] } }; // assuming you store phone numbers as array
-      { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
+        { phonenumbers: { $elemMatch: { countryCode, number: phonenumber } } };
 
     const user = await this.findOne(query);
     if (!user) throw new Error("User not found");

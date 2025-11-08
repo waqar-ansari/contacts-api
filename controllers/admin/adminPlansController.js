@@ -1,15 +1,22 @@
 // controllers/admin/adminPlansController.js
+const { stripe, stripeTest } = require("../../config/stripe");
 const Plan = require("../../models/planModel");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const User = require("../../models/userModel");
 
 // @desc    Get all plans
 // @route   GET /api/admin/plans
 // @access  Private/Admin
 const getAllPlans = async (req, res) => {
+  console.log("Admin user:", req?.user);
+  const stripe_test_mode =
+    (await User.findById(req?.user?._id))?.stripe_test_mode || false;
   try {
-    const plans = await Plan.find();
+    const plans = await Plan.find({
+      $or: [{ stripe_test_mode: stripe_test_mode }, { name: "Starter" }],
+    });
     res.json({
       success: true,
+      stripe_test_mode: stripe_test_mode,
       count: plans.length,
       data: plans,
     });
@@ -342,15 +349,15 @@ const deletePlan = async (req, res) => {
     }
 
     // Check if any users are currently assigned to this plan
-    const User = require("../../models/User");
-    const usersWithPlan = await User.countDocuments({ plan: req.params.id });
+    // const User = require("../../models/User");
+    // const usersWithPlan = await User.countDocuments({ plan: req.params.id });
 
-    if (usersWithPlan > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot delete plan. ${usersWithPlan} user(s) are currently assigned to this plan.`,
-      });
-    }
+    // if (usersWithPlan > 0) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: `Cannot delete plan. ${usersWithPlan} user(s) are currently assigned to this plan.`,
+    //   });
+    // }
 
     // Archive Stripe resources if they exist
     if (plan.stripePriceId || plan.stripeProductId) {

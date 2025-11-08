@@ -1,19 +1,24 @@
-const { stripe } = require("../config/stripe");
+const { stripe, stripeTest } = require("../config/stripe");
 const User = require("../models/userModel");
 const Plan = require("../models/planModel");
 
 /**
  * Create a Stripe customer for a user
  * @param {Object} user - User object
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe customer object
  */
-async function createStripeCustomer(user) {
+async function createStripeCustomer(user, useTestMode = false) {
   try {
-    const customer = await stripe.customers.create({
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const customer = await stripeInstance.customers.create({
       email: user.email,
-      name: `${user.firstname || ""} ${user.lastname || ""}`.trim(),
+      name: user.firstName
+        ? `${user.firstName} ${user.lastName || ""}`.trim()
+        : user.email,
       metadata: {
         userId: user._id.toString(),
+        name: "contacts_api",
       },
     });
     console.log("Created new Stripe customer:", customer.id);
@@ -31,9 +36,10 @@ async function createStripeCustomer(user) {
 /**
  * Get or create a Stripe customer for a user
  * @param {Object} user - User object
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe customer object
  */
-async function getOrCreateStripeCustomer(user) {
+async function getOrCreateStripeCustomer(user, useTestMode = false) {
   try {
     if (
       !user.email &&
@@ -46,7 +52,10 @@ async function getOrCreateStripeCustomer(user) {
     if (user.stripeCustomerId) {
       // Try to retrieve existing customer
       try {
-        const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+        const stripeInstance = useTestMode ? stripeTest : stripe;
+        const customer = await stripeInstance.customers.retrieve(
+          user.stripeCustomerId
+        );
         if (!customer.deleted) {
           console.log("Found existing Stripe customer:", customer.id);
           return customer;
@@ -59,7 +68,7 @@ async function getOrCreateStripeCustomer(user) {
     }
 
     // Create new customer if none exists or previous one was deleted
-    return await createStripeCustomer(user);
+    return await createStripeCustomer(user, useTestMode);
   } catch (error) {
     console.error("Error getting or creating Stripe customer:", error);
     throw error;
@@ -71,10 +80,17 @@ async function getOrCreateStripeCustomer(user) {
  * @param {String} customerId - Stripe customer ID
  * @param {String} priceId - Stripe price ID
  * @param {Object} options - Additional options
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe subscription object
  */
-async function createStripeSubscription(customerId, priceId, options = {}) {
+async function createStripeSubscription(
+  customerId,
+  priceId,
+  options = {},
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     const subscriptionData = {
       customer: customerId,
       items: [{ price: priceId }],
@@ -89,7 +105,9 @@ async function createStripeSubscription(customerId, priceId, options = {}) {
       subscriptionData.trial_period_days = options.trialPeriodDays;
     }
 
-    const subscription = await stripe.subscriptions.create(subscriptionData);
+    const subscription = await stripeInstance.subscriptions.create(
+      subscriptionData
+    );
 
     return subscription;
   } catch (error) {
@@ -102,15 +120,23 @@ async function createStripeSubscription(customerId, priceId, options = {}) {
  * Update a Stripe subscription with new price
  * @param {String} subscriptionId - Stripe subscription ID
  * @param {String} newPriceId - New Stripe price ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Updated Stripe subscription object
  */
-async function updateStripeSubscriptionPrice(subscriptionId, newPriceId) {
+async function updateStripeSubscriptionPrice(
+  subscriptionId,
+  newPriceId,
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     // Get current subscription to find the subscription item
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await stripeInstance.subscriptions.retrieve(
+      subscriptionId
+    );
 
     // Update the subscription with new price
-    const updatedSubscription = await stripe.subscriptions.update(
+    const updatedSubscription = await stripeInstance.subscriptions.update(
       subscriptionId,
       {
         items: [
@@ -134,11 +160,17 @@ async function updateStripeSubscriptionPrice(subscriptionId, newPriceId) {
  * Update a Stripe subscription general data
  * @param {String} subscriptionId - Stripe subscription ID
  * @param {Object} updateData - Data to update
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Updated Stripe subscription object
  */
-async function updateStripeSubscription(subscriptionId, updateData) {
+async function updateStripeSubscription(
+  subscriptionId,
+  updateData,
+  useTestMode = false
+) {
   try {
-    const subscription = await stripe.subscriptions.update(
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const subscription = await stripeInstance.subscriptions.update(
       subscriptionId,
       updateData
     );
@@ -153,17 +185,28 @@ async function updateStripeSubscription(subscriptionId, updateData) {
  * Cancel a Stripe subscription
  * @param {String} subscriptionId - Stripe subscription ID
  * @param {Boolean} atPeriodEnd - Whether to cancel at period end
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Cancelled Stripe subscription object
  */
-async function cancelStripeSubscription(subscriptionId, atPeriodEnd = true) {
+async function cancelStripeSubscription(
+  subscriptionId,
+  atPeriodEnd = true,
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     if (atPeriodEnd) {
-      const subscription = await stripe.subscriptions.update(subscriptionId, {
-        cancel_at_period_end: true,
-      });
+      const subscription = await stripeInstance.subscriptions.update(
+        subscriptionId,
+        {
+          cancel_at_period_end: true,
+        }
+      );
       return subscription;
     } else {
-      const subscription = await stripe.subscriptions.cancel(subscriptionId);
+      const subscription = await stripeInstance.subscriptions.cancel(
+        subscriptionId
+      );
       return subscription;
     }
   } catch (error) {
@@ -175,11 +218,15 @@ async function cancelStripeSubscription(subscriptionId, atPeriodEnd = true) {
 /**
  * Retrieve a Stripe subscription
  * @param {String} subscriptionId - Stripe subscription ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe subscription object
  */
-async function getStripeSubscription(subscriptionId) {
+async function getStripeSubscription(subscriptionId, useTestMode = false) {
   try {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const subscription = await stripeInstance.subscriptions.retrieve(
+      subscriptionId
+    );
     return subscription;
   } catch (error) {
     console.error("Error retrieving Stripe subscription:", error);
@@ -190,11 +237,13 @@ async function getStripeSubscription(subscriptionId) {
 /**
  * Get customer's billing credit balance from Stripe
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Number} Credit balance in cents
  */
-async function getStripeCreditBalance(customerId) {
+async function getStripeCreditBalance(customerId, useTestMode = false) {
   try {
-    const customer = await stripe.customers.retrieve(customerId);
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const customer = await stripeInstance.customers.retrieve(customerId);
     return customer.balance || 0; // Stripe customer balance (negative = credits)
   } catch (error) {
     console.error("Error getting Stripe credit balance:", error);
@@ -207,19 +256,24 @@ async function getStripeCreditBalance(customerId) {
  * @param {String} customerId - Stripe customer ID
  * @param {Number} amount - Amount in cents (negative for credits)
  * @param {String} description - Description for the balance transaction
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe customer balance transaction
  */
-async function addStripeCredits(customerId, amount, description) {
+async function addStripeCredits(
+  customerId,
+  amount,
+  description,
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     console.log("adding stripe credits ", customerId, amount);
-    const balanceTransaction = await stripe.customers.createBalanceTransaction(
-      customerId,
-      {
+    const balanceTransaction =
+      await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: -Math.abs(amount), // Negative amount for credits
         currency: "usd",
         description: description,
-      }
-    );
+      });
     return balanceTransaction;
   } catch (error) {
     console.error("Error adding Stripe credits:", error);
@@ -232,18 +286,23 @@ async function addStripeCredits(customerId, amount, description) {
  * @param {String} customerId - Stripe customer ID
  * @param {Number} amount - Amount in cents to deduct
  * @param {String} description - Description for the balance transaction
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe customer balance transaction
  */
-async function useStripeCredits(customerId, amount, description) {
+async function useStripeCredits(
+  customerId,
+  amount,
+  description,
+  useTestMode = false
+) {
   try {
-    const balanceTransaction = await stripe.customers.createBalanceTransaction(
-      customerId,
-      {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const balanceTransaction =
+      await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: Math.abs(amount), // Positive amount to deduct credits
         currency: "usd",
         description: description,
-      }
-    );
+      });
     return balanceTransaction;
   } catch (error) {
     console.error("Error using Stripe credits:", error);
@@ -275,9 +334,10 @@ async function getPlanFromPriceId(priceId) {
 /**
  * Get user's current plan from their active subscription
  * @param {Object} user - User object with stripeCustomerId
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object|null} Plan object or null if no active subscription/plan
  */
-async function getUserCurrentPlan(user) {
+async function getUserCurrentPlan(user, useTestMode = false) {
   try {
     if (!user.stripeCustomerId) {
       // Return starter plan as default if no Stripe customer
@@ -285,7 +345,8 @@ async function getUserCurrentPlan(user) {
     }
 
     const subscription = await getCustomerPrimarySubscription(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     if (!subscription) {
@@ -308,11 +369,13 @@ async function getUserCurrentPlan(user) {
 /**
  * Get all active subscriptions for a Stripe customer
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Array} Array of active subscription objects
  */
-async function getCustomerActiveSubscriptions(customerId) {
+async function getCustomerActiveSubscriptions(customerId, useTestMode = false) {
   try {
-    const subscriptions = await stripe.subscriptions.list({
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const subscriptions = await stripeInstance.subscriptions.list({
       customer: customerId,
       status: "all",
     });
@@ -331,12 +394,14 @@ async function getCustomerActiveSubscriptions(customerId) {
 /**
  * Get customer's primary active subscription (most recent active one)
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object|null} Active subscription object or null
  */
-async function getCustomerPrimarySubscription(customerId) {
+async function getCustomerPrimarySubscription(customerId, useTestMode = false) {
   try {
     const activeSubscriptions = await getCustomerActiveSubscriptions(
-      customerId
+      customerId,
+      useTestMode
     );
 
     if (activeSubscriptions.length === 0) {
@@ -355,21 +420,24 @@ async function getCustomerPrimarySubscription(customerId) {
  * Cancel ALL customer subscriptions regardless of status
  * @param {String} customerId - Stripe customer ID
  * @param {String} excludeSubscriptionId - Subscription ID to exclude from cancellation
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Array} Array of cancellation results
  */
 async function cancelAllCustomerSubscriptions(
   customerId,
-  excludeSubscriptionId = null
+  excludeSubscriptionId = null,
+  useTestMode = false
 ) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     // Get ALL subscriptions for the customer (regardless of status)
-    const allSubscriptions = await stripe.subscriptions.list({
+    const allSubscriptions = await stripeInstance.subscriptions.list({
       customer: customerId,
       status: "all", // This gets all statuses: active, incomplete, trialing, past_due, canceled, etc.
     });
 
     // Get ALL subscription schedules for the customer
-    const allSchedules = await stripe.subscriptionSchedules.list({
+    const allSchedules = await stripeInstance.subscriptionSchedules.list({
       customer: customerId,
     });
 
@@ -392,7 +460,7 @@ async function cancelAllCustomerSubscriptions(
 
       try {
         // Cancel immediately (not at period end)
-        const canceledSubscription = await stripe.subscriptions.cancel(
+        const canceledSubscription = await stripeInstance.subscriptions.cancel(
           subscription.id
         );
         console.log(
@@ -430,9 +498,8 @@ async function cancelAllCustomerSubscriptions(
 
       try {
         // Cancel the subscription schedule
-        const canceledSchedule = await stripe.subscriptionSchedules.cancel(
-          schedule.id
-        );
+        const canceledSchedule =
+          await stripeInstance.subscriptionSchedules.cancel(schedule.id);
         console.log(
           `Successfully canceled subscription schedule: ${schedule.id} (was ${schedule.status})`
         );
@@ -466,16 +533,18 @@ async function cancelAllCustomerSubscriptions(
 /**
  * Get user's Stripe subscription data using customer ID only
  * @param {Object} user - User object with stripeCustomerId
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Subscription data or null
  */
-async function getUserStripeSubscriptionData(user) {
+async function getUserStripeSubscriptionData(user, useTestMode = false) {
   try {
     if (!user.stripeCustomerId) {
       return null;
     }
 
     const subscription = await getCustomerPrimarySubscription(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     if (!subscription) {
@@ -528,11 +597,13 @@ async function getUserStripeSubscriptionData(user) {
 /**
  * Check if customer has any payment methods attached
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Boolean} True if customer has payment methods
  */
-async function customerHasPaymentMethod(customerId) {
+async function customerHasPaymentMethod(customerId, useTestMode = false) {
   try {
-    const paymentMethods = await stripe.paymentMethods.list({
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const paymentMethods = await stripeInstance.paymentMethods.list({
       customer: customerId,
       type: "card",
     });
@@ -547,12 +618,21 @@ async function customerHasPaymentMethod(customerId) {
  * Update subscription for admin - cancels current and creates new
  * @param {String} customerId - Stripe customer ID
  * @param {String} newPriceId - New Stripe price ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} New Stripe subscription object
  */
-async function updateSubscriptionForAdmin(customerId, newPriceId) {
+async function updateSubscriptionForAdmin(
+  customerId,
+  newPriceId,
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     // First, check if customer has payment methods
-    const hasPaymentMethod = await customerHasPaymentMethod(customerId);
+    const hasPaymentMethod = await customerHasPaymentMethod(
+      customerId,
+      useTestMode
+    );
     if (!hasPaymentMethod) {
       throw new Error(
         "User must have a payment method to be assigned a premium plan"
@@ -560,7 +640,7 @@ async function updateSubscriptionForAdmin(customerId, newPriceId) {
     }
 
     // Create new subscription with immediate payment
-    const newSubscription = await stripe.subscriptions.create({
+    const newSubscription = await stripeInstance.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
       payment_behavior: "error_if_incomplete", // Require immediate payment
@@ -577,7 +657,8 @@ async function updateSubscriptionForAdmin(customerId, newPriceId) {
     if (newSubscription && newSubscription.status === "active") {
       const cancellationResults = await cancelAllCustomerSubscriptions(
         customerId,
-        newSubscription.id // Exclude the new subscription from cancellation
+        newSubscription.id, // Exclude the new subscription from cancellation
+        useTestMode
       );
 
       console.log(
@@ -611,21 +692,27 @@ async function updateSubscriptionForAdmin(customerId, newPriceId) {
  * Get user's billing history including invoices and subscriptions
  * @param {String} customerId - Stripe customer ID
  * @param {Object} options - Options for filtering (limit, starting_after, etc.)
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Billing history data
  */
-async function getUserBillingHistory(customerId, options = {}) {
+async function getUserBillingHistory(
+  customerId,
+  options = {},
+  useTestMode = false
+) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     const limit = options.limit || 50;
 
     // Get invoices (past and upcoming)
-    const invoices = await stripe.invoices.list({
+    const invoices = await stripeInstance.invoices.list({
       customer: customerId,
       limit: limit,
       ...options,
     });
 
     // Get all subscriptions (active, canceled, past)
-    const subscriptions = await stripe.subscriptions.list({
+    const subscriptions = await stripeInstance.subscriptions.list({
       customer: customerId,
       status: "all",
       limit: limit,
@@ -634,7 +721,7 @@ async function getUserBillingHistory(customerId, options = {}) {
     // Get upcoming invoice if exists
     let upcomingInvoice = null;
     try {
-      upcomingInvoice = await stripe.invoices.retrieveUpcoming({
+      upcomingInvoice = await stripeInstance.invoices.retrieveUpcoming({
         customer: customerId,
       });
     } catch (error) {
@@ -657,11 +744,16 @@ async function getUserBillingHistory(customerId, options = {}) {
 /**
  * Get formatted billing history for display
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Array} Formatted billing history items
  */
-async function getFormattedBillingHistory(customerId) {
+async function getFormattedBillingHistory(customerId, useTestMode = false) {
   try {
-    const billingData = await getUserBillingHistory(customerId);
+    const billingData = await getUserBillingHistory(
+      customerId,
+      {},
+      useTestMode
+    );
     const historyItems = [];
 
     // Process past invoices only
@@ -772,13 +864,18 @@ function getPaymentMethodFromInvoice(invoice) {
 /**
  * Check if user has a trialing subscription
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object|null} Trialing subscription object or null
  */
-async function getCustomerTrialingSubscription(customerId) {
+async function getCustomerTrialingSubscription(
+  customerId,
+  useTestMode = false
+) {
   try {
-    const subscriptions = await stripe.subscriptions.list({
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const subscriptions = await stripeInstance.subscriptions.list({
       customer: customerId,
-      status: "trial",
+      status: "trialing",
     });
 
     if (subscriptions.data.length > 0) {
@@ -796,27 +893,29 @@ async function getCustomerTrialingSubscription(customerId) {
 /**
  * Delete/cancel a trialing subscription
  * @param {String} subscriptionId - Stripe subscription ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object|null} Cancelled subscription object or null
  */
-async function deleteTrialingSubscription(subscriptionId) {
+async function deleteTrialingSubscription(subscriptionId, useTestMode = false) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     // Get subscription first to verify it's trialing
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await stripeInstance.subscriptions.retrieve(
+      subscriptionId
+    );
 
-    if (subscription.status !== "trial") {
+    if (subscription.status !== "trialing") {
       console.log(
-        `Subscription ${subscriptionId} is not trial (status: ${subscription.status}), skipping deletion`
+        `Subscription ${subscriptionId} is not trialing (status: ${subscription.status}), skipping deletion`
       );
       return null;
     }
 
     // Cancel trialing subscription immediately
-    const cancelledSubscription = await stripe.subscriptions.cancel(
+    const cancelledSubscription = await stripeInstance.subscriptions.cancel(
       subscriptionId
     );
-    console.log(
-      `Successfully cancelled trial subscription: ${subscriptionId}`
-    );
+    console.log(`Successfully cancelled trial subscription: ${subscriptionId}`);
 
     return cancelledSubscription;
   } catch (error) {
@@ -828,9 +927,10 @@ async function deleteTrialingSubscription(subscriptionId) {
 /**
  * Check subscription details for a user
  * @param {Object} user - User object
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Subscription details object
  */
-async function checkSubscriptionDetails(user) {
+async function checkSubscriptionDetails(user, useTestMode = false) {
   const result = {
     hasActiveSubscription: false,
     subscriptionId: null,
@@ -846,7 +946,8 @@ async function checkSubscriptionDetails(user) {
   try {
     // Check for active non-trialing subscription
     const activeSubscription = await getCustomerActiveNonTrialingSubscription(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     if (activeSubscription) {
@@ -857,7 +958,8 @@ async function checkSubscriptionDetails(user) {
 
     // Check for trialing subscription
     const trialingSubscription = await getCustomerTrialingSubscription(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     if (trialingSubscription) {
@@ -874,11 +976,16 @@ async function checkSubscriptionDetails(user) {
 /**
  * Check if customer has active non-trialing subscription
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object|null} Active non-trialing subscription object or null
  */
-async function getCustomerActiveNonTrialingSubscription(customerId) {
+async function getCustomerActiveNonTrialingSubscription(
+  customerId,
+  useTestMode = false
+) {
   try {
-    const subscriptions = await stripe.subscriptions.list({
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const subscriptions = await stripeInstance.subscriptions.list({
       customer: customerId,
       status: "all",
     });
@@ -908,10 +1015,12 @@ async function getCustomerActiveNonTrialingSubscription(customerId) {
 /**
  * Create a Stripe coupon
  * @param {Object} couponData - Coupon data
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe coupon object
  */
-async function createStripeCoupon(couponData) {
+async function createStripeCoupon(couponData, useTestMode = false) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     const {
       couponCode,
       discountType,
@@ -958,7 +1067,7 @@ async function createStripeCoupon(couponData) {
       originalCouponCode: couponCode, // Store original code for reference
     };
 
-    const stripeCoupon = await stripe.coupons.create(stripeCouponData);
+    const stripeCoupon = await stripeInstance.coupons.create(stripeCouponData);
     console.log(
       `Created Stripe coupon: ${stripeCoupon.id} for original code: ${couponCode}`
     );
@@ -973,17 +1082,22 @@ async function createStripeCoupon(couponData) {
  * Update a Stripe coupon (creates new one since Stripe coupons are immutable)
  * @param {String} oldCouponId - Old Stripe coupon ID to delete
  * @param {Object} couponData - New coupon data
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} New Stripe coupon object
  */
-async function updateStripeCoupon(oldCouponId, couponData) {
+async function updateStripeCoupon(
+  oldCouponId,
+  couponData,
+  useTestMode = false
+) {
   try {
     // Delete old coupon first
     if (oldCouponId) {
-      await deleteStripeCoupon(oldCouponId);
+      await deleteStripeCoupon(oldCouponId, useTestMode);
     }
 
     // Create new coupon with updated data
-    return await createStripeCoupon(couponData);
+    return await createStripeCoupon(couponData, useTestMode);
   } catch (error) {
     console.error("Error updating Stripe coupon:", error);
     throw error;
@@ -993,11 +1107,13 @@ async function updateStripeCoupon(oldCouponId, couponData) {
 /**
  * Delete a Stripe coupon
  * @param {String} couponId - Stripe coupon ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Deleted Stripe coupon object
  */
-async function deleteStripeCoupon(couponId) {
+async function deleteStripeCoupon(couponId, useTestMode = false) {
   try {
-    const deletedCoupon = await stripe.coupons.del(couponId);
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const deletedCoupon = await stripeInstance.coupons.del(couponId);
     console.log("Deleted Stripe coupon:", couponId);
     return deletedCoupon;
   } catch (error) {
@@ -1009,11 +1125,13 @@ async function deleteStripeCoupon(couponId) {
 /**
  * Retrieve a Stripe coupon
  * @param {String} couponId - Stripe coupon ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe coupon object
  */
-async function getStripeCoupon(couponId) {
+async function getStripeCoupon(couponId, useTestMode = false) {
   try {
-    const coupon = await stripe.coupons.retrieve(couponId);
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const coupon = await stripeInstance.coupons.retrieve(couponId);
     return coupon;
   } catch (error) {
     console.error("Error retrieving Stripe coupon:", error);
@@ -1024,11 +1142,18 @@ async function getStripeCoupon(couponId) {
 /**
  * List all Stripe coupons
  * @param {Object} options - Options for filtering (limit, starting_after, etc.)
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} List of Stripe coupons
  */
-async function listStripeCoupons(options = {}) {
+/**
+ * List all Stripe coupons
+ * @param {Object} options - Options for filtering (limit, starting_after, etc.)
+ * @returns {Object} List of Stripe coupons
+ */
+async function listStripeCoupons(options = {}, useTestMode = false) {
   try {
-    const coupons = await stripe.coupons.list(options);
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const coupons = await stripeInstance.coupons.list(options);
     return coupons;
   } catch (error) {
     console.error("Error listing Stripe coupons:", error);
@@ -1043,7 +1168,13 @@ async function listStripeCoupons(options = {}) {
  * @param {Object} options - Additional options for promotion code
  * @returns {Object} Stripe promotion code object
  */
-async function createStripePromotionCode(couponId, promoCode, options = {}) {
+async function createStripePromotionCode(
+  couponId,
+  promoCode,
+  options = {},
+  useTestMode = false
+) {
+  const stripeInstance = useTestMode ? stripeTest : stripe;
   try {
     console.log(`Creating promotion code with params:`, {
       couponId,
@@ -1064,7 +1195,9 @@ async function createStripePromotionCode(couponId, promoCode, options = {}) {
 
     console.log(`Promotion code data being sent to Stripe:`, promotionCodeData);
 
-    const promotionCode = await stripe.promotionCodes.create(promotionCodeData);
+    const promotionCode = await stripeInstance.promotionCodes.create(
+      promotionCodeData
+    );
     console.log(
       `Created Stripe promotion code: ${promotionCode.code} (ID: ${promotionCode.id}) for coupon: ${couponId}`
     );
@@ -1081,19 +1214,24 @@ async function createStripePromotionCode(couponId, promoCode, options = {}) {
  * @param {String} couponId - Stripe coupon ID
  * @param {String} promoCode - New promotion code
  * @param {Object} options - Additional options
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} New promotion code object
  */
 async function updateStripePromotionCode(
   oldPromoCodeId,
   couponId,
   promoCode,
-  options = {}
+  options = {},
+  useTestMode = false
 ) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     // Deactivate old promotion code if it exists
     if (oldPromoCodeId) {
       try {
-        await stripe.promotionCodes.update(oldPromoCodeId, { active: false });
+        await stripeInstance.promotionCodes.update(oldPromoCodeId, {
+          active: false,
+        });
         console.log("Deactivated old promotion code:", oldPromoCodeId);
       } catch (error) {
         console.error("Error deactivating old promotion code:", error);
@@ -1102,7 +1240,12 @@ async function updateStripePromotionCode(
     }
 
     // Create new promotion code
-    return await createStripePromotionCode(couponId, promoCode, options);
+    return await createStripePromotionCode(
+      couponId,
+      promoCode,
+      options,
+      useTestMode
+    );
   } catch (error) {
     console.error("Error updating Stripe promotion code:", error);
     throw error;
@@ -1112,11 +1255,13 @@ async function updateStripePromotionCode(
 /**
  * Delete/Deactivate a Stripe promotion code
  * @param {String} promoCodeId - Promotion code ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Updated promotion code object
  */
-async function deleteStripePromotionCode(promoCodeId) {
+async function deleteStripePromotionCode(promoCodeId, useTestMode = false) {
   try {
-    const deactivatedPromoCode = await stripe.promotionCodes.update(
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+    const deactivatedPromoCode = await stripeInstance.promotionCodes.update(
       promoCodeId,
       {
         active: false,
@@ -1133,9 +1278,10 @@ async function deleteStripePromotionCode(promoCodeId) {
 /**
  * Validate and get coupon from both MongoDB and Stripe
  * @param {String} couponCode - Coupon code to validate
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Validation result with coupon data
  */
-async function validateCoupon(couponCode) {
+async function validateCoupon(couponCode, useTestMode = false) {
   try {
     const Coupon = require("../models/couponModel");
 
@@ -1182,7 +1328,10 @@ async function validateCoupon(couponCode) {
     // Validate with Stripe if stripeCouponId exists
     if (mongoCoupon.stripeCouponId) {
       try {
-        const stripeCoupon = await getStripeCoupon(mongoCoupon.stripeCouponId);
+        const stripeCoupon = await getStripeCoupon(
+          mongoCoupon.stripeCouponId,
+          useTestMode
+        );
         if (!stripeCoupon || stripeCoupon.valid === false) {
           return {
             isValid: false,
@@ -1293,16 +1442,18 @@ function calculateCouponDiscount(subtotal, coupon) {
 /**
  * Check if user has made their first purchase (excluding the free trial $0 invoice)
  * @param {String} customerId - Stripe customer ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Boolean} True if user has made their first purchase
  */
-async function hasUserMadeFirstPurchase(customerId) {
+async function hasUserMadeFirstPurchase(customerId, useTestMode = false) {
   try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
     if (!customerId) {
       return false;
     }
 
     // Get all invoices for the customer
-    const invoices = await stripe.invoices.list({
+    const invoices = await stripeInstance.invoices.list({
       customer: customerId,
       limit: 100, // Should be enough for most cases
     });
@@ -1373,9 +1524,10 @@ async function hasUserMadeFirstPurchase(customerId) {
 /**
  * Transfer cache_credits to Stripe credits and reset cache to 0
  * @param {Object} user - User object with cache_credits
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Result of the transfer operation
  */
-async function transferCacheCreditsToStripe(user) {
+async function transferCacheCreditsToStripe(user, useTestMode = false) {
   try {
     if (!user.cache_credits || user.cache_credits <= 0) {
       return {
@@ -1386,7 +1538,7 @@ async function transferCacheCreditsToStripe(user) {
     }
 
     // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user);
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
     // Convert cache_credits (assumed to be in dollars) to cents
     const creditsInCents = Math.round(user.cache_credits * 100);
@@ -1395,7 +1547,8 @@ async function transferCacheCreditsToStripe(user) {
     await addStripeCredits(
       customer.id,
       creditsInCents,
-      "Referral bonus credits applied after first purchase"
+      "Referral bonus credits applied after first purchase",
+      useTestMode
     );
 
     // Reset cache_credits to 0 in database
