@@ -19,12 +19,14 @@ const {
   getFormattedBillingHistory,
   hasUserMadeFirstPurchase,
 } = require("../../utils/stripeUtils");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const { stripe, stripeTest } = require("../../config/stripe");
 
 // GET all users
 const getAllUsers = async (req, res) => {
   try {
     console.log("Fetching all users");
+
+    const useTestMode = req.stripe_test_mode || false;
 
     // Extract pagination parameters
     const page = parseInt(req.query.page) || 1;
@@ -62,19 +64,26 @@ const getAllUsers = async (req, res) => {
         const userObj = user.toObject();
 
         // Get current plan from Stripe subscription
-        const currentPlan = await getUserCurrentPlan(user);
+        const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
         // Fetch Stripe subscription data if user has a subscription
-        const stripeData = await getUserStripeSubscriptionData(user);
+        const stripeData = await getUserStripeSubscriptionData(
+          user,
+          useTestMode
+        );
 
         // Get credit balance based on first purchase status
         let creditBalance = 0;
         if (user.stripeCustomerId) {
           const hasFirstPurchase = await hasUserMadeFirstPurchase(
-            user.stripeCustomerId
+            user.stripeCustomerId,
+            useTestMode
           );
           if (hasFirstPurchase) {
-            creditBalance = await getStripeCreditBalance(user.stripeCustomerId);
+            creditBalance = await getStripeCreditBalance(
+              user.stripeCustomerId,
+              useTestMode
+            );
           } else {
             // Convert cache_credits from dollars to cents
             creditBalance = Math.round((user.cache_credits || 0) * 100);
@@ -155,6 +164,7 @@ const getUser = async (req, res) => {
     console.log("Fetching user with ID:", req.params.id);
 
     const { id } = req.params;
+    const useTestMode = req.stripe_test_mode || false;
 
     const user = await User.findOne({ _id: id, role: "user" }).select(
       "firstname lastname email role gender signupMethod isVerified referralCode profileImageURL designation createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram stripeCustomerId cache_credits"
@@ -173,26 +183,29 @@ const getUser = async (req, res) => {
     delete userData._id;
 
     // Get current plan from Stripe subscription
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     // Fetch Stripe subscription data if user has a subscription
-    const stripeData = await getUserStripeSubscriptionData(user);
+    const stripeData = await getUserStripeSubscriptionData(user, useTestMode);
 
     // Get credit balance based on first purchase status
     let creditBalance = 0;
     if (user.stripeCustomerId) {
       const hasFirstPurchase = await hasUserMadeFirstPurchase(
-        user.stripeCustomerId
+        user.stripeCustomerId,
+        useTestMode
       );
       if (hasFirstPurchase) {
-        creditBalance = Math.abs(await getStripeCreditBalance(user.stripeCustomerId));
+        creditBalance = Math.abs(
+          await getStripeCreditBalance(user.stripeCustomerId, useTestMode)
+        );
       } else {
         // Convert cache_credits from dollars to cents
-        creditBalance = Math.round((user.cache_credits || 0));
+        creditBalance = Math.round(user.cache_credits || 0);
       }
     } else {
       // No Stripe customer, get from cache_credits (convert to cents)
-      creditBalance = Math.round((user.cache_credits || 0));
+      creditBalance = Math.round(user.cache_credits || 0);
     }
 
     // Create plan object with current plan and subscription info
@@ -267,6 +280,8 @@ const editProfile = async (req, res) => {
     const { id } = req.params;
     console.log("Edit profile for user ID:", id);
 
+    const useTestMode = req.stripe_test_mode || false;
+
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
       return res
@@ -323,7 +338,9 @@ const editProfile = async (req, res) => {
           // Remove plan - cancel ALL Stripe subscriptions
           if (user.stripeCustomerId) {
             const cancellationResults = await cancelAllCustomerSubscriptions(
-              user.stripeCustomerId
+              user.stripeCustomerId,
+              null,
+              useTestMode
             );
             console.log(
               `Cancelled ${cancellationResults.length} subscriptions for user ${user._id} (plan removal)`
@@ -357,7 +374,9 @@ const editProfile = async (req, res) => {
             // Cancel ALL existing subscriptions for starter plan
             if (user.stripeCustomerId) {
               const cancellationResults = await cancelAllCustomerSubscriptions(
-                user.stripeCustomerId
+                user.stripeCustomerId,
+                null,
+                useTestMode
               );
               console.log(
                 `Cancelled ${cancellationResults.length} subscriptions for user ${user._id} (starter plan)`
@@ -367,7 +386,10 @@ const editProfile = async (req, res) => {
             // No need to set plan in DB - it will be derived from subscription
           } else {
             // For premium plans, create/update Stripe subscription
-            const stripeCustomer = await getOrCreateStripeCustomer(user);
+            const stripeCustomer = await getOrCreateStripeCustomer(
+              user,
+              useTestMode
+            );
 
             if (!selectedPlan.stripePriceId) {
               return res.status(400).json({
@@ -380,7 +402,8 @@ const editProfile = async (req, res) => {
             // This will automatically check for payment methods and handle errors
             const newSubscription = await updateSubscriptionForAdmin(
               stripeCustomer.id,
-              selectedPlan.stripePriceId
+              selectedPlan.stripePriceId,
+              useTestMode
             );
 
             console.log(
@@ -392,7 +415,8 @@ const editProfile = async (req, res) => {
         }
 
         console.log(
-          `Admin updated plan for user ${user._id} to ${selectedPlan?.name || "Starter"
+          `Admin updated plan for user ${user._id} to ${
+            selectedPlan?.name || "Starter"
           } via Stripe`
         );
       } catch (stripeError) {
@@ -550,16 +574,20 @@ const editProfile = async (req, res) => {
     await user.save();
 
     // Get current plan from Stripe subscription for response
-    const currentPlan = await getUserCurrentPlan(user);
+    const currentPlan = await getUserCurrentPlan(user, useTestMode);
 
     // Get credit balance based on first purchase status
     let creditBalance = 0;
     if (user.stripeCustomerId) {
       const hasFirstPurchase = await hasUserMadeFirstPurchase(
-        user.stripeCustomerId
+        user.stripeCustomerId,
+        useTestMode
       );
       if (hasFirstPurchase) {
-        creditBalance = await getStripeCreditBalance(user.stripeCustomerId);
+        creditBalance = await getStripeCreditBalance(
+          user.stripeCustomerId,
+          useTestMode
+        );
       } else {
         // Get updated user data to get latest cache_credits
         const updatedUser = await User.findById(user._id).select(
@@ -575,7 +603,7 @@ const editProfile = async (req, res) => {
     }
 
     // Fetch Stripe subscription data dynamically
-    const stripeData = await getUserStripeSubscriptionData(user);
+    const stripeData = await getUserStripeSubscriptionData(user, useTestMode);
 
     return res.status(200).json({
       status: "success",
@@ -649,6 +677,8 @@ const getUserPaymentMethods = async (req, res) => {
     const { id } = req.params;
     console.log("Checking payment methods for user ID:", id);
 
+    const useTestMode = req.stripe_test_mode || false;
+
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
       return res
@@ -669,7 +699,8 @@ const getUserPaymentMethods = async (req, res) => {
     if (user.stripeCustomerId) {
       try {
         hasPaymentMethod = await customerHasPaymentMethod(
-          user.stripeCustomerId
+          user.stripeCustomerId,
+          useTestMode
         );
       } catch (error) {
         console.error("Error checking payment methods:", error);
@@ -697,6 +728,8 @@ const getUserBillingHistory = async (req, res) => {
     const { id } = req.params;
     const { limit = 50, startingAfter } = req.query;
     console.log("Getting billing history for user ID:", id);
+
+    const useTestMode = req.stripe_test_mode || false;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
@@ -732,7 +765,8 @@ const getUserBillingHistory = async (req, res) => {
 
     // Get formatted billing history
     const billingHistory = await getFormattedBillingHistory(
-      user.stripeCustomerId
+      user.stripeCustomerId,
+      useTestMode
     );
 
     // Calculate summary statistics
@@ -801,6 +835,9 @@ const getUserPaymentMethodsDetailed = async (req, res) => {
     const { id } = req.params;
     console.log("Getting detailed payment methods for user ID:", id);
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
       return res
@@ -827,13 +864,15 @@ const getUserPaymentMethodsDetailed = async (req, res) => {
     }
 
     // Get payment methods from Stripe
-    const paymentMethods = await stripe.paymentMethods.list({
+    const paymentMethods = await stripeInstance.paymentMethods.list({
       customer: user.stripeCustomerId,
       type: "card",
     });
 
     // Get customer to check default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const customer = await stripeInstance.customers.retrieve(
+      user.stripeCustomerId
+    );
 
     const formattedPaymentMethods = paymentMethods.data.map((pm) => ({
       id: pm.id,
@@ -873,6 +912,9 @@ const deleteUserPaymentMethod = async (req, res) => {
       id
     );
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
       return res
@@ -896,7 +938,9 @@ const deleteUserPaymentMethod = async (req, res) => {
     }
 
     // Verify that the payment method belongs to this customer
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    const paymentMethod = await stripeInstance.paymentMethods.retrieve(
+      paymentMethodId
+    );
     if (paymentMethod.customer !== user.stripeCustomerId) {
       return res.status(403).json({
         status: "error",
@@ -905,13 +949,15 @@ const deleteUserPaymentMethod = async (req, res) => {
     }
 
     // Check if this is the default payment method
-    const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+    const customer = await stripeInstance.customers.retrieve(
+      user.stripeCustomerId
+    );
     const isDefaultPaymentMethod =
       customer.invoice_settings?.default_payment_method === paymentMethodId;
 
     if (isDefaultPaymentMethod) {
       // Get all payment methods to check if there are others
-      const paymentMethods = await stripe.paymentMethods.list({
+      const paymentMethods = await stripeInstance.paymentMethods.list({
         customer: user.stripeCustomerId,
         type: "card",
       });
@@ -923,7 +969,7 @@ const deleteUserPaymentMethod = async (req, res) => {
         );
 
         if (otherPaymentMethod) {
-          await stripe.customers.update(user.stripeCustomerId, {
+          await stripeInstance.customers.update(user.stripeCustomerId, {
             invoice_settings: {
               default_payment_method: otherPaymentMethod.id,
             },
@@ -931,7 +977,7 @@ const deleteUserPaymentMethod = async (req, res) => {
         }
       } else {
         // Clear default payment method if this is the last one
-        await stripe.customers.update(user.stripeCustomerId, {
+        await stripeInstance.customers.update(user.stripeCustomerId, {
           invoice_settings: {
             default_payment_method: null,
           },
@@ -940,7 +986,7 @@ const deleteUserPaymentMethod = async (req, res) => {
     }
 
     // Detach the payment method
-    await stripe.paymentMethods.detach(paymentMethodId);
+    await stripeInstance.paymentMethods.detach(paymentMethodId);
 
     res.status(200).json({
       status: "success",

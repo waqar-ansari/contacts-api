@@ -66,6 +66,9 @@ const createPlan = async (req, res) => {
       isActive,
     } = req.body;
 
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     // Validate required fields
     if (!name || typeof name !== "string") {
       return res.status(400).json({
@@ -106,7 +109,7 @@ const createPlan = async (req, res) => {
     if (name.toLowerCase() !== "starter" && price > 0) {
       try {
         // Create Stripe product
-        const stripeProduct = await stripe.products.create({
+        const stripeProduct = await stripeInstance.products.create({
           name: name,
           description: description || `${name} subscription plan`,
           metadata: {
@@ -117,7 +120,7 @@ const createPlan = async (req, res) => {
         stripeProductId = stripeProduct.id;
 
         // Create Stripe price
-        const stripePrice = await stripe.prices.create({
+        const stripePrice = await stripeInstance.prices.create({
           currency: "usd",
           product: stripeProductId,
           unit_amount: price, // Price should be in cents
@@ -173,6 +176,9 @@ const createPlan = async (req, res) => {
 // @access  Private/Admin
 const updatePlan = async (req, res) => {
   try {
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res
         .status(400)
@@ -251,7 +257,7 @@ const updatePlan = async (req, res) => {
       if (planName.toLowerCase() !== "starter" && newPrice > 0) {
         try {
           // Create new Stripe price (can't modify existing prices in Stripe)
-          const stripePrice = await stripe.prices.create({
+          const stripePrice = await stripeInstance.prices.create({
             currency: "usd",
             product: plan.stripeProductId,
             unit_amount: newPrice,
@@ -267,7 +273,7 @@ const updatePlan = async (req, res) => {
 
           // Archive old price
           if (plan.stripePriceId) {
-            await stripe.prices.update(plan.stripePriceId, {
+            await stripeInstance.prices.update(plan.stripePriceId, {
               active: false,
             });
           }
@@ -289,7 +295,7 @@ const updatePlan = async (req, res) => {
     // Update Stripe product name if name changed
     if (req.body.name && req.body.name !== plan.name && plan.stripeProductId) {
       try {
-        await stripe.products.update(plan.stripeProductId, {
+        await stripeInstance.products.update(plan.stripeProductId, {
           name: req.body.name,
           description:
             req.body.description || `${req.body.name} subscription plan`,
@@ -327,6 +333,9 @@ const updatePlan = async (req, res) => {
 // @access  Private/Admin
 const deletePlan = async (req, res) => {
   try {
+    const useTestMode = req.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res
         .status(400)
@@ -364,7 +373,7 @@ const deletePlan = async (req, res) => {
       try {
         // Archive the price first
         if (plan.stripePriceId) {
-          await stripe.prices.update(plan.stripePriceId, {
+          await stripeInstance.prices.update(plan.stripePriceId, {
             active: false,
           });
           console.log(`Archived Stripe price: ${plan.stripePriceId}`);
@@ -372,7 +381,7 @@ const deletePlan = async (req, res) => {
 
         // Archive the product
         if (plan.stripeProductId) {
-          await stripe.products.update(plan.stripeProductId, {
+          await stripeInstance.products.update(plan.stripeProductId, {
             active: false,
             metadata: {
               archivedBy: "admin-panel",

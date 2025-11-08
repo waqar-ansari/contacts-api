@@ -1,4 +1,4 @@
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const { stripe, stripeTest } = require("../config/stripe");
 const Plan = require("../models/planModel");
 const User = require("../models/userModel");
 const {
@@ -19,14 +19,16 @@ const processedSessions = new Set();
  * @param {Object} options - Optional parameters
  * @param {boolean} options.fromWebhook - Whether this is called from webhook
  * @param {string} options.userId - User ID (required for API calls, optional for webhooks)
+ * @param {boolean} options.useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Result object with success status and data
  */
 const processSubscriptionCompletion = async (sessionId, options = {}) => {
-  const { fromWebhook = false, userId } = options;
+  const { fromWebhook = false, userId, useTestMode = false } = options;
+  const stripeInstance = useTestMode ? stripeTest : stripe;
 
   try {
     console.log(
-      `🔄 Processing subscription completion for session ${sessionId} (fromWebhook: ${fromWebhook})`
+      `🔄 Processing subscription completion for session ${sessionId} (fromWebhook: ${fromWebhook}, testMode: ${useTestMode})`
     );
 
     // Check if this session has already been processed
@@ -41,7 +43,7 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
     }
 
     // Retrieve the checkout session
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    const session = await stripeInstance.checkout.sessions.retrieve(sessionId, {
       expand: ["subscription", "subscription.items.data.price"],
     });
 
@@ -87,7 +89,7 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
       `📝 Processing subscription for user ${sessionUserId} with plan ${plan.name}`
     );
 
-    const activeSubInfo = await checkSubscriptionDetails(user);
+    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
 
     // Delete any trialing subscription before the new one becomes active
     if (activeSubInfo.hasTrialingSubscription) {
@@ -95,7 +97,10 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
         `🗑️ Deleting trialing subscription ${activeSubInfo.trialingSubscriptionId}`
       );
       try {
-        await deleteTrialingSubscription(activeSubInfo.trialingSubscriptionId);
+        await deleteTrialingSubscription(
+          activeSubInfo.trialingSubscriptionId,
+          useTestMode
+        );
         console.log("✅ Successfully deleted trialing subscription");
       } catch (deleteError) {
         console.error("❌ Error deleting trialing subscription:", deleteError);
@@ -112,7 +117,10 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
         console.log(
           `💰 Transferring ${user.cache_credits} cache credits to Stripe`
         );
-        const transferResult = await transferCacheCreditsToStripe(user);
+        const transferResult = await transferCacheCreditsToStripe(
+          user,
+          useTestMode
+        );
 
         if (transferResult.success) {
           console.log(
