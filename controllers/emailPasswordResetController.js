@@ -27,7 +27,15 @@ exports.forgotPassword = async (req, res) => {
     });
 
     if (!user) return res.status(404).json({ message: 'Email not found' });
-
+    // 🚫 Check signup method
+    if (user.signupMethod && user.signupMethod !== 'email') {
+      // Tell the client which method to use (be careful not to leak sensitive details)
+      const method = user.signupMethod;
+      return res.status(400).json({
+        status: "error",
+        message: `This account was created using ${method}. Please reset your password using the ${method === 'phoneNumber' ? 'phone/OTP' : method + ' login'} method.`
+      });
+    }
     // Generate token (unchanged)
     const token = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = token;

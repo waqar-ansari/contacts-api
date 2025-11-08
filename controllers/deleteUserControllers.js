@@ -42,6 +42,7 @@ const Contact = require("../models/contactModel");
 const BlacklistedToken = require("../models/blacklistedTokenModel");
 const s3 = require("../utils/s3");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const HelpSupport = require("../models/helpSupportModel");
 
 const deleteImageFromS3 = async (imageUrl) => {
   try {
@@ -86,10 +87,37 @@ exports.deleteUser = async (req, res) => {
     }
 
     // 3️⃣ Delete associated data (add all collections linked by userId)
-    await Promise.all([
-      Contact.deleteMany({ owner: userId }),
-      // Add other deletions if you have e.g., QRScan, BusinessCard, etc.
-    ]);
+    // await Promise.all([
+    //   Contact.deleteMany({ owner: userId }),
+    //   // Add other deletions if you have e.g., QRScan, BusinessCard, etc.
+    // ]);
+
+    // 3️⃣ Delete user's contacts & their images
+    const userContacts = await Contact.find({ createdBy: userId });
+
+    if (userContacts.length > 0) {
+      for (const contact of userContacts) {
+        if (contact.contactImageURL) {
+          await deleteImageFromS3(contact.contactImageURL);
+        }
+      }
+
+      await Contact.deleteMany({ createdBy: userId });
+    }
+
+    // 4️⃣ Delete user's Help & Support tickets (and attached files)
+    const helpSupports = await HelpSupport.find({ userId });
+
+    if (helpSupports.length > 0) {
+      for (const ticket of helpSupports) {
+        if (ticket.fileUrl) {
+          await deleteImageFromS3(ticket.fileUrl);
+        }
+      }
+
+      await HelpSupport.deleteMany({ userId });
+    }
+
 
     // 4️⃣ Delete the user document itself
     await User.findByIdAndDelete(userId);
