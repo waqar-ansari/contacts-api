@@ -122,9 +122,10 @@ async function setupInitialPlan(user, useTestMode = false) {
       // Get or create Stripe customer
       const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
-      // Create 14-day Pro trial subscription
+      // Create 14-day Pro trial subscription that cancels at end of trial
       const subscriptionOptions = {
         trial_period_days: 14,
+        cancel_at_period_end: true, // Cancel at end of trial (no recurring payment)
         metadata: {
           userId: user._id.toString(),
           planId: proPlan._id.toString(),
@@ -142,7 +143,7 @@ async function setupInitialPlan(user, useTestMode = false) {
       );
 
       console.log(
-        `Created 14-day Pro trial for user ${user._id}: ${subscription.id}`
+        `Created 14-day Pro trial for user ${user._id}: ${subscription.id} (will cancel at trial end)`
       );
 
       return {

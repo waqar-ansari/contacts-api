@@ -7,7 +7,6 @@ const User = require("../../models/userModel");
 // @route   GET /api/admin/plans
 // @access  Private/Admin
 const getAllPlans = async (req, res) => {
-  console.log("Admin user:", req?.user);
   const stripe_test_mode =
     (await User.findById(req?.user?._id))?.stripe_test_mode || false;
   try {
@@ -55,6 +54,7 @@ const getPlanById = async (req, res) => {
 // @route   POST /api/admin/plans
 // @access  Private/Admin
 const createPlan = async (req, res) => {
+  const useTestMode = false;
   try {
     const {
       name,
@@ -66,7 +66,6 @@ const createPlan = async (req, res) => {
       isActive,
     } = req.body;
 
-    const useTestMode = req.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate required fields
@@ -94,7 +93,10 @@ const createPlan = async (req, res) => {
     }
 
     // Check if plan already exists
-    const planExists = await Plan.findOne({ name });
+    const planExists = await Plan.findOne({
+      name,
+      stripe_test_mode: useTestMode,
+    });
     if (planExists) {
       return res.status(400).json({
         success: false,
@@ -114,7 +116,7 @@ const createPlan = async (req, res) => {
           description: description || `${name} subscription plan`,
           metadata: {
             planName: name,
-            createdBy: "admin-panel",
+            createdBy: "contacts-api",
           },
         });
         stripeProductId = stripeProduct.id;
@@ -157,6 +159,7 @@ const createPlan = async (req, res) => {
       isActive: isActive || true,
       stripeProductId,
       stripePriceId,
+      stripe_test_mode: useTestMode,
     });
 
     res.status(201).json({
@@ -175,8 +178,8 @@ const createPlan = async (req, res) => {
 // @route   PUT /api/admin/plans/:id
 // @access  Private/Admin
 const updatePlan = async (req, res) => {
+  const useTestMode = req.stripe_test_mode || false;
   try {
-    const useTestMode = req.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -232,7 +235,10 @@ const updatePlan = async (req, res) => {
 
     // Check if name is being changed and if it conflicts with another plan
     if (req.body.name && req.body.name !== plan.name) {
-      const planExists = await Plan.findOne({ name: req.body.name });
+      const planExists = await Plan.findOne({
+        name: req.body.name,
+        stripe_test_mode: useTestMode,
+      });
       if (planExists) {
         return res.status(400).json({
           success: false,

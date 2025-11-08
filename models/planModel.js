@@ -6,7 +6,6 @@ const planSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
     },
     price: {
       ////in cents/fils
@@ -32,6 +31,10 @@ const planSchema = new mongoose.Schema(
       type: String,
       sparse: true,
     },
+    stripe_test_mode: {
+      type: Boolean,
+      default: false,
+    },
 
     features: [
       {
@@ -53,5 +56,8 @@ const planSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Compound index to allow same plan name in test and live modes
+planSchema.index({ name: 1, stripe_test_mode: 1 }, { unique: true });
 
 module.exports = mongoose.model("Plan", planSchema);
