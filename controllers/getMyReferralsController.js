@@ -1,5 +1,7 @@
 const User = require("../models/userModel");
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+const { getStripeCreditBalance } = require("../utils/stripeUtils");
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 const getMyReferrals = async (req, res) => {
   try {
@@ -239,6 +241,7 @@ const getMyReferrals = async (req, res) => {
 };
 
 const getReferralData = async (req, res) => {
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     const currentUserId = req.user._id;
     const user = await User.findById(currentUserId).lean();
@@ -292,6 +295,12 @@ const getReferralData = async (req, res) => {
     const totalReferralCount = referrals.length;
     const creditBalance = verifiedReferralCount * referralBonus;
 
+    const availableBalance = Math.abs(
+      Math.round(
+        await getStripeCreditBalance(user.stripeCustomerId, useTestMode)/100
+      )
+    ); // Placeholder for future use
+
     return res.status(200).json({
       status: "success",
       message: "Referral data retrieved",
@@ -302,6 +311,7 @@ const getReferralData = async (req, res) => {
         verifiedReferralCount,
         referralUrl,
         totalEarned: creditBalance, // Alias for frontend compatibility
+        availableBalance,
       },
     });
   } catch (err) {

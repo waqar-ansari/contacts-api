@@ -429,6 +429,8 @@ const getUserData = async (req, res) => {
       serialNumber: user.serialNumber,
       email: user.email,
       profileImageURL: user.profileImageURL,
+      stripe_test_mode: useTestMode,
+
       // qrCode: user.qrCode,
       instagram: user.instagram,
       linkedin: user.linkedin,
