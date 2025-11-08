@@ -162,7 +162,6 @@ const signupWithEmail = async (req, res) => {
       lastname = "",
       verifyToken = "",
     } = req.body;
-    const useTestMode = req.stripe_test_mode || false;
 
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
     // const tenantId = req.query.tenantId || req.body.tenantId || "";
@@ -188,7 +187,7 @@ const signupWithEmail = async (req, res) => {
       // Setup initial plan after email verification (skip for superadmin)
       let planData = null;
       if (user.role !== "superadmin") {
-        planData = await setupInitialPlan(user, useTestMode);
+        planData = await setupInitialPlan(user, user.stripe_test_mode || false);
         console.log(
           "set up initial plan for user during sign up after verification:",
           planData
@@ -213,21 +212,24 @@ const signupWithEmail = async (req, res) => {
               let hasFirstPurchase = false;
               if (referringUser.stripeCustomerId) {
                 hasFirstPurchase = await hasUserMadeFirstPurchase(
-                  referringUser.stripeCustomerId
+                  referringUser.stripeCustomerId,
+                  referringUser.stripe_test_mode || false
                 );
               }
 
               if (hasFirstPurchase) {
                 // Add directly to Stripe customer account
                 const referrerCustomer = await getOrCreateStripeCustomer(
-                  referringUser
+                  referringUser,
+                  referringUser.stripe_test_mode || false
                 );
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
                   `Referral bonus - ${
                     user.firstname || "User"
-                  } verified their email`
+                  } verified their email`,
+                  referringUser.stripe_test_mode || false
                 );
                 console.log(
                   `Added $10 referral credit directly to Stripe for referring user ${user.referredBy}`
@@ -370,7 +372,7 @@ const signupWithEmail = async (req, res) => {
       await user.save();
 
       const token = createTokenforUser(user);
-
+      console.log("returned token", { token });
       return res.status(200).json({
         status: "success",
         message: "Email Verified. Login To Continue.",
@@ -571,7 +573,6 @@ const signupWithEmail = async (req, res) => {
 };
 
 const signupWithPhoneNumber = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
   try {
     const {
       countryCode,
@@ -918,7 +919,7 @@ const signupWithPhoneNumber = async (req, res) => {
     // Setup initial plan using utility (skip for superadmin)
     let planData = null;
     if (user.role !== "superadmin") {
-      planData = await setupInitialPlan(user, useTestMode);
+      planData = await setupInitialPlan(user, user.stripe_test_mode || false);
 
       // Handle referral credits if user was referred
       if (user.referredBy) {
@@ -940,7 +941,8 @@ const signupWithPhoneNumber = async (req, res) => {
             let hasFirstPurchase = false;
             if (referringUser.stripeCustomerId) {
               hasFirstPurchase = await hasUserMadeFirstPurchase(
-                referringUser.stripeCustomerId
+                referringUser.stripeCustomerId,
+                referringUser.stripe_test_mode || false
               );
             }
 
@@ -948,14 +950,15 @@ const signupWithPhoneNumber = async (req, res) => {
               // Add directly to Stripe customer account
               const referrerCustomer = await getOrCreateStripeCustomer(
                 referringUser,
-                useTestMode
+                referringUser.stripe_test_mode || false
               );
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
                 `Referral bonus - ${
                   user.firstname || "User"
-                } verified phone number`
+                } verified phone number`,
+                referringUser.stripe_test_mode || false
               );
               console.log(
                 `Added $10 referral credit directly to Stripe for referring user ${user.referredBy}`
@@ -1053,7 +1056,6 @@ const resendVerificationLink = async (req, res) => {
 };
 
 const unifiedLogin = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
   try {
     const {
       email = "",
@@ -1181,7 +1183,7 @@ const unifiedLogin = async (req, res) => {
           countryCode: normCountry,
           password,
         });
-        await getOrCreateStripeCustomer(user, useTestMode);
+        await getOrCreateStripeCustomer(user, user.stripe_test_mode || false);
         console.log("set up initial plan for user during login:");
 
         const now = new Date();
@@ -1311,12 +1313,13 @@ const unifiedLogin = async (req, res) => {
               try {
                 const referrerCustomer = await getOrCreateStripeCustomer(
                   referrer,
-                  useTestMode
+                  referrer.stripe_test_mode || false
                 );
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000,
-                  "Referral bonus - phone verification"
+                  "Referral bonus - phone verification",
+                  referrer.stripe_test_mode || false
                 ); // $10 in cents
               } catch (error) {
                 console.error(
@@ -1331,12 +1334,13 @@ const unifiedLogin = async (req, res) => {
             try {
               const userCustomer = await getOrCreateStripeCustomer(
                 user,
-                useTestMode
+                user.stripe_test_mode || false
               );
               await addStripeCredits(
                 userCustomer.id,
                 1000,
-                "Welcome bonus - phone verification"
+                "Welcome bonus - phone verification",
+                user.stripe_test_mode || false
               ); // $10 in cents
             } catch (error) {
               console.error("Error adding Stripe credits to user:", error);
@@ -1490,7 +1494,7 @@ const startGoogleLogin = (req, res) => {
 
 const googleCallback = async (req, res) => {
   // const { code } = req.query;
-  const useTestMode = req.stripe_test_mode || false;
+
   const { code, state } = req.query;
   let referralCode = "";
   // let tenantId = "";
@@ -1684,7 +1688,10 @@ const googleCallback = async (req, res) => {
 
       let planData = null;
       if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(tempUser, useTestMode);
+        planData = await setupInitialPlan(
+          tempUser,
+          tempUser.stripe_test_mode || false
+        );
       }
 
       const referralCodeRaw = email + Date.now();
@@ -1906,7 +1913,6 @@ const startLinkedInLogin = (req, res) => {
 const linkedinCallback = async (req, res) => {
   // const { code } = req.query;
   const { code, state } = req.query;
-  const useTestMode = req.stripe_test_mode || false;
 
   let referralCode = "";
   try {
@@ -2107,7 +2113,10 @@ const linkedinCallback = async (req, res) => {
 
       let planData = null;
       if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(tempUser, useTestMode);
+        planData = await setupInitialPlan(
+          tempUser,
+          tempUser.stripe_test_mode || false
+        );
       }
 
       const referralCodeRaw = email + Date.now();

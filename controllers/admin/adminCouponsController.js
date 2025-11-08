@@ -13,7 +13,7 @@ const {
 // @route   GET /api/admin/coupons
 // @access  Private/SuperAdmin
 const getAllCoupons = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
 
   try {
     const {
@@ -121,7 +121,7 @@ const getCouponById = async (req, res) => {
 // @route   POST /api/admin/coupons
 // @access  Private/SuperAdmin
 const createCoupon = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     const {
       name,
@@ -315,7 +315,7 @@ const createCoupon = async (req, res) => {
 // @route   PUT /api/admin/coupons/:id
 // @access  Private/SuperAdmin
 const updateCoupon = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -533,7 +533,7 @@ const updateCoupon = async (req, res) => {
 // @route   DELETE /api/admin/coupons/:id
 // @access  Private/SuperAdmin
 const deleteCoupon = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -553,7 +553,10 @@ const deleteCoupon = async (req, res) => {
     // Delete Stripe promotion code if it exists
     if (coupon.stripePromotionCodeId) {
       try {
-        await deleteStripePromotionCode(coupon.stripePromotionCodeId, useTestMode);
+        await deleteStripePromotionCode(
+          coupon.stripePromotionCodeId,
+          useTestMode
+        );
         console.log(
           `Deleted Stripe promotion code: ${coupon.stripePromotionCodeId}`
         );
@@ -599,7 +602,7 @@ const deleteCoupon = async (req, res) => {
 // @route   PATCH /api/admin/coupons/:id/status
 // @access  Private/SuperAdmin
 const toggleCouponStatus = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -624,15 +627,18 @@ const toggleCouponStatus = async (req, res) => {
       if (coupon.isActive && !wasActive) {
         // Activating coupon - create Stripe coupon if it doesn't exist
         if (!coupon.stripeCouponId) {
-          const stripeCoupon = await createStripeCoupon({
-            couponCode: coupon.couponCode,
-            discountType: coupon.discountType,
-            discountValue: coupon.discountValue,
-            expiryDate: coupon.expiryDate,
-            maxUsage: coupon.maxUsage,
-            name: coupon.name,
-            mongoId: coupon._id.toString(),
-          },useTestMode);
+          const stripeCoupon = await createStripeCoupon(
+            {
+              couponCode: coupon.couponCode,
+              discountType: coupon.discountType,
+              discountValue: coupon.discountValue,
+              expiryDate: coupon.expiryDate,
+              maxUsage: coupon.maxUsage,
+              name: coupon.name,
+              mongoId: coupon._id.toString(),
+            },
+            useTestMode
+          );
           coupon.stripeCouponId = stripeCoupon.id;
           console.log(
             `Created Stripe coupon on activation: ${stripeCoupon.id}`
@@ -663,7 +669,10 @@ const toggleCouponStatus = async (req, res) => {
       } else if (!coupon.isActive && wasActive) {
         // Deactivating coupon - delete Stripe promotion code and coupon
         if (coupon.stripePromotionCodeId) {
-          await deleteStripePromotionCode(coupon.stripePromotionCodeId, useTestMode);
+          await deleteStripePromotionCode(
+            coupon.stripePromotionCodeId,
+            useTestMode
+          );
           console.log(
             `Deleted Stripe promotion code on deactivation: ${coupon.stripePromotionCodeId}`
           );

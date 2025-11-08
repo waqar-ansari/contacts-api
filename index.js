@@ -161,7 +161,11 @@ app.use(
   contactRoutes
 );
 app.use("/getContactCount", checkForAuthentication(), getContactCountRoutes);
-app.use("/businessCardCount", checkForAuthentication(), incrementBusinessCardScan);
+app.use(
+  "/businessCardCount",
+  checkForAuthentication(),
+  incrementBusinessCardScan
+);
 app.use("/assign-unassign-tag", checkForAuthentication(), assignedContactTag);
 app.use("/disconnect", checkForAuthentication(), disconnectAccountRoutes);
 app.use("/sign", checkForAuthentication(), signRoutes);
@@ -310,15 +314,19 @@ app.use(
   alertMessageEmailSubcriptionEndController
 );
 
-app.use("/admin/notification",
+app.use(
+  "/admin/notification",
   checkForAuthentication(),
   checkRole(["superadmin"]),
-  sendNotificationToAllUsers);
+  sendNotificationToAllUsers
+);
 
-app.use("/admin/email",
+app.use(
+  "/admin/email",
   checkForAuthentication(),
   checkRole(["superadmin"]),
-  sendEmailToAllUsers);
+  sendEmailToAllUsers
+);
 
 app.use("/admin/user-weekly-report", weeklyReportRoutes);
 
@@ -327,7 +335,8 @@ app.use("/admin/user-weekly-report", weeklyReportRoutes);
 //   checkRole(["superadmin"]),
 //   weeklyReportRoutes);
 
-app.use("/test", testRoutes);
+///havent updates these test routes with the new useTestMode flag
+// app.use("/test", testRoutes);
 // app.use(
 //   "/admin",
 //   checkForAuthentication(),
@@ -368,7 +377,7 @@ const connectToDatabase = async () => {
     // Optimized settings for AWS Lambda
     const connection = await mongoose.connect(process.env.MONGO_URL, {
       maxPoolSize: 10, // Lower pool size for Lambda (not 200!)
-      minPoolSize: 1,  // Keep it minimal
+      minPoolSize: 1, // Keep it minimal
       serverSelectionTimeoutMS: 10000, // Increase timeout
       socketTimeoutMS: 45000, // Socket timeout
       connectTimeoutMS: 10000, // Connection timeout
@@ -394,7 +403,7 @@ const connectToDatabase = async () => {
 if (process.env.NODE_ENV === "serverless") {
   app.use((req, res, next) => {
     // This is crucial for Lambda
-    if (typeof context !== 'undefined') {
+    if (typeof context !== "undefined") {
       context.callbackWaitsForEmptyEventLoop = false;
     }
     next();
@@ -435,7 +444,7 @@ module.exports.handler = serverless(async (event, context) => {
     console.error("Lambda handler error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Internal server error" })
+      body: JSON.stringify({ error: "Internal server error" }),
     };
   }
 });

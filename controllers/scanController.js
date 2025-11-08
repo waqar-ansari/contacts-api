@@ -5,8 +5,14 @@ const { mongoose } = require("mongoose");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const { getUserCurrentPlan } = require("../utils/stripeUtils");
 // add near top with other imports:
-const { sendOwnerNotification, sendProfileAndVcard } = require("../utils/emailUtils");
-const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
+const {
+  sendOwnerNotification,
+  sendProfileAndVcard,
+} = require("../utils/emailUtils");
+const {
+  ensureScanQuotaForOwner,
+  incrementOwnerCategoryCounter,
+} = require("../utils/contactCount");
 // ---------- Add near top with other imports ----------
 /**
  * Check plan quota for ownerId and category, throw Error if quota exceeded.
@@ -90,7 +96,6 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //     }
 //   }
 
-
 //   // Enforce per-category limit (only if the category has a finite limit on Starter)
 //   // if (!isPro) {
 //   //   const catLimit = perCategoryLimitsForStarter[category] ?? Infinity;
@@ -111,7 +116,6 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //     // remainingCategory: isPro ? Infinity : (perCategoryLimitsForStarter[category] === Infinity ? Infinity : perCategoryLimitsForStarter[category] - categoryCount),
 //   };
 // }
-
 
 /**
  * Increment owner's contact count counter field after new contact persisted.
@@ -137,12 +141,8 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //   );
 // }
 
-
-
-
 exports.scanUser = async (req, res) => {
-
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   // CHANGED: accept countryCode from body for unregistered scanner path
   const {
     UserID,
@@ -154,7 +154,6 @@ exports.scanUser = async (req, res) => {
     countryCode,
     apiType = "web",
   } = req.body;
-
 
   try {
     // Get the user who is being scanned
@@ -289,7 +288,7 @@ exports.scanUser = async (req, res) => {
         const pushResult = await User.updateOne(
           {
             _id: user._id,
-            "scannedMe._id": { $ne: scanner._id }
+            "scannedMe._id": { $ne: scanner._id },
           },
           {
             $push: {
@@ -305,9 +304,9 @@ exports.scanUser = async (req, res) => {
                 telegram: scanner.telegram || "",
                 twitter: scanner.twitter || "",
                 facebook: scanner.facebook || "",
-                createdAt: new Date()
-              }
-            }
+                createdAt: new Date(),
+              },
+            },
           }
         );
 
@@ -321,24 +320,25 @@ exports.scanUser = async (req, res) => {
             { emailaddresses: { $in: [scanner.email] } },
             scanner.phonenumbers?.[0]?.number
               ? {
-                phonenumbers: {
-                  $elemMatch: {
-                    countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-                    number: scanner.phonenumbers?.[0]?.number || "",
+                  phonenumbers: {
+                    $elemMatch: {
+                      countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                      number: scanner.phonenumbers?.[0]?.number || "",
+                    },
                   },
-                },
-              }
+                }
               : { _id: null },
           ],
         });
 
         // quota check for the owner of the new contact (owner is `user._id` here)
         try {
-          await ensureScanQuotaForOwner(user._id, 'qrScan', null, useTestMode); // throws if limit reached
+          await ensureScanQuotaForOwner(user._id, "qrScan", null, useTestMode); // throws if limit reached
         } catch (err) {
-          return res.status(403).json({ status: 'error', message: err.message });
+          return res
+            .status(403)
+            .json({ status: "error", message: err.message });
         }
-
 
         if (!contactExistsForUser) {
           const newContact = new Contact({
@@ -363,12 +363,13 @@ exports.scanUser = async (req, res) => {
             action: "created",
             type: "contact",
             title: "New Contact Added",
-            description: `Contact ${user.firstname || ""} ${user.lastname || ""
-              } was added via QR scan`,
+            description: `Contact ${user.firstname || ""} ${
+              user.lastname || ""
+            } was added via QR scan`,
           });
           // increment the owner's counter for qr scans
           await newContact.save();
-          await incrementOwnerCategoryCounter(user._id, 'qrScan');
+          await incrementOwnerCategoryCounter(user._id, "qrScan");
         }
       }
 
@@ -384,7 +385,7 @@ exports.scanUser = async (req, res) => {
         const pushScannerResult = await User.updateOne(
           {
             _id: scanner._id,
-            "iScanned._id": { $ne: user._id }
+            "iScanned._id": { $ne: user._id },
           },
           {
             $push: {
@@ -400,17 +401,17 @@ exports.scanUser = async (req, res) => {
                 telegram: user.telegram || "",
                 twitter: user.twitter || "",
                 facebook: user.facebook || "",
-                createdAt: new Date()
-              }
-            }
+                createdAt: new Date(),
+              },
+            },
           }
         );
 
         // optional: you can use this to know whether scanner changed
-        const scannerUpdated = !!(pushScannerResult.modifiedCount || pushScannerResult.nModified);
+        const scannerUpdated = !!(
+          pushScannerResult.modifiedCount || pushScannerResult.nModified
+        );
       }
-
-
     } else {
       // Case 2: Scanner is not registered — store temp data in scannedMe
 
@@ -430,9 +431,9 @@ exports.scanUser = async (req, res) => {
 
         // 3️⃣ If still not found, try phone only
         if (!matchedScanner) {
-          matchedScanner = await User.findOne(
-            { phonenumbers: { $elemMatch: parsedPhone } }
-          );
+          matchedScanner = await User.findOne({
+            phonenumbers: { $elemMatch: parsedPhone },
+          });
         }
       } else if (email) {
         // 4️⃣ Only email provided
@@ -451,7 +452,10 @@ exports.scanUser = async (req, res) => {
         const scanner = matchedScanner;
 
         // PLAN LIMIT CHECK FOR REGISTERED (matched) SCANNER
-        const scannerPlan = await getUserCurrentPlan(matchedScanner, useTestMode);
+        const scannerPlan = await getUserCurrentPlan(
+          matchedScanner,
+          useTestMode
+        );
         const planName = scannerPlan?.name?.toLowerCase() || "starter";
         let scanLimit = 50;
         if (planName === "pro") scanLimit = Infinity;
@@ -497,7 +501,7 @@ exports.scanUser = async (req, res) => {
           const pushUserResult = await User.updateOne(
             {
               _id: user._id,
-              "scannedMe._id": { $ne: scanner._id }
+              "scannedMe._id": { $ne: scanner._id },
             },
             {
               $push: {
@@ -513,19 +517,21 @@ exports.scanUser = async (req, res) => {
                   telegram: scanner.telegram || "",
                   twitter: scanner.twitter || "",
                   facebook: scanner.facebook || "",
-                  createdAt: new Date()
-                }
-              }
+                  createdAt: new Date(),
+                },
+              },
             }
           );
 
-          const userPushed = !!(pushUserResult.modifiedCount || pushUserResult.nModified);
+          const userPushed = !!(
+            pushUserResult.modifiedCount || pushUserResult.nModified
+          );
 
           // Add to scanner.iScanned atomically
           const pushScannerResult = await User.updateOne(
             {
               _id: scanner._id,
-              "iScanned._id": { $ne: user._id }
+              "iScanned._id": { $ne: user._id },
             },
             {
               $push: {
@@ -541,13 +547,11 @@ exports.scanUser = async (req, res) => {
                   telegram: user.telegram || "",
                   twitter: user.twitter || "",
                   facebook: user.facebook || "",
-                  createdAt: new Date()
-                }
-              }
+                  createdAt: new Date(),
+                },
+              },
             }
           );
-
-
 
           // ✅ Create contact for UserID (about scanner)
           // CHANGED: duplicate check uses $elemMatch
@@ -557,22 +561,24 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [scanner.email] } },
               scanner.phonenumbers?.[0]?.number
                 ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode:
-                        scanner.phonenumbers?.[0]?.countryCode || "",
-                      number: scanner.phonenumbers?.[0]?.number || "",
+                    phonenumbers: {
+                      $elemMatch: {
+                        countryCode:
+                          scanner.phonenumbers?.[0]?.countryCode || "",
+                        number: scanner.phonenumbers?.[0]?.number || "",
+                      },
                     },
-                  },
-                }
+                  }
                 : { _id: null },
             ],
           });
           // await ensureScanQuotaForOwner(user._id, 'lead');
           try {
-            await ensureScanQuotaForOwner(user._id, 'lead', null, useTestMode); // throws if limit reached
+            await ensureScanQuotaForOwner(user._id, "lead", null, useTestMode); // throws if limit reached
           } catch (err) {
-            return res.status(403).json({ status: 'error', message: err.message });
+            return res
+              .status(403)
+              .json({ status: "error", message: err.message });
           }
           if (!contactExistsForUser) {
             const newContact = new Contact({
@@ -583,8 +589,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                  ? [scanner.phonenumbers[0]]
-                  : [],
+                ? [scanner.phonenumbers[0]]
+                : [],
               linkedin: scanner.linkedin || "",
               instagram: scanner.instagram || "",
               telegram: scanner.telegram || "",
@@ -597,11 +603,12 @@ exports.scanUser = async (req, res) => {
               action: "created",
               type: "contact",
               title: "New Contact Added (Unregistered)",
-              description: `Temporary contact ${firstname || ""} ${lastname || ""
-                } added via QR scan`,
+              description: `Temporary contact ${firstname || ""} ${
+                lastname || ""
+              } added via QR scan`,
             });
             await newContact.save();
-            await incrementOwnerCategoryCounter(user._id, 'lead');
+            await incrementOwnerCategoryCounter(user._id, "lead");
           }
 
           // ✅ Create contact for Scanner (about user)
@@ -612,13 +619,13 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [user.email] } },
               user.phonenumbers?.[0]?.number
                 ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode: user.phonenumbers?.[0]?.countryCode || "",
-                      number: user.phonenumbers?.[0]?.number || "",
+                    phonenumbers: {
+                      $elemMatch: {
+                        countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                        number: user.phonenumbers?.[0]?.number || "",
+                      },
                     },
-                  },
-                }
+                  }
                 : { _id: null },
             ],
           });
@@ -631,8 +638,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone] // ✅ use normalized phone for web/mobile
                 : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                  ? [user.phonenumbers[0]]
-                  : [],
+                ? [user.phonenumbers[0]]
+                : [],
               linkedin: user.linkedin || "",
               instagram: user.instagram || "",
               telegram: user.telegram || "",
@@ -647,9 +654,10 @@ exports.scanUser = async (req, res) => {
           // await scanner.save();
           // updated = true;
 
-          const scannerPushed = !!(pushScannerResult.modifiedCount || pushScannerResult.nModified);
+          const scannerPushed = !!(
+            pushScannerResult.modifiedCount || pushScannerResult.nModified
+          );
           updated = userPushed || scannerPushed;
-
         }
       } else {
         // PLAN LIMIT CHECK FOR UNREGISTERED (TEMP) SCANNER
@@ -691,7 +699,7 @@ exports.scanUser = async (req, res) => {
             email: email || "",
             phonenumber: parsedPhone?.number || phonenumber || "",
             countryCode: parsedPhone?.countryCode || countryCode || "",
-            createdAt: new Date()
+            createdAt: new Date(),
           };
 
           // Use $push with a filter that checks email and phone absence
@@ -699,17 +707,28 @@ exports.scanUser = async (req, res) => {
             {
               _id: user._id,
               $and: [
-                { $or: [{ "scannedMe.email": { $ne: email } }, { "scannedMe.email": { $exists: false } }] },
-                { $or: [{ "scannedMe.phonenumber": { $ne: tempEntry.phonenumber } }, { "scannedMe.phonenumber": { $exists: false } }] }
-              ]
+                {
+                  $or: [
+                    { "scannedMe.email": { $ne: email } },
+                    { "scannedMe.email": { $exists: false } },
+                  ],
+                },
+                {
+                  $or: [
+                    { "scannedMe.phonenumber": { $ne: tempEntry.phonenumber } },
+                    { "scannedMe.phonenumber": { $exists: false } },
+                  ],
+                },
+              ],
             },
             {
-              $push: { scannedMe: tempEntry }
+              $push: { scannedMe: tempEntry },
             }
           );
 
-          updated = !!(pushTempResult.modifiedCount || pushTempResult.nModified);
-
+          updated = !!(
+            pushTempResult.modifiedCount || pushTempResult.nModified
+          );
 
           // ---------- EMAIL: notify owner about temporary submitter & send vCard to temp submitter ----------
           try {
@@ -743,7 +762,6 @@ exports.scanUser = async (req, res) => {
           }
           // -----------------------------------------------------------------------
 
-
           // ✅ Create contact for UserID from temp data
           // CHANGED: duplicate check uses $elemMatch if countryCode present
           const contactExists = await Contact.findOne({
@@ -753,19 +771,21 @@ exports.scanUser = async (req, res) => {
               phonenumber
                 ? countryCode
                   ? {
-                    phonenumbers: {
-                      $elemMatch: { countryCode, number: phonenumber },
-                    },
-                  }
+                      phonenumbers: {
+                        $elemMatch: { countryCode, number: phonenumber },
+                      },
+                    }
                   : { "phonenumbers.number": phonenumber }
                 : { _id: null },
             ],
           });
           // await ensureScanQuotaForOwner(user._id, 'lead');
           try {
-            await ensureScanQuotaForOwner(user._id, 'lead', null, useTestMode); // throws if limit reached
+            await ensureScanQuotaForOwner(user._id, "lead", null, useTestMode); // throws if limit reached
           } catch (err) {
-            return res.status(403).json({ status: 'error', message: err.message });
+            return res
+              .status(403)
+              .json({ status: "error", message: err.message });
           }
           if (!contactExists) {
             const newContact = new Contact({
@@ -776,13 +796,13 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : phonenumber
-                  ? [{ countryCode: countryCode || "", number: phonenumber }]
-                  : [],
+                ? [{ countryCode: countryCode || "", number: phonenumber }]
+                : [],
               createdBy: user._id,
             });
             newContact.contact_id = newContact._id;
             await newContact.save();
-            await incrementOwnerCategoryCounter(user._id, 'lead');
+            await incrementOwnerCategoryCounter(user._id, "lead");
           }
         }
       }
@@ -790,7 +810,9 @@ exports.scanUser = async (req, res) => {
 
     // if we made atomic updates, refetch the fresh user document for response
     const freshUser = await User.findById(user._id).lean();
-    const freshScanner = ScannerID ? await User.findById(ScannerID).lean() : null;
+    const freshScanner = ScannerID
+      ? await User.findById(ScannerID).lean()
+      : null;
 
     const responseData = {
       userScannedMe: freshUser?.scannedMe || [],

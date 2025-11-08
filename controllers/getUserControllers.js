@@ -14,8 +14,7 @@ const {
 } = require("../utils/stripeUtils");
 
 const getUserData = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
-
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     const {
       searchWhatsappTemplates = "",

@@ -178,7 +178,7 @@ const createPlan = async (req, res) => {
 // @route   PUT /api/admin/plans/:id
 // @access  Private/Admin
 const updatePlan = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
@@ -339,7 +339,7 @@ const updatePlan = async (req, res) => {
 // @access  Private/Admin
 const deletePlan = async (req, res) => {
   try {
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {

@@ -23,7 +23,7 @@ const getAllUsers = async (req, res) => {
   try {
     console.log("Fetching all users");
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     // Extract pagination parameters
     const page = parseInt(req.query.page) || 1;
@@ -161,7 +161,7 @@ const getUser = async (req, res) => {
     console.log("Fetching user with ID:", req.params.id);
 
     const { id } = req.params;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const user = await User.findOne({ _id: id, role: "user" }).select(
       "firstname lastname email role gender signupMethod isVerified referralCode profileImageURL designation createdAt userInfo phonenumbers instagram twitter linkedin facebook telegram stripeCustomerId cache_credits"
@@ -277,7 +277,7 @@ const editProfile = async (req, res) => {
     const { id } = req.params;
     console.log("Edit profile for user ID:", id);
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
@@ -674,7 +674,7 @@ const getUserPaymentMethods = async (req, res) => {
     const { id } = req.params;
     console.log("Checking payment methods for user ID:", id);
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
@@ -726,7 +726,7 @@ const getUserBillingHistory = async (req, res) => {
     const { limit = 50, startingAfter } = req.query;
     console.log("Getting billing history for user ID:", id);
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
     if (!userId) {
@@ -832,7 +832,7 @@ const getUserPaymentMethodsDetailed = async (req, res) => {
     const { id } = req.params;
     console.log("Getting detailed payment methods for user ID:", id);
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;
@@ -909,7 +909,7 @@ const deleteUserPaymentMethod = async (req, res) => {
       id
     );
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const userId = mongoose.Types.ObjectId.isValid(id) ? id : null;

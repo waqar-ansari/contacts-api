@@ -55,6 +55,7 @@ const checkForAuthentication = () => {
 
       // ✅ Validate JWT
       const payload = validateToken(token);
+
       req.user = payload;
       req.token = token; // store current token for logout
       next();

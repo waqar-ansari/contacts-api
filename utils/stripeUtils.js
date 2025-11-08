@@ -62,7 +62,7 @@ async function getOrCreateStripeCustomer(user, useTestMode = false) {
         }
       } catch (error) {
         console.log(
-          `Stripe customer ${user.stripeCustomerId} not found, creating new one`
+          `Stripe customer ${user.stripeCustomerId} for email ${user.email} not found, creating new one`
         );
       }
     }

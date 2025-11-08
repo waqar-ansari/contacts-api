@@ -39,7 +39,7 @@ const redirectToGoogle = (req, res) => {
 
 const handleGoogleCallback = async (req, res) => {
   const { code } = req.query;
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   if (!code) {
     return res
       .status(400)
@@ -75,8 +75,7 @@ const handleGoogleCallback = async (req, res) => {
     }
 
     // Get current plan from subscription
-    
-    
+
     const currentPlan = await getUserCurrentPlan(user, useTestMode);
     const userPlan = currentPlan ? currentPlan.name.toLowerCase() : "starter"; // default starter
     const currentContactCount = await Contact.countDocuments({

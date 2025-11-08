@@ -9,7 +9,10 @@ const { logActivityToContact } = require("../utils/activityLogger");
 const { parsePhoneNumberFromString } = require("libphonenumber-js");
 const Plan = require("../models/planModel");
 const { sendPushNotificationToUser } = require("../utils/oneSignal");
-const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
+const {
+  ensureScanQuotaForOwner,
+  incrementOwnerCategoryCounter,
+} = require("../utils/contactCount");
 // ---------- PLAN + QUOTA HELPERS ----------
 /**
  * Ensure quota before creating/updating a contact.
@@ -95,7 +98,6 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //     }
 //   }
 
-
 //   // Enforce per-category limit (only if the category has a finite limit on Starter)
 //   // if (!isPro) {
 //   //   const catLimit = perCategoryLimitsForStarter[category] ?? Infinity;
@@ -116,7 +118,6 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //     // remainingCategory: isPro ? Infinity : (perCategoryLimitsForStarter[category] === Infinity ? Infinity : perCategoryLimitsForStarter[category] - categoryCount),
 //   };
 // }
-
 
 // async function incrementOwnerCategoryCounter(ownerId, category) {
 //   const map = {
@@ -139,7 +140,7 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 // }
 
 const addEditContact = async (req, res) => {
-  const useTestMode = req.stripe_test_mode || false;
+  const useTestMode = req.user.stripe_test_mode || false;
   try {
     const user = await User.findById(req.user._id);
 
@@ -364,8 +365,7 @@ const addEditContact = async (req, res) => {
 
           let message = "";
           if (duplicateEmail && duplicatePhone) {
-            message =
-              "Already Have Contact Of This Email & Phone Number.";
+            message = "Already Have Contact Of This Email & Phone Number.";
           } else if (duplicateEmail) {
             message = "Already Have Contact Of This Email.";
           } else if (duplicatePhone) {
@@ -553,8 +553,7 @@ const addEditContact = async (req, res) => {
         if (!user.googleAccessToken || !user.googleRefreshToken) {
           return res.status(400).json({
             status: "error",
-            message:
-              "Connect Google Account For Online Meeting Scheduling.",
+            message: "Connect Google Account For Online Meeting Scheduling.",
           });
         }
       }
@@ -832,7 +831,6 @@ const addEditContact = async (req, res) => {
         description: ` ${firstname} ${lastname}`,
       });
     } else {
-
       // ---------- Build updateFields only with provided values ----------
       const updateFields = {};
 
@@ -857,7 +855,6 @@ const addEditContact = async (req, res) => {
       addIfProvided("notes", notes);
       addIfProvided("website", website);
       addIfProvided("category", category);
-
 
       // Apply phone updates only when client intended a change
       if (hasPhoneInput) {
@@ -1086,13 +1083,15 @@ const addEditContact = async (req, res) => {
                 userDisplayName = user.email;
               }
 
-              const content = `Meeting scheduled with ${userDisplayName}${meetingObj.meetingStartDate
-                ? " on " + meetingObj.meetingStartDate
-                : ""
-                }${meetingObj.meetingStartTime
+              const content = `Meeting scheduled with ${userDisplayName}${
+                meetingObj.meetingStartDate
+                  ? " on " + meetingObj.meetingStartDate
+                  : ""
+              }${
+                meetingObj.meetingStartTime
                   ? " at " + meetingObj.meetingStartTime
                   : ""
-                }`;
+              }`;
 
               try {
                 await sendPushNotificationToUser(matchedUser._id, {
@@ -1124,7 +1123,7 @@ const addEditContact = async (req, res) => {
                     );
                     const reminderTime = new Date(
                       meetingDateTime.getTime() -
-                      REMINDER_MINUTES_BEFORE * 60 * 1000
+                        REMINDER_MINUTES_BEFORE * 60 * 1000
                     ); // minutes before meeting
                     const now = new Date();
 
@@ -1142,7 +1141,7 @@ const addEditContact = async (req, res) => {
                     console.log(
                       `  Time until meeting: ${Math.round(
                         (meetingDateTime.getTime() - now.getTime()) /
-                        (60 * 1000)
+                          (60 * 1000)
                       )} minutes`
                     );
                     console.log(
@@ -1151,7 +1150,8 @@ const addEditContact = async (req, res) => {
                       )} minutes`
                     );
                     console.log(
-                      `  Reminder ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                      `  Reminder ${REMINDER_MINUTES_BEFORE} minute${
+                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                       } before meeting`
                     );
 
@@ -1160,11 +1160,13 @@ const addEditContact = async (req, res) => {
                       const reminderHeading = "Meeting Reminder";
 
                       // Use the same display name logic for reminder
-                      const reminderContent = `Your meeting with ${userDisplayName} starts in ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
-                        }${meetingObj.meetingStartTime
+                      const reminderContent = `Your meeting with ${userDisplayName} starts in ${REMINDER_MINUTES_BEFORE} minute${
+                        REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                      }${
+                        meetingObj.meetingStartTime
                           ? " at " + meetingObj.meetingStartTime
                           : ""
-                        }`;
+                      }`;
 
                       await sendPushNotificationToUser(matchedUser._id, {
                         heading: reminderHeading,
@@ -1178,14 +1180,18 @@ const addEditContact = async (req, res) => {
                         send_after: reminderTime.toISOString(),
                       });
                       console.log(
-                        `OneSignal: reminder notification scheduled for user ${matchedUser._id
-                        } at ${reminderTime.toISOString()} (${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        `OneSignal: reminder notification scheduled for user ${
+                          matchedUser._id
+                        } at ${reminderTime.toISOString()} (${REMINDER_MINUTES_BEFORE} minute${
+                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                         } before meeting)`
                       );
                     } else {
                       console.log(
-                        `OneSignal: skipping reminder for user ${matchedUser._id
-                        } - meeting is too soon (less than ${REMINDER_MINUTES_BEFORE} minute${REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
+                        `OneSignal: skipping reminder for user ${
+                          matchedUser._id
+                        } - meeting is too soon (less than ${REMINDER_MINUTES_BEFORE} minute${
+                          REMINDER_MINUTES_BEFORE !== 1 ? "s" : ""
                         } away)`
                       );
                     }
@@ -1237,7 +1243,6 @@ const addEditContact = async (req, res) => {
         CONTACT_FIELD_KEYS.includes(key)
       );
 
-
       // ✅ Log contact update activity if contact fields were changed (even if tags/tasks/meetings also updated)
       if (contactFieldsChanged) {
         await logActivityToContact(contactData._id, {
@@ -1247,9 +1252,6 @@ const addEditContact = async (req, res) => {
           description: `${contactData.firstname} ${contactData.lastname}`,
         });
       }
-
-
-
     }
 
     // ---------- Format Response ----------
@@ -1369,9 +1371,7 @@ const addEditContact = async (req, res) => {
     } else if (taskProvided) {
       message = "Note Created";
     } else {
-      message = isCreating
-        ? "Contact Created"
-        : "Contact Updated";
+      message = isCreating ? "Contact Created" : "Contact Updated";
     }
 
     return res.status(isCreating ? 201 : 200).json({
@@ -1386,7 +1386,5 @@ const addEditContact = async (req, res) => {
       .json({ status: "error", message: "An error occurred" });
   }
 };
-
-
 
 module.exports = { addEditContact };

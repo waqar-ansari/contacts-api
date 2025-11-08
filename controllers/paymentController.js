@@ -118,7 +118,7 @@ const checkActiveSubscription = async (user, useTestMode = false) => {
 const getCreditBalance = async (req, res) => {
   try {
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const user = await User.findById(userId).select(
       "stripeCustomerId cache_credits"
@@ -182,7 +182,7 @@ const getCreditBalance = async (req, res) => {
 const toggleAutoRenewal = async (req, res) => {
   try {
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId);
@@ -257,7 +257,7 @@ const toggleAutoRenewal = async (req, res) => {
 const getPaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId).select(
@@ -417,7 +417,7 @@ const previewUpgrade = async (req, res) => {
   try {
     const { planId, couponCode } = req.body;
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // === STEP 1: VALIDATE PLAN AND USER ===
@@ -965,7 +965,7 @@ const createCheckoutSession = async (req, res) => {
   try {
     const { planId, autoRenewal = true } = req.body;
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
@@ -1073,7 +1073,7 @@ const createHostedCheckoutSession = async (req, res) => {
   try {
     const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
@@ -1193,7 +1193,7 @@ const getCheckoutSessionDetails = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     if (!sessionId) {
@@ -1328,7 +1328,7 @@ const getPaymentMethods = async (req, res) => {
       });
     }
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Get payment methods from Stripe
@@ -1394,7 +1394,7 @@ const addPaymentMethod = async (req, res) => {
       });
     }
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Get or create Stripe customer
@@ -1469,7 +1469,7 @@ const setDefaultPaymentMethod = async (req, res) => {
       });
     }
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Update customer's default payment method
@@ -1518,7 +1518,7 @@ const updatePaymentMethod = async (req, res) => {
       });
     }
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Verify that the payment method belongs to this customer
@@ -1593,7 +1593,7 @@ const deletePaymentMethod = async (req, res) => {
       });
     }
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Verify that the payment method belongs to this customer
@@ -1669,7 +1669,7 @@ const downgradeSubscription = async (req, res) => {
   try {
     const { planId } = req.body;
     const userId = req.user._id;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
@@ -2035,7 +2035,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     } = req.body;
     const userId = req.user._id;
 
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     if (!planId || !paymentMethodId) {
@@ -2324,7 +2324,7 @@ const getBillingHistory = async (req, res) => {
   try {
     const userId = req.user._id;
     const { limit = 50, startingAfter } = req.query;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     const user = await User.findById(userId).select("stripeCustomerId");
     if (!user) {
@@ -2426,7 +2426,7 @@ const getInvoiceDetails = async (req, res) => {
   try {
     const userId = req.user._id;
     const { invoiceId } = req.params;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
     const user = await User.findById(userId).select("stripeCustomerId");

@@ -1,7 +1,10 @@
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const Contact = require("../models/contactModel");
-const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../utils/contactCount");
+const {
+  ensureScanQuotaForOwner,
+  incrementOwnerCategoryCounter,
+} = require("../utils/contactCount");
 
 // async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null) {
 //     const owner = await User.findById(ownerId);
@@ -81,7 +84,6 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 //         }
 //     }
 
-
 //     // Enforce per-category limit (only if the category has a finite limit on Starter)
 //     // if (!isPro) {
 //     //   const catLimit = perCategoryLimitsForStarter[category] ?? Infinity;
@@ -125,42 +127,49 @@ const { ensureScanQuotaForOwner, incrementOwnerCategoryCounter } = require("../u
 
 // === MAIN API CONTROLLER ===
 exports.incrementBusinessCardScan = async (req, res) => {
-    const useTestMode = req.stripe_test_mode || false;
-    try {
-        const ownerId = req.user._id;
+  const useTestMode = req.user.stripe_test_mode || false;
+  try {
+    const ownerId = req.user._id;
 
-        if (!ownerId) {
-            return res.status(400).json({ success: false, message: "ownerId is required" });
-        }
-
-        // Step 1: Check scan quota
-        try {
-            await ensureScanQuotaForOwner(ownerId, "businessCardScan", null, useTestMode);
-        } catch (quotaError) {
-            return res.status(403).json({
-                status: "error",
-                message: quotaError.message || "Quota exceeded for business card scans",
-            });
-        }
-
-        // Step 2: Increment business card scan + total
-        await incrementOwnerCategoryCounter(ownerId, "businessCardScan");
-
-        // Step 3: Return updated user info
-        const updatedUser = await User.findById(ownerId).select(
-            "businessCardScanContactCount totalContactCount"
-        );
-
-        return res.status(200).json({
-            status: "success",
-            message: "Business card scan count incremented successfully",
-            data: updatedUser,
-        });
-    } catch (error) {
-        console.error("🚨 Error incrementing business card scan count:", error);
-        return res.status(400).json({
-            status: "error",
-            message: error.message || "Something went wrong",
-        });
+    if (!ownerId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "ownerId is required" });
     }
+
+    // Step 1: Check scan quota
+    try {
+      await ensureScanQuotaForOwner(
+        ownerId,
+        "businessCardScan",
+        null,
+        useTestMode
+      );
+    } catch (quotaError) {
+      return res.status(403).json({
+        status: "error",
+        message: quotaError.message || "Quota exceeded for business card scans",
+      });
+    }
+
+    // Step 2: Increment business card scan + total
+    await incrementOwnerCategoryCounter(ownerId, "businessCardScan");
+
+    // Step 3: Return updated user info
+    const updatedUser = await User.findById(ownerId).select(
+      "businessCardScanContactCount totalContactCount"
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Business card scan count incremented successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("🚨 Error incrementing business card scan count:", error);
+    return res.status(400).json({
+      status: "error",
+      message: error.message || "Something went wrong",
+    });
+  }
 };

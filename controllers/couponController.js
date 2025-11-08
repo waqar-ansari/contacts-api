@@ -12,7 +12,7 @@ const {
 const validateCouponCode = async (req, res) => {
   try {
     const { couponCode } = req.body;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     if (!couponCode || typeof couponCode !== "string") {
       return res.status(400).json({
@@ -66,7 +66,7 @@ const validateCouponCode = async (req, res) => {
 const previewCouponDiscount = async (req, res) => {
   try {
     const { couponCode, amount } = req.body;
-    const useTestMode = req.stripe_test_mode || false;
+    const useTestMode = req.user.stripe_test_mode || false;
     if (!couponCode || typeof couponCode !== "string") {
       return res.status(400).json({
         success: false,

@@ -32,10 +32,14 @@ function calculateExpiryDate(startDate, pricePeriod) {
  * Get the default plan for new users
  * @returns {Object|null} Plan object or null
  */
-async function getDefaultPlan() {
+async function getDefaultPlan(useTestMode = false) {
   try {
     // First try to find Pro plan
-    let plan = await Plan.findOne({ name: "Pro", isActive: true });
+    let plan = await Plan.findOne({
+      name: "Pro",
+      isActive: true,
+      stripe_test_mode: useTestMode,
+    });
 
     if (!plan) {
       // If Pro doesn't exist, get the first active plan
@@ -67,12 +71,14 @@ async function getStarterPlan() {
  * Get the Pro plan
  * @returns {Object|null} Pro plan object or null
  */
-async function getProPlan() {
+async function getProPlan(useTestMode = false) {
   try {
-    let proPlan = await Plan.findOne({ name: "Pro test plan", isActive: true });
-    if (!proPlan) {
-      proPlan = await Plan.findOne({ name: "Pro", isActive: true });
-    }
+    let proPlan = await Plan.findOne({
+      name: "Pro",
+      stripe_test_mode: useTestMode,
+      isActive: true,
+    });
+
     return proPlan;
   } catch (error) {
     console.error("Error getting Pro plan:", error);
@@ -95,9 +101,9 @@ async function setupInitialPlan(user, useTestMode = false) {
         plan: null,
       };
     }
-
+    console.log("test mode val", useTestMode);
     // Get Pro plan for trial
-    const proPlan = await getProPlan();
+    const proPlan = await getProPlan(useTestMode);
 
     if (!proPlan || !proPlan.stripePriceId) {
       console.warn(
