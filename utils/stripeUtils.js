@@ -1166,6 +1166,10 @@ async function listStripeCoupons(options = {}, useTestMode = false) {
  * @param {String} couponId - Stripe coupon ID
  * @param {String} promoCode - Promotion code (usually same as coupon code)
  * @param {Object} options - Additional options for promotion code
+ * @param {Number} options.max_redemptions_per_customer - Max uses per customer (default: 1)
+ * @param {Number} options.max_redemptions - Total max redemptions across all customers
+ * @param {Boolean} options.active - Whether the promotion code is active
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe promotion code object
  */
 async function createStripePromotionCode(
@@ -1186,6 +1190,8 @@ async function createStripePromotionCode(
       coupon: couponId,
       code: promoCode,
       active: true,
+      // Default to 1 use per customer unless explicitly specified in options
+      max_redemptions_per_customer: options.max_redemptions_per_customer ?? 1,
       metadata: {
         createdBy: "admin-panel",
         couponId: couponId,

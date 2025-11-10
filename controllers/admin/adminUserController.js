@@ -24,7 +24,7 @@ const getAllUsers = async (req, res) => {
     console.log("Fetching all users");
 
     const useTestMode = req.user.stripe_test_mode || false;
-
+    console.log("Using test mode:", useTestMode);
     // Extract pagination parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -654,7 +654,10 @@ const getUsersCount = async (req, res) => {
   try {
     // Count users where role is not 'superadmin'
     const totalUsers = await User.countDocuments({
-      role: { $ne: "superadmin" },
+      role: {
+        $ne: "superadmin",
+      },
+      stripe_test_mode: req?.user?.stripe_test_mode || false,
     });
 
     return res.status(200).json({
