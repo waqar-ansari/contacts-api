@@ -131,14 +131,12 @@ const getCreditBalance = async (req, res) => {
     }
 
     let creditBalance = 0;
-
+    let hasFirstPurchase = await hasUserMadeFirstPurchase(
+      user.stripeCustomerId,
+      useTestMode
+    );
     // Check if user has made their first purchase
     if (user.stripeCustomerId) {
-      const hasFirstPurchase = await hasUserMadeFirstPurchase(
-        user.stripeCustomerId,
-        useTestMode
-      );
-
       if (hasFirstPurchase) {
         // Get credit balance from Stripe
         const customer = await getOrCreateStripeCustomer(user, useTestMode);
@@ -158,11 +156,7 @@ const getCreditBalance = async (req, res) => {
       success: true,
       creditBalance: creditBalance,
       customerId: user.stripeCustomerId,
-      source:
-        user.stripeCustomerId &&
-        (await hasUserMadeFirstPurchase(user.stripeCustomerId, useTestMode))
-          ? "stripe"
-          : "cache",
+      source: user.stripeCustomerId && hasFirstPurchase ? "stripe" : "cache",
     });
   } catch (error) {
     console.error("Error getting credit balance:", error);
@@ -490,6 +484,8 @@ const previewUpgrade = async (req, res) => {
       if (couponCode) {
         const couponValidation = await validateCoupon(
           couponCode.trim(),
+          user._id,
+          user.stripeCustomerId,
           useTestMode
         );
         if (!couponValidation.isValid) {
@@ -722,6 +718,8 @@ const upgradeSubscription = async (req, res) => {
       couponCode,
     } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.user.stripe_test_mode || false;
+    const stripeInstance = useTestMode ? stripeTest : stripe;
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -780,6 +778,8 @@ const upgradeSubscription = async (req, res) => {
     if (couponCode) {
       const couponValidation = await validateCoupon(
         couponCode.trim(),
+        user._id,
+        user.stripeCustomerId,
         useTestMode
       );
       if (!couponValidation.isValid) {
@@ -892,6 +892,23 @@ const upgradeSubscription = async (req, res) => {
     const latestInvoice = await stripeInstance.invoices.retrieve(
       upgradedSubscription.latest_invoice
     );
+
+    // Mark coupon as used by this user if a coupon was applied
+    if (couponData) {
+      try {
+        const Coupon = require("../models/couponModel");
+        const couponDoc = await Coupon.findById(couponData._id);
+        if (couponDoc) {
+          await couponDoc.markUsedByUser(user._id, user.stripeCustomerId);
+          console.log(
+            `✅ Marked coupon ${couponData.couponCode} as used by user ${user._id}`
+          );
+        }
+      } catch (couponError) {
+        console.error("❌ Error marking coupon as used:", couponError);
+        // Don't fail the upgrade if coupon tracking fails
+      }
+    }
 
     // Cancel any scheduled subscriptions since we're upgrading immediately
     if (hasScheduledSubscriptions) {
@@ -1267,6 +1284,7 @@ const completeSubscription = async (req, res) => {
   try {
     const { sessionId } = req.body;
     const userId = req.user._id;
+    const useTestMode = req.user.stripe_test_mode || false;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -1279,6 +1297,7 @@ const completeSubscription = async (req, res) => {
     const result = await processSubscriptionCompletion(sessionId, {
       fromWebhook: false,
       userId: userId.toString(),
+      useTestMode,
     });
 
     if (result.alreadyProcessed) {
@@ -1843,6 +1862,8 @@ const previewNewSubscription = async (req, res) => {
     const { planId, couponCode } = req.body;
     const userId = req.user._id;
 
+    const useTestMode = req.user.stripe_test_mode || false;
+
     // Validate plan
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
@@ -1888,14 +1909,19 @@ const previewNewSubscription = async (req, res) => {
     }
 
     // Get or create Stripe customer (we'll need this for credit balance)
-    const customer = await getOrCreateStripeCustomer(user);
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
 
     // Validate coupon if provided
     let couponData = null;
     let couponDiscountCalculation = null;
 
     if (couponCode) {
-      const couponValidation = await validateCoupon(couponCode.trim());
+      const couponValidation = await validateCoupon(
+        couponCode.trim(),
+        user._id,
+        customer.id,
+        useTestMode
+      );
       if (!couponValidation.isValid) {
         return res.status(400).json({
           success: false,
@@ -2116,6 +2142,8 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     if (couponCode) {
       const couponValidation = await validateCoupon(
         couponCode.trim(),
+        user._id,
+        stripeCustomerId,
         useTestMode
       );
       if (!couponValidation.isValid) {
@@ -2288,6 +2316,23 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     } catch (cacheError) {
       console.error("Error processing cache credits transfer:", cacheError);
       // Don't fail the subscription creation if cache credit transfer fails
+    }
+
+    // Mark coupon as used by this user if a coupon was applied
+    if (couponData) {
+      try {
+        const Coupon = require("../models/couponModel");
+        const couponDoc = await Coupon.findById(couponData._id);
+        if (couponDoc) {
+          await couponDoc.markUsedByUser(user._id, stripeCustomerId);
+          console.log(
+            `✅ Marked coupon ${couponData.couponCode} as used by user ${user._id}`
+          );
+        }
+      } catch (couponError) {
+        console.error("❌ Error marking coupon as used:", couponError);
+        // Don't fail the subscription creation if coupon tracking fails
+      }
     }
 
     res.status(200).json({

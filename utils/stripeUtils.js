@@ -117,46 +117,6 @@ async function createStripeSubscription(
 }
 
 /**
- * Update a Stripe subscription with new price
- * @param {String} subscriptionId - Stripe subscription ID
- * @param {String} newPriceId - New Stripe price ID
- * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
- * @returns {Object} Updated Stripe subscription object
- */
-async function updateStripeSubscriptionPrice(
-  subscriptionId,
-  newPriceId,
-  useTestMode = false
-) {
-  try {
-    const stripeInstance = useTestMode ? stripeTest : stripe;
-    // Get current subscription to find the subscription item
-    const subscription = await stripeInstance.subscriptions.retrieve(
-      subscriptionId
-    );
-
-    // Update the subscription with new price
-    const updatedSubscription = await stripeInstance.subscriptions.update(
-      subscriptionId,
-      {
-        items: [
-          {
-            id: subscription.items.data[0].id,
-            price: newPriceId,
-          },
-        ],
-        proration_behavior: "create_prorations", // Handle prorations
-      }
-    );
-
-    return updatedSubscription;
-  } catch (error) {
-    console.error("Error updating Stripe subscription price:", error);
-    throw error;
-  }
-}
-
-/**
  * Update a Stripe subscription general data
  * @param {String} subscriptionId - Stripe subscription ID
  * @param {Object} updateData - Data to update
@@ -1048,12 +1008,21 @@ async function createStripeCoupon(couponData, useTestMode = false) {
       stripeCouponData.currency = "usd";
     }
 
-    // Set expiry date if provided
+    // Set expiry date with 1-year maximum
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+    let finalExpiryDate = oneYearFromNow;
+
     if (expiryDate) {
-      stripeCouponData.redeem_by = Math.floor(
-        new Date(expiryDate).getTime() / 1000
-      );
+      const userExpiryDate = new Date(expiryDate);
+      // Use the earlier date between user's expiry and 1 year from now
+      finalExpiryDate =
+        userExpiryDate < oneYearFromNow ? userExpiryDate : oneYearFromNow;
     }
+
+    stripeCouponData.redeem_by = Math.floor(finalExpiryDate.getTime() / 1000);
+    console.log(`Coupon will expire on: ${finalExpiryDate.toISOString()}`);
 
     // Set max redemptions if provided
     if (maxUsage && maxUsage > 0) {
@@ -1166,11 +1135,11 @@ async function listStripeCoupons(options = {}, useTestMode = false) {
  * @param {String} couponId - Stripe coupon ID
  * @param {String} promoCode - Promotion code (usually same as coupon code)
  * @param {Object} options - Additional options for promotion code
- * @param {Number} options.max_redemptions_per_customer - Max uses per customer (default: 1)
  * @param {Number} options.max_redemptions - Total max redemptions across all customers
  * @param {Boolean} options.active - Whether the promotion code is active
  * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Stripe promotion code object
+ * @note Stripe doesn't support per-customer limits on promotion codes. Use application logic to track usage per customer.
  */
 async function createStripePromotionCode(
   couponId,
@@ -1190,8 +1159,6 @@ async function createStripePromotionCode(
       coupon: couponId,
       code: promoCode,
       active: true,
-      // Default to 1 use per customer unless explicitly specified in options
-      max_redemptions_per_customer: options.max_redemptions_per_customer ?? 1,
       metadata: {
         createdBy: "admin-panel",
         couponId: couponId,
@@ -1284,10 +1251,17 @@ async function deleteStripePromotionCode(promoCodeId, useTestMode = false) {
 /**
  * Validate and get coupon from both MongoDB and Stripe
  * @param {String} couponCode - Coupon code to validate
+ * @param {String} userId - User ID to check if they've already used the coupon
+ * @param {String} stripeCustomerId - Stripe customer ID to check usage
  * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
  * @returns {Object} Validation result with coupon data
  */
-async function validateCoupon(couponCode, useTestMode = false) {
+async function validateCoupon(
+  couponCode,
+  userId = null,
+  stripeCustomerId = null,
+  useTestMode = false
+) {
   try {
     const Coupon = require("../models/couponModel");
 
@@ -1318,6 +1292,18 @@ async function validateCoupon(couponCode, useTestMode = false) {
       return {
         isValid: false,
         error: "Coupon has expired",
+        coupon: null,
+      };
+    }
+
+    // Check if user has already used this coupon (one per customer limit)
+    if (
+      (userId || stripeCustomerId) &&
+      mongoCoupon.hasUserUsedCoupon(userId, stripeCustomerId)
+    ) {
+      return {
+        isValid: false,
+        error: "You have already used this coupon",
         coupon: null,
       };
     }
@@ -1478,15 +1464,11 @@ async function hasUserMadeFirstPurchase(customerId, useTestMode = false) {
       (invoice) => invoice.amount_paid > 0
     );
 
-    console.log(
-      `Customer ${customerId} has ${paidInvoices.length} paid invoices`
-    );
+    
 
     // If no paid invoices at all, user hasn't made first purchase
     if (paidInvoices.length === 0) {
-      console.log(
-        `Customer ${customerId} has no paid invoices - hasn't made first purchase`
-      );
+    
       return false;
     }
 
@@ -1586,7 +1568,6 @@ module.exports = {
   getOrCreateStripeCustomer,
   createStripeSubscription,
   updateStripeSubscription,
-  updateStripeSubscriptionPrice,
   cancelStripeSubscription,
   getStripeSubscription,
   getStripeCreditBalance,

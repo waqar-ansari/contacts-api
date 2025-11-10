@@ -139,6 +139,32 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
       // Don't fail the subscription completion if cache credit transfer fails
     }
 
+    // Handle coupon usage tracking if a coupon was applied
+    try {
+      // Check if the subscription has a discount (coupon applied)
+      if (session.subscription?.discount?.coupon) {
+        const stripeCouponId = session.subscription.discount.coupon.id;
+        console.log(`🎟️ Processing coupon usage for coupon: ${stripeCouponId}`);
+
+        const Coupon = require("../models/couponModel");
+        const couponDoc = await Coupon.findOne({ stripeCouponId });
+
+        if (couponDoc) {
+          await couponDoc.markUsedByUser(user._id, user.stripeCustomerId);
+          console.log(
+            `✅ Marked coupon ${couponDoc.couponCode} as used by user ${user._id}`
+          );
+        } else {
+          console.log(
+            `⚠️ Coupon with stripeCouponId ${stripeCouponId} not found in database`
+          );
+        }
+      }
+    } catch (couponError) {
+      console.error("❌ Error processing coupon usage:", couponError);
+      // Don't fail the subscription completion if coupon tracking fails
+    }
+
     console.log(
       `✅ Successfully completed subscription processing for session ${sessionId}`
     );

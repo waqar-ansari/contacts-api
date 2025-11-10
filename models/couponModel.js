@@ -14,7 +14,7 @@ const couponSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-    stripe_test_mode:{
+    stripe_test_mode: {
       type: Boolean,
       default: false,
     },
@@ -72,6 +72,22 @@ const couponSchema = new mongoose.Schema(
       sparse: true, // Allows multiple null values
       index: true,
     },
+    usedByUsers: {
+      type: [
+        {
+          userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          usedAt: {
+            type: Date,
+            default: Date.now,
+          },
+          stripeCustomerId: String,
+        },
+      ],
+      default: [],
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -107,6 +123,31 @@ couponSchema.virtual("isAvailable").get(function () {
 couponSchema.methods.incrementUsage = function () {
   this.usageCount += 1;
   return this.save();
+};
+
+// Method to check if user has already used this coupon
+couponSchema.methods.hasUserUsedCoupon = function (userId, stripeCustomerId) {
+  return this.usedByUsers.some(
+    (usage) =>
+      (userId &&
+        usage.userId &&
+        usage.userId.toString() === userId.toString()) ||
+      (stripeCustomerId && usage.stripeCustomerId === stripeCustomerId)
+  );
+};
+
+// Method to mark coupon as used by a user
+couponSchema.methods.markUsedByUser = function (userId, stripeCustomerId) {
+  if (!this.hasUserUsedCoupon(userId, stripeCustomerId)) {
+    this.usedByUsers.push({
+      userId: userId || null,
+      stripeCustomerId: stripeCustomerId || null,
+      usedAt: new Date(),
+    });
+    this.usageCount += 1;
+    return this.save();
+  }
+  return Promise.resolve(this);
 };
 
 module.exports = mongoose.model("Coupon", couponSchema);

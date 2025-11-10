@@ -13,7 +13,6 @@ const validateCouponCode = async (req, res) => {
   try {
     const { couponCode } = req.body;
     const useTestMode = req.user.stripe_test_mode || false;
-
     if (!couponCode || typeof couponCode !== "string") {
       return res.status(400).json({
         success: false,
@@ -21,7 +20,13 @@ const validateCouponCode = async (req, res) => {
       });
     }
 
-    const validation = await validateCoupon(couponCode.trim(), useTestMode);
+    // Pass user ID and Stripe customer ID to check if they've already used the coupon
+    const validation = await validateCoupon(
+      couponCode.trim(),
+      req.user._id,
+      req.user.stripeCustomerId,
+      useTestMode
+    );
 
     if (!validation.isValid) {
       return res.status(400).json({
@@ -81,7 +86,13 @@ const previewCouponDiscount = async (req, res) => {
       });
     }
 
-    const validation = await validateCoupon(couponCode.trim(), useTestMode);
+    // Pass user ID and Stripe customer ID to check if they've already used the coupon
+    const validation = await validateCoupon(
+      couponCode.trim(),
+      req.user._id,
+      req.user.stripeCustomerId,
+      useTestMode
+    );
 
     if (!validation.isValid) {
       return res.status(400).json({
