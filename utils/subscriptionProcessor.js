@@ -141,10 +141,69 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
 
     // Handle coupon usage tracking if a coupon was applied
     try {
-      // Check if the subscription has a discount (coupon applied)
+      let stripeCouponId = null;
+      let promotionCodeUsed = null;
+
+      // Method 1: Check subscription discount (direct coupon application)
       if (session.subscription?.discount?.coupon) {
-        const stripeCouponId = session.subscription.discount.coupon.id;
-        console.log(`🎟️ Processing coupon usage for coupon: ${stripeCouponId}`);
+        stripeCouponId = session.subscription.discount.coupon.id;
+        console.log(`🎟️ Found coupon on subscription: ${stripeCouponId}`);
+      }
+
+      // Method 2: Check invoice for discount (embedded checkout with promotion codes)
+      if (!stripeCouponId && session.invoice) {
+        console.log(
+          `📄 Fetching invoice ${session.invoice} to check for discount...`
+        );
+        try {
+          // Retrieve invoice with expanded discounts to get full discount objects
+          const invoice = await stripeInstance.invoices.retrieve(
+            session.invoice,
+            {
+              expand: ["discounts"],
+            }
+          );
+
+          console.log(
+            "📋 Invoice discounts array:",
+            JSON.stringify(invoice.discounts, null, 2)
+          );
+          console.log(
+            "📋 Invoice total_discount_amounts:",
+            invoice.total_discount_amounts
+          );
+
+          // Check if invoice has discounts array
+          if (invoice.discounts && invoice.discounts.length > 0) {
+            const discount = invoice.discounts[0]; // Now this should be an expanded object
+            console.log(
+              `📄 Discount object:`,
+              JSON.stringify(discount, null, 2)
+            );
+
+            // Access coupon and promotion_code from the expanded discount
+            stripeCouponId = discount.coupon?.id;
+            promotionCodeUsed = discount.promotion_code;
+
+            console.log(
+              `🎟️ Found coupon: ${stripeCouponId}${
+                promotionCodeUsed
+                  ? ` (promotion code: ${promotionCodeUsed})`
+                  : ""
+              }`
+            );
+          }
+        } catch (invoiceError) {
+          console.error(
+            `❌ Error fetching invoice/discount: ${invoiceError.message}`
+          );
+        }
+      }
+
+      if (stripeCouponId) {
+        console.log(
+          `🎟️ Processing coupon usage for coupon ID: ${stripeCouponId}`
+        );
 
         const Coupon = require("../models/couponModel");
         const couponDoc = await Coupon.findOne({ stripeCouponId });
@@ -159,6 +218,8 @@ const processSubscriptionCompletion = async (sessionId, options = {}) => {
             `⚠️ Coupon with stripeCouponId ${stripeCouponId} not found in database`
           );
         }
+      } else {
+        console.log(`ℹ️ No coupon applied to this subscription`);
       }
     } catch (couponError) {
       console.error("❌ Error processing coupon usage:", couponError);
