@@ -142,7 +142,7 @@ const {
 // }
 
 exports.scanUser = async (req, res) => {
-  const useTestMode = req.user.stripe_test_mode || false;
+
   // CHANGED: accept countryCode from body for unregistered scanner path
   const {
     UserID,
@@ -164,6 +164,10 @@ exports.scanUser = async (req, res) => {
         .status(404)
         .json({ status: "error", message: "Scanned user (UserID) not found" });
     }
+    console.log(user);
+
+    const useTestMode = user.stripe_test_mode || false;
+
 
     // ✅ Normalize phone depending on apiType
     let parsedPhone = null;
@@ -220,16 +224,21 @@ exports.scanUser = async (req, res) => {
 
       // Get scanner's current plan from subscription
       const scannerPlan = await getUserCurrentPlan(scanner, useTestMode);
+      console.log(scannerPlan);
 
       // ---- PLAN LIMIT CHECK FOR REGISTERED SCANNER ----
       const planName = scannerPlan?.name?.toLowerCase() || "starter";
+      console.log("planname" + planName);
+
       let scanLimit = 50; // default for Free
       if (planName === "pro") scanLimit = Infinity;
 
       // Count how many contacts this scanner has created (i.e., how many times they've scanned)
       const scanCount = await Contact.countDocuments({
         createdBy: scanner._id,
+        category: { $in: ["qrScan", "lead"] },
       });
+      console.log("scancount" + scanCount);
 
       if (scanCount >= scanLimit) {
         return res.status(403).json({
@@ -320,13 +329,13 @@ exports.scanUser = async (req, res) => {
             { emailaddresses: { $in: [scanner.email] } },
             scanner.phonenumbers?.[0]?.number
               ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-                      number: scanner.phonenumbers?.[0]?.number || "",
-                    },
+                phonenumbers: {
+                  $elemMatch: {
+                    countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+                    number: scanner.phonenumbers?.[0]?.number || "",
                   },
-                }
+                },
+              }
               : { _id: null },
           ],
         });
@@ -363,9 +372,8 @@ exports.scanUser = async (req, res) => {
             action: "created",
             type: "contact",
             title: "New Contact Added",
-            description: `Contact ${user.firstname || ""} ${
-              user.lastname || ""
-            } was added via QR scan`,
+            description: `Contact ${user.firstname || ""} ${user.lastname || ""
+              } was added via QR scan`,
           });
           // increment the owner's counter for qr scans
           await newContact.save();
@@ -561,14 +569,14 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [scanner.email] } },
               scanner.phonenumbers?.[0]?.number
                 ? {
-                    phonenumbers: {
-                      $elemMatch: {
-                        countryCode:
-                          scanner.phonenumbers?.[0]?.countryCode || "",
-                        number: scanner.phonenumbers?.[0]?.number || "",
-                      },
+                  phonenumbers: {
+                    $elemMatch: {
+                      countryCode:
+                        scanner.phonenumbers?.[0]?.countryCode || "",
+                      number: scanner.phonenumbers?.[0]?.number || "",
                     },
-                  }
+                  },
+                }
                 : { _id: null },
             ],
           });
@@ -589,8 +597,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                ? [scanner.phonenumbers[0]]
-                : [],
+                  ? [scanner.phonenumbers[0]]
+                  : [],
               linkedin: scanner.linkedin || "",
               instagram: scanner.instagram || "",
               telegram: scanner.telegram || "",
@@ -603,9 +611,8 @@ exports.scanUser = async (req, res) => {
               action: "created",
               type: "contact",
               title: "New Contact Added (Unregistered)",
-              description: `Temporary contact ${firstname || ""} ${
-                lastname || ""
-              } added via QR scan`,
+              description: `Temporary contact ${firstname || ""} ${lastname || ""
+                } added via QR scan`,
             });
             await newContact.save();
             await incrementOwnerCategoryCounter(user._id, "lead");
@@ -619,13 +626,13 @@ exports.scanUser = async (req, res) => {
               { emailaddresses: { $in: [user.email] } },
               user.phonenumbers?.[0]?.number
                 ? {
-                    phonenumbers: {
-                      $elemMatch: {
-                        countryCode: user.phonenumbers?.[0]?.countryCode || "",
-                        number: user.phonenumbers?.[0]?.number || "",
-                      },
+                  phonenumbers: {
+                    $elemMatch: {
+                      countryCode: user.phonenumbers?.[0]?.countryCode || "",
+                      number: user.phonenumbers?.[0]?.number || "",
                     },
-                  }
+                  },
+                }
                 : { _id: null },
             ],
           });
@@ -638,8 +645,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone] // ✅ use normalized phone for web/mobile
                 : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                ? [user.phonenumbers[0]]
-                : [],
+                  ? [user.phonenumbers[0]]
+                  : [],
               linkedin: user.linkedin || "",
               instagram: user.instagram || "",
               telegram: user.telegram || "",
@@ -771,10 +778,10 @@ exports.scanUser = async (req, res) => {
               phonenumber
                 ? countryCode
                   ? {
-                      phonenumbers: {
-                        $elemMatch: { countryCode, number: phonenumber },
-                      },
-                    }
+                    phonenumbers: {
+                      $elemMatch: { countryCode, number: phonenumber },
+                    },
+                  }
                   : { "phonenumbers.number": phonenumber }
                 : { _id: null },
             ],
@@ -796,8 +803,8 @@ exports.scanUser = async (req, res) => {
               phonenumbers: parsedPhone
                 ? [parsedPhone]
                 : phonenumber
-                ? [{ countryCode: countryCode || "", number: phonenumber }]
-                : [],
+                  ? [{ countryCode: countryCode || "", number: phonenumber }]
+                  : [],
               createdBy: user._id,
             });
             newContact.contact_id = newContact._id;
