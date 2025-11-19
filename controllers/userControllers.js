@@ -25,8 +25,8 @@ const Plan = require("../models/planModel");
 const { setupInitialPlan } = require("../utils/planUtils");
 const BlacklistedToken = require("../models/blacklistedTokenModel");
 const jwt = require("jsonwebtoken");
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
-
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -46,9 +46,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-      number: (p.number || "").toString().replace(/^\+/, ""),
-    }))
+        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        number: (p.number || "").toString().replace(/^\+/, ""),
+      }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -173,7 +173,6 @@ const signupWithEmail = async (req, res) => {
       const user = await User.findOne({ emailVerificationToken: verifyToken });
       if (user.email) user.email = user.email.toLowerCase();
 
-
       if (!user) {
         return res.status(400).json({
           status: "error",
@@ -204,6 +203,7 @@ const signupWithEmail = async (req, res) => {
             console.log(
               `Added $10 welcome credit to user cache for user ${user._id}`
             );
+            await user.save();
           } catch (error) {
             console.error("Error adding welcome credit to user cache:", error);
           }
@@ -230,7 +230,8 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${user.firstname || "User"
+                  `Referral bonus - ${
+                    user.firstname || "User"
                   } verified their email`,
                   referringUser.stripe_test_mode || false
                 );
@@ -318,12 +319,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-            scannedMe: {
-              $elemMatch: {
-                $or: matchConditions,
+              scannedMe: {
+                $elemMatch: {
+                  $or: matchConditions,
+                },
               },
-            },
-          })
+            })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -341,8 +342,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                user.phonenumbers[0].countryCode +
-                user.phonenumbers[0].number))
+                  user.phonenumbers[0].countryCode +
+                    user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -906,13 +907,47 @@ const signupWithPhoneNumber = async (req, res) => {
         // await referringUser.save();
         await addOrUpdateReferral(referringUser._id, user);
 
-        await ReferralLog.create({
-          phonenumbers: [
-            { countryCode: sanitizedCountryCode, number: sanitizedNumber },
-          ],
-          referredBy: referringUser._id,
-          referredUserId: user._id,
+        // Check if this phone number already used a referral
+        const existingPhoneLog = await ReferralLog.findOne({
+          phonenumbers: {
+            $elemMatch: {
+              countryCode: sanitizedCountryCode,
+              number: sanitizedNumber,
+            },
+          },
         });
+
+        if (existingPhoneLog) {
+          // If the log exists but for the same user (shouldn't happen but handle it)
+          if (
+            existingPhoneLog.referredUserId?.toString() === user._id.toString()
+          ) {
+            console.log("ReferralLog already exists for this user - skipping");
+          } else {
+            // Different user trying to use referral with same phone
+            return res.status(400).json({
+              status: "error",
+              message:
+                "This referral link has already been used with this phone number. Please sign up manually.",
+            });
+          }
+        } else {
+          // Create new ReferralLog
+          const logData = {
+            phonenumbers: [
+              { countryCode: sanitizedCountryCode, number: sanitizedNumber },
+            ],
+            referredBy: referringUser._id,
+            referredUserId: user._id,
+          };
+
+          // Only add email if user has one
+          if (user.email) {
+            logData.email = user.email;
+          }
+
+          await ReferralLog.create(logData);
+        }
       }
     }
     user.isActive = true; // mark as active
@@ -929,6 +964,7 @@ const signupWithPhoneNumber = async (req, res) => {
         // Add $10 referral credits to the current user's cache (will be applied to Stripe on first purchase)
         try {
           user.cache_credits = (user.cache_credits || 0) + 10;
+          await user.save();
           console.log(
             `Added $10 welcome credit to user cache for user ${user._id}`
           );
@@ -958,7 +994,8 @@ const signupWithPhoneNumber = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${user.firstname || "User"
+                `Referral bonus - ${
+                  user.firstname || "User"
                 } verified phone number`,
                 referringUser.stripe_test_mode || false
               );
@@ -2012,10 +2049,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-            ? "Email"
-            : user.signupMethod === "phoneNumber"
-              ? "Phone Number"
-              : "Other";
+          ? "Email"
+          : user.signupMethod === "phoneNumber"
+          ? "Phone Number"
+          : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
