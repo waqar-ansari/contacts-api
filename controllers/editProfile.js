@@ -149,6 +149,7 @@ const editProfile = async (req, res) => {
       twitter,
       facebook,
       designation,
+      company,
       whatsappTemplate_id,
       whatsappTemplateTitle,
       whatsappTemplateMessage,
@@ -276,7 +277,10 @@ const editProfile = async (req, res) => {
       if (keys.includes("twitter")) user.twitter = twitter;
       if (keys.includes("facebook")) user.facebook = facebook;
       if (keys.includes("designation")) user.designation = designation;
-
+      if (keys.includes("company")) {
+        if (!user.userInfo) user.userInfo = {};
+        user.userInfo.companyName = company;
+      }
       // if (keys.includes('email') && email) {
       //   const trimmedEmail = email.trim().toLowerCase();
 
@@ -732,6 +736,7 @@ const editProfile = async (req, res) => {
         designation: user.designation,
         provider: user.provider,
         profileImageURL: user.profileImageURL,
+        company: user.userInfo?.companyName || "",
         templates: {},
       };
 
@@ -771,6 +776,7 @@ const editProfile = async (req, res) => {
           facebook: user.facebook,
           designation: user.designation,
           provider: user.provider,
+          company: user.userInfo?.companyName || "",
           // whatsappTemplates: user.whatsappTemplates,
           // emailTemplates: user.emailTemplates,
         },
