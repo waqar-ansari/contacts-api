@@ -99,6 +99,7 @@ const alertMessageEmailSubcriptionEndController = require("./routes/admin/alertM
 const sendNotificationToAllUsers = require("./routes/admin/notificationRoutes");
 const sendEmailToAllUsers = require("./routes/admin/adminEmailSentforUsersRoutes");
 const weeklyReportRoutes = require("./routes/admin/weeklyReportRoutes");
+const invoiceCustomizationRoutes = require("./routes/invoiceCustomizationRoutes");
 
 console.log("Setting up Express app...");
 
@@ -326,6 +327,13 @@ app.use(
   checkForAuthentication(),
   checkRole(["superadmin"]),
   sendEmailToAllUsers
+);
+
+app.use(
+  "/admin/invoice-customization",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  invoiceCustomizationRoutes
 );
 
 app.use("/admin/user-weekly-report", weeklyReportRoutes);
