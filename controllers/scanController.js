@@ -13,133 +13,7 @@ const {
   ensureScanQuotaForOwner,
   incrementOwnerCategoryCounter,
 } = require("../utils/contactCount");
-// ---------- Add near top with other imports ----------
-/**
- * Check plan quota for ownerId and category, throw Error if quota exceeded.
- * category should be 'qrScan' or 'businessCardScan' (or other if you add types).
- */
-// async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null) {
-//   const owner = await User.findById(ownerId);
-//   if (!owner) throw new Error("Owner not found for quota check");
 
-//   const plan = await getUserCurrentPlan(owner);
-//   const planName = (plan?.name || "starter").toLowerCase();
-
-//   // Starter plan limits:
-//   const STARTER_TOTAL_LIMIT = 1000;
-//   const STARTER_QR_LIMIT = 50;
-//   const STARTER_BUSINESS_LIMIT = 50;
-//   const STARTER_LEAD_LIMIT = 50; // keep if you want lead limited, else set Infinity
-
-//   // Determine per-category limit depending on plan
-//   const perCategoryLimitsForStarter = {
-//     qrScan: STARTER_QR_LIMIT,
-//     businessCardScan: STARTER_BUSINESS_LIMIT,
-//     lead: STARTER_LEAD_LIMIT,
-//     manual: Infinity, // manual has no per-category limit for Starter
-//   };
-
-//   // If pro -> unlimited everything
-//   const isPro = planName === "pro";
-
-//   // Count current totals excluding an existing contact (useful for updates)
-//   const excludeClause = excludeContactId && mongoose.Types.ObjectId.isValid(excludeContactId)
-//     ? { _id: { $ne: excludeContactId } }
-//     : {};
-
-//   // const totalCount = await Contact.countDocuments({
-//   //   createdBy: ownerId,
-//   //   ...excludeClause,
-//   // });
-//   const totalCount = await User.findById(ownerId).then(u => u.totalContactCount || 0);
-//   const leadContactCount = await User.findById(ownerId).then(u => u.leadContactCount || 0);
-//   const businessCardScanContactCount = await User.findById(ownerId).then(u => u.businessCardScanContactCount || 0);
-//   const qrScanContactCount = await User.findById(ownerId).then(u => u.qrScanContactCount || 0);
-//   const manualContactCount = await User.findById(ownerId).then(u => u.manualContactCount || 0);
-//   // Category specific count (exclude the contact if provided)
-//   // const categoryCount = await Contact.countDocuments({
-//   //   createdBy: ownerId,
-//   //   category,
-//   //   ...excludeClause,
-//   // });
-
-//   // Enforce total limit for Starter
-//   if (!isPro && totalCount >= STARTER_TOTAL_LIMIT) {
-//     throw new Error(
-//       `Total contact limit reached for Starter plan (${totalCount}/${STARTER_TOTAL_LIMIT}). Upgrade to Pro for unlimited contacts.`
-//     );
-//   }
-
-//   if (category === "lead") {
-//     if (!isPro && leadContactCount >= STARTER_LEAD_LIMIT) {
-//       throw new Error(
-//         `Plan limit reached for ${category} (${leadContactCount}/${STARTER_LEAD_LIMIT}). Upgrade to Pro for more.`
-//       );
-//     }
-//   } else if (category === "businessCardScan") {
-//     if (!isPro && businessCardScanContactCount >= STARTER_BUSINESS_LIMIT) {
-//       throw new Error(
-//         `Plan limit reached for ${category} (${businessCardScanContactCount}/${STARTER_BUSINESS_LIMIT}). Upgrade to Pro for more.`
-//       );
-//     }
-//   } else if (category === "qrScan") {
-//     if (!isPro && qrScanContactCount >= STARTER_QR_LIMIT) {
-//       throw new Error(
-//         `Plan limit reached for ${category} (${qrScanContactCount}/${STARTER_QR_LIMIT}). Upgrade to Pro for more.`
-//       );
-//     }
-//   } else if (category === "manual") {
-//     if (!isPro && manualContactCount >= Infinity) {
-//       throw new Error(
-//         `Plan limit reached for ${category} (${manualContactCount}/∞). Upgrade to Pro for more.`
-//       );
-//     }
-//   }
-
-//   // Enforce per-category limit (only if the category has a finite limit on Starter)
-//   // if (!isPro) {
-//   //   const catLimit = perCategoryLimitsForStarter[category] ?? Infinity;
-//   //   if (catLimit !== Infinity && categoryCount >= catLimit) {
-//   //     throw new Error(
-//   //       `Plan limit reached for ${category} (${categoryCount}/${catLimit}). Upgrade to Pro for more.`
-//   //     );
-//   //   }
-//   // }
-
-//   // Return remaining (useful if you want to show it)
-//   return {
-//     remainingTotal: isPro ? Infinity : STARTER_TOTAL_LIMIT - totalCount,
-//     remainingTotal: isPro ? Infinity : STARTER_LEAD_LIMIT - leadContactCount,
-//     remainingTotal: isPro ? Infinity : STARTER_BUSINESS_LIMIT - businessCardScanContactCount,
-//     remainingTotal: isPro ? Infinity : Infinity - manualContactCount,
-//     remainingCategory: isPro ? Infinity : STARTER_QR_LIMIT - qrScanContactCount,
-//     // remainingCategory: isPro ? Infinity : (perCategoryLimitsForStarter[category] === Infinity ? Infinity : perCategoryLimitsForStarter[category] - categoryCount),
-//   };
-// }
-
-/**
- * Increment owner's contact count counter field after new contact persisted.
- * categoryMatches 'qrScan'|'businessCardScan' etc.
- */
-// async function incrementOwnerScanCounters(ownerId, category) {
-//   const map = {
-//     qrScan: "qrScanContactCount",
-//     businessCardScan: "businessCardScanContactCount",
-//     lead: "leadContactCount",
-//     manual: "manualContactCount",
-//   };
-
-//   const field = map[category];
-//   if (!field) return;
-
-//   // Increment both the specific category counter and the totalContactCount
-//   await User.updateOne(
-//     { _id: ownerId },
-//     { $inc: { [field]: 1, totalContactCount: 1 } }
-//   ).catch((err) =>
-//     console.error("⚠️ Failed to increment owner category/total counter:", err)
-//   );
-// }
 
 exports.scanUser = async (req, res) => {
 
@@ -323,22 +197,77 @@ exports.scanUser = async (req, res) => {
         updated = !!(pushResult.modifiedCount || pushResult.nModified);
         // Second: Save contact in user's contacts (scanner info)
         // CHANGED: duplicate check uses $elemMatch
-        const contactExistsForUser = await Contact.findOne({
+        // const contactExistsForUser = await Contact.findOne({
+        //   createdBy: user._id,
+        //   $or: [
+        //     { emailaddresses: { $in: [scanner.email] } },
+        //     scanner.phonenumbers?.[0]?.number
+        //       ? {
+        //         phonenumbers: {
+        //           $elemMatch: {
+        //             countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
+        //             number: scanner.phonenumbers?.[0]?.number || "",
+        //           },
+        //         },
+        //       }
+        //       : { _id: null },
+        //   ],
+        // });
+
+        // ------------------ ATOMIC upsert for contact (owner = user._id) ------------------
+        const scannerEmail = scanner?.email || "";
+        const scannerPhone = (Array.isArray(scanner?.phonenumbers) && scanner.phonenumbers[0])
+          ? scanner.phonenumbers[0].number
+          : "";
+        const scannerCountryCode = (Array.isArray(scanner?.phonenumbers) && scanner.phonenumbers[0])
+          ? scanner.phonenumbers[0].countryCode
+          : "";
+
+        // Build a filter that matches existing contact by email OR phone
+        const contactFilterForUser = {
           createdBy: user._id,
           $or: [
-            { emailaddresses: { $in: [scanner.email] } },
-            scanner.phonenumbers?.[0]?.number
-              ? {
-                phonenumbers: {
-                  $elemMatch: {
-                    countryCode: scanner.phonenumbers?.[0]?.countryCode || "",
-                    number: scanner.phonenumbers?.[0]?.number || "",
-                  },
-                },
-              }
+            { emailaddresses: { $in: [scannerEmail || ""] } },
+            scannerPhone
+              ? { phonenumbers: { $elemMatch: { countryCode: scannerCountryCode || "", number: scannerPhone } } }
               : { _id: null },
           ],
-        });
+        };
+
+        // Document to insert only if not exists
+        const contactDocForUserOnInsert = {
+          firstname: scanner?.firstname || "",
+          lastname: scanner?.lastname || "",
+          category: "qrScan",
+          emailaddresses: scannerEmail ? [scannerEmail] : [""],
+          phonenumbers: scannerPhone ? [{ countryCode: scannerCountryCode || "", number: scannerPhone }] : [],
+          linkedin: scanner?.linkedin || "",
+          instagram: scanner?.instagram || "",
+          telegram: scanner?.telegram || "",
+          twitter: scanner?.twitter || "",
+          facebook: scanner?.facebook || "",
+          createdBy: user._id,
+          createdAt: new Date(),
+          activities: [{
+            action: "created",
+            type: "contact",
+            title: "New Contact Added",
+            description: `Contact ${user.firstname || ""} ${user.lastname || ""} was added via QR scan`,
+            createdAt: new Date()
+          }]
+        };
+
+        // Atomic upsert (insert only if not present)
+        const upsertResultForUser = await Contact.updateOne(
+          contactFilterForUser,
+          { $setOnInsert: contactDocForUserOnInsert },
+          { upsert: true }
+        );
+
+        // If insert happened, increment owner counter
+        if (upsertResultForUser.upsertedCount && upsertResultForUser.upsertedCount > 0) {
+          await incrementOwnerCategoryCounter(user._id, "qrScan");
+        }
 
         // quota check for the owner of the new contact (owner is `user._id` here)
         try {
@@ -349,36 +278,36 @@ exports.scanUser = async (req, res) => {
             .json({ status: "error", message: err.message });
         }
 
-        if (!contactExistsForUser) {
-          const newContact = new Contact({
-            firstname: scanner.firstname || "",
-            lastname: scanner.lastname || "",
-            category: "qrScan",
-            emailaddresses: [scanner.email || ""],
-            // CHANGED: save whole object
-            phonenumbers:
-              Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                ? [scanner.phonenumbers[0]]
-                : [],
-            linkedin: scanner.linkedin || "",
-            instagram: scanner.instagram || "",
-            telegram: scanner.telegram || "",
-            twitter: scanner.twitter || "",
-            facebook: scanner.facebook || "",
-            createdBy: user._id,
-          });
-          newContact.contact_id = newContact._id; // ensure consistency
-          newContact.activities.push({
-            action: "created",
-            type: "contact",
-            title: "New Contact Added",
-            description: `Contact ${user.firstname || ""} ${user.lastname || ""
-              } was added via QR scan`,
-          });
-          // increment the owner's counter for qr scans
-          await newContact.save();
-          await incrementOwnerCategoryCounter(user._id, "qrScan");
-        }
+        // if (!contactExistsForUser) {
+        //   const newContact = new Contact({
+        //     firstname: scanner.firstname || "",
+        //     lastname: scanner.lastname || "",
+        //     category: "qrScan",
+        //     emailaddresses: [scanner.email || ""],
+        //     // CHANGED: save whole object
+        //     phonenumbers:
+        //       Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
+        //         ? [scanner.phonenumbers[0]]
+        //         : [],
+        //     linkedin: scanner.linkedin || "",
+        //     instagram: scanner.instagram || "",
+        //     telegram: scanner.telegram || "",
+        //     twitter: scanner.twitter || "",
+        //     facebook: scanner.facebook || "",
+        //     createdBy: user._id,
+        //   });
+        //   newContact.contact_id = newContact._id; // ensure consistency
+        //   newContact.activities.push({
+        //     action: "created",
+        //     type: "contact",
+        //     title: "New Contact Added",
+        //     description: `Contact ${user.firstname || ""} ${user.lastname || ""
+        //       } was added via QR scan`,
+        //   });
+        //   // increment the owner's counter for qr scans
+        //   await newContact.save();
+        //   await incrementOwnerCategoryCounter(user._id, "qrScan");
+        // }
       }
 
       // Add User full info into scanner's iScanned
@@ -563,24 +492,73 @@ exports.scanUser = async (req, res) => {
 
           // ✅ Create contact for UserID (about scanner)
           // CHANGED: duplicate check uses $elemMatch
-          const contactExistsForUser = await Contact.findOne({
+          // const contactExistsForUser = await Contact.findOne({
+          //   createdBy: user._id,
+          //   $or: [
+          //     { emailaddresses: { $in: [scanner.email] } },
+          //     scanner.phonenumbers?.[0]?.number
+          //       ? {
+          //         phonenumbers: {
+          //           $elemMatch: {
+          //             countryCode:
+          //               scanner.phonenumbers?.[0]?.countryCode || "",
+          //             number: scanner.phonenumbers?.[0]?.number || "",
+          //           },
+          //         },
+          //       }
+          //       : { _id: null },
+          //   ],
+          // });
+          // await ensureScanQuotaForOwner(user._id, 'lead');
+
+          // ------------------ ATOMIC upsert for contact (owner = user._id) in matchedScanner path ------------------
+          const matchedScannerEmail = scanner?.email || "";
+          const matchedScannerPhone = parsedPhone ? parsedPhone.number : (Array.isArray(scanner?.phonenumbers) && scanner.phonenumbers[0] ? scanner.phonenumbers[0].number : "");
+          const matchedScannerCountryCode = parsedPhone ? parsedPhone.countryCode : (Array.isArray(scanner?.phonenumbers) && scanner.phonenumbers[0] ? scanner.phonenumbers[0].countryCode : "");
+
+          const contactFilterForUserMatched = {
             createdBy: user._id,
             $or: [
-              { emailaddresses: { $in: [scanner.email] } },
-              scanner.phonenumbers?.[0]?.number
-                ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode:
-                        scanner.phonenumbers?.[0]?.countryCode || "",
-                      number: scanner.phonenumbers?.[0]?.number || "",
-                    },
-                  },
-                }
+              { emailaddresses: { $in: [matchedScannerEmail || ""] } },
+              matchedScannerPhone
+                ? { phonenumbers: { $elemMatch: { countryCode: matchedScannerCountryCode || "", number: matchedScannerPhone } } }
                 : { _id: null },
             ],
-          });
-          // await ensureScanQuotaForOwner(user._id, 'lead');
+          };
+
+          const contactDocForUserMatchedOnInsert = {
+            firstname: scanner?.firstname || "",
+            lastname: scanner?.lastname || "",
+            category: "lead",
+            emailaddresses: matchedScannerEmail ? [matchedScannerEmail] : [""],
+            phonenumbers: matchedScannerPhone ? [{ countryCode: matchedScannerCountryCode || "", number: matchedScannerPhone }] : [],
+            linkedin: scanner?.linkedin || "",
+            instagram: scanner?.instagram || "",
+            telegram: scanner?.telegram || "",
+            twitter: scanner?.twitter || "",
+            facebook: scanner?.facebook || "",
+            createdBy: user._id,
+            createdAt: new Date(),
+            activities: [{
+              action: "created",
+              type: "contact",
+              title: "New Contact Added (Unregistered)",
+              description: `Temporary contact ${firstname || ""} ${lastname || ""} added via QR scan`,
+              createdAt: new Date()
+            }]
+          };
+
+          const upsertResultForUserMatched = await Contact.updateOne(
+            contactFilterForUserMatched,
+            { $setOnInsert: contactDocForUserMatchedOnInsert },
+            { upsert: true }
+          );
+
+          if (upsertResultForUserMatched.upsertedCount && upsertResultForUserMatched.upsertedCount > 0) {
+            await incrementOwnerCategoryCounter(user._id, "lead");
+          }
+
+
           try {
             await ensureScanQuotaForOwner(user._id, "lead", null, useTestMode); // throws if limit reached
           } catch (err) {
@@ -588,75 +566,115 @@ exports.scanUser = async (req, res) => {
               .status(403)
               .json({ status: "error", message: err.message });
           }
-          if (!contactExistsForUser) {
-            const newContact = new Contact({
-              firstname: scanner.firstname || "",
-              lastname: scanner.lastname || "",
-              category: "lead",
-              emailaddresses: [scanner.email || ""],
-              phonenumbers: parsedPhone
-                ? [parsedPhone]
-                : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
-                  ? [scanner.phonenumbers[0]]
-                  : [],
-              linkedin: scanner.linkedin || "",
-              instagram: scanner.instagram || "",
-              telegram: scanner.telegram || "",
-              twitter: scanner.twitter || "",
-              facebook: scanner.facebook || "",
-              createdBy: user._id,
-            });
-            newContact.contact_id = newContact._id;
-            newContact.activities.push({
-              action: "created",
-              type: "contact",
-              title: "New Contact Added (Unregistered)",
-              description: `Temporary contact ${firstname || ""} ${lastname || ""
-                } added via QR scan`,
-            });
-            await newContact.save();
-            await incrementOwnerCategoryCounter(user._id, "lead");
-          }
+          // if (!contactExistsForUser) {
+          //   const newContact = new Contact({
+          //     firstname: scanner.firstname || "",
+          //     lastname: scanner.lastname || "",
+          //     category: "lead",
+          //     emailaddresses: [scanner.email || ""],
+          //     phonenumbers: parsedPhone
+          //       ? [parsedPhone]
+          //       : Array.isArray(scanner.phonenumbers) && scanner.phonenumbers[0]
+          //         ? [scanner.phonenumbers[0]]
+          //         : [],
+          //     linkedin: scanner.linkedin || "",
+          //     instagram: scanner.instagram || "",
+          //     telegram: scanner.telegram || "",
+          //     twitter: scanner.twitter || "",
+          //     facebook: scanner.facebook || "",
+          //     createdBy: user._id,
+          //   });
+          //   newContact.contact_id = newContact._id;
+          //   newContact.activities.push({
+          //     action: "created",
+          //     type: "contact",
+          //     title: "New Contact Added (Unregistered)",
+          //     description: `Temporary contact ${firstname || ""} ${lastname || ""
+          //       } added via QR scan`,
+          //   });
+          //   await newContact.save();
+          //   await incrementOwnerCategoryCounter(user._id, "lead");
+          // }
 
           // ✅ Create contact for Scanner (about user)
           // CHANGED: duplicate check uses $elemMatch
-          const contactExistsForScanner = await Contact.findOne({
+
+          // ------------------ ATOMIC upsert for contact (owner = scanner._id) in matchedScanner path ------------------
+          const userEmailForScanner = user?.email || "";
+          const userPhoneForScanner = Array.isArray(user?.phonenumbers) && user.phonenumbers[0] ? user.phonenumbers[0].number : "";
+          const userCountryCodeForScanner = Array.isArray(user?.phonenumbers) && user.phonenumbers[0] ? user.phonenumbers[0].countryCode : "";
+
+          const contactFilterForScanner = {
             createdBy: scanner._id,
             $or: [
-              { emailaddresses: { $in: [user.email] } },
-              user.phonenumbers?.[0]?.number
-                ? {
-                  phonenumbers: {
-                    $elemMatch: {
-                      countryCode: user.phonenumbers?.[0]?.countryCode || "",
-                      number: user.phonenumbers?.[0]?.number || "",
-                    },
-                  },
-                }
+              { emailaddresses: { $in: [userEmailForScanner || ""] } },
+              userPhoneForScanner
+                ? { phonenumbers: { $elemMatch: { countryCode: userCountryCodeForScanner || "", number: userPhoneForScanner } } }
                 : { _id: null },
             ],
-          });
-          if (!contactExistsForScanner) {
-            const newContact = new Contact({
-              firstname: user.firstname || "",
-              lastname: user.lastname || "",
-              category: "lead",
-              emailaddresses: [user.email || ""],
-              phonenumbers: parsedPhone
-                ? [parsedPhone] // ✅ use normalized phone for web/mobile
-                : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
-                  ? [user.phonenumbers[0]]
-                  : [],
-              linkedin: user.linkedin || "",
-              instagram: user.instagram || "",
-              telegram: user.telegram || "",
-              twitter: user.twitter || "",
-              facebook: user.facebook || "",
-              createdBy: scanner._id,
-            });
-            newContact.contact_id = newContact._id;
-            await newContact.save();
-          }
+          };
+
+          const contactDocForScannerOnInsert = {
+            firstname: user?.firstname || "",
+            lastname: user?.lastname || "",
+            category: "lead",
+            emailaddresses: userEmailForScanner ? [userEmailForScanner] : [""],
+            phonenumbers: userPhoneForScanner ? [{ countryCode: userCountryCodeForScanner || "", number: userPhoneForScanner }] : [],
+            linkedin: user?.linkedin || "",
+            instagram: user?.instagram || "",
+            telegram: user?.telegram || "",
+            twitter: user?.twitter || "",
+            facebook: user?.facebook || "",
+            createdBy: scanner._id,
+            createdAt: new Date()
+          };
+
+          const upsertResultForScanner = await Contact.updateOne(
+            contactFilterForScanner,
+            { $setOnInsert: contactDocForScannerOnInsert },
+            { upsert: true }
+          );
+
+          // If needed, you can inspect upsertResultForScanner to know if a new contact was created
+
+
+          // const contactExistsForScanner = await Contact.findOne({
+          //   createdBy: scanner._id,
+          //   $or: [
+          //     { emailaddresses: { $in: [user.email] } },
+          //     user.phonenumbers?.[0]?.number
+          //       ? {
+          //         phonenumbers: {
+          //           $elemMatch: {
+          //             countryCode: user.phonenumbers?.[0]?.countryCode || "",
+          //             number: user.phonenumbers?.[0]?.number || "",
+          //           },
+          //         },
+          //       }
+          //       : { _id: null },
+          //   ],
+          // });
+          // if (!contactExistsForScanner) {
+          //   const newContact = new Contact({
+          //     firstname: user.firstname || "",
+          //     lastname: user.lastname || "",
+          //     category: "lead",
+          //     emailaddresses: [user.email || ""],
+          //     phonenumbers: parsedPhone
+          //       ? [parsedPhone] // ✅ use normalized phone for web/mobile
+          //       : Array.isArray(user.phonenumbers) && user.phonenumbers[0]
+          //         ? [user.phonenumbers[0]]
+          //         : [],
+          //     linkedin: user.linkedin || "",
+          //     instagram: user.instagram || "",
+          //     telegram: user.telegram || "",
+          //     twitter: user.twitter || "",
+          //     facebook: user.facebook || "",
+          //     createdBy: scanner._id,
+          //   });
+          //   newContact.contact_id = newContact._id;
+          //   await newContact.save();
+          // }
 
           // await scanner.save();
           // updated = true;

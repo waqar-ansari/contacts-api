@@ -212,6 +212,7 @@ const getUserData = async (req, res) => {
           trialEndDate: user.trialEnd || null,
           referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
           creditBalance: creditBalance,
+          companyName: user.userInfo?.companyName || "",
           accounts: [
             {
               type: "google",
@@ -366,6 +367,7 @@ const getUserData = async (req, res) => {
           referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
           creditBalance: user.creditBalance || 0,
           qrCode: qrCodeDataURL,
+          companyName: user.userInfo?.companyName || "",
           accounts: [
             {
               type: "google",
@@ -434,6 +436,7 @@ const getUserData = async (req, res) => {
       // qrCode: user.qrCode,
       instagram: user.instagram,
       linkedin: user.linkedin,
+
       telegram: user.telegram,
       twitter: user.twitter,
       facebook: user.facebook,
@@ -447,6 +450,7 @@ const getUserData = async (req, res) => {
       trialEndDate: stripeData?.trialEnd || null,
       referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
+      companyName: user.userInfo?.companyName || "",
       accounts: [
         {
           type: "google",
