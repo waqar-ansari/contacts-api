@@ -46,9 +46,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-        number: (p.number || "").toString().replace(/^\+/, ""),
-      }))
+      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+      number: (p.number || "").toString().replace(/^\+/, ""),
+    }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -171,6 +171,8 @@ const signupWithEmail = async (req, res) => {
     // === PART 1: Email Verification Flow ===
     if (verifyToken) {
       const user = await User.findOne({ emailVerificationToken: verifyToken });
+      if (user.email) user.email = user.email.toLowerCase();
+
 
       if (!user) {
         return res.status(400).json({
@@ -228,8 +230,7 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${
-                    user.firstname || "User"
+                  `Referral bonus - ${user.firstname || "User"
                   } verified their email`,
                   referringUser.stripe_test_mode || false
                 );
@@ -287,7 +288,7 @@ const signupWithEmail = async (req, res) => {
 
       // ✅ Optional: Update scannedMe for other users
       let matchConditions = [];
-      if (user.email) matchConditions.push({ email: user.email });
+      if (user.email) matchConditions.push({ email: user.email.toLowerCase() });
       // if (user.phonenumbers?.[0]) matchConditions.push({ phonenumber: user.phonenumbers[0] });
       // if (user.phonenumbers?.[0]) {
       //   matchConditions.push({
@@ -317,12 +318,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-              scannedMe: {
-                $elemMatch: {
-                  $or: matchConditions,
-                },
+            scannedMe: {
+              $elemMatch: {
+                $or: matchConditions,
               },
-            })
+            },
+          })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -340,8 +341,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                  user.phonenumbers[0].countryCode +
-                    user.phonenumbers[0].number))
+                user.phonenumbers[0].countryCode +
+                user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -393,7 +394,7 @@ const signupWithEmail = async (req, res) => {
       });
     }
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
     // Check if email already exists
     const existingUser = await User.findOne({ email: trimmedEmail });
@@ -957,8 +958,7 @@ const signupWithPhoneNumber = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${
-                  user.firstname || "User"
+                `Referral bonus - ${user.firstname || "User"
                 } verified phone number`,
                 referringUser.stripe_test_mode || false
               );
@@ -2012,10 +2012,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-          ? "Email"
-          : user.signupMethod === "phoneNumber"
-          ? "Phone Number"
-          : "Other";
+            ? "Email"
+            : user.signupMethod === "phoneNumber"
+              ? "Phone Number"
+              : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
