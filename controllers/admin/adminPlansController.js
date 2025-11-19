@@ -132,7 +132,7 @@ const createPlan = async (req, res) => {
 
         // Create Stripe price
         const stripePrice = await stripeInstance.prices.create({
-          currency: "usd",
+          currency: "aed",
           product: stripeProductId,
           unit_amount: price, // Price should be in cents
           recurring: {
@@ -283,7 +283,7 @@ const updatePlan = async (req, res) => {
         try {
           // Create new Stripe price (can't modify existing prices in Stripe)
           const stripePrice = await stripeInstance.prices.create({
-            currency: "usd",
+            currency: "aed",
             product: plan.stripeProductId,
             unit_amount: newPrice,
             recurring: {

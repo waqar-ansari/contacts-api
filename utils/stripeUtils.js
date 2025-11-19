@@ -11,14 +11,40 @@ const Plan = require("../models/planModel");
 async function createStripeCustomer(user, useTestMode = false) {
   try {
     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+    // Determine email and name based on signup method
+    let customerEmail = user.email;
+    let customerName = user.firstname
+      ? `${user.firstname} ${user.lastname || ""}`.trim()
+      : user.email;
+
+    // Handle phone number signup
+    if (
+      user.signupMethod === "phoneNumber" &&
+      user.phonenumbers &&
+      user.phonenumbers.length > 0
+    ) {
+      const firstPhone = user.phonenumbers[0];
+      const phoneString = `${firstPhone.countryCode}${firstPhone.number}`;
+
+      // Use phone number as email if email doesn't exist
+      if (!customerEmail) {
+        customerEmail = "" + phoneString + "@phoneuser.local"; // Dummy email
+      }
+
+      // Use phone number as name if firstname doesn't exist
+      if (!user.firstname) {
+        customerName = phoneString;
+      }
+    }
+
     const customer = await stripeInstance.customers.create({
-      email: user.email,
-      name: user.firstName
-        ? `${user.firstName} ${user.lastName || ""}`.trim()
-        : user.email,
+      email: customerEmail,
+      name: customerName,
       metadata: {
         userId: user._id.toString(),
         name: "contacts_api",
+        signupMethod: user.signupMethod || "email",
       },
     });
     console.log("Created new Stripe customer:", customer.id);
@@ -231,7 +257,7 @@ async function addStripeCredits(
     const balanceTransaction =
       await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: -Math.abs(amount), // Negative amount for credits
-        currency: "usd",
+        currency: "aed",
         description: description,
       });
     return balanceTransaction;
@@ -260,7 +286,7 @@ async function useStripeCredits(
     const balanceTransaction =
       await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: Math.abs(amount), // Positive amount to deduct credits
-        currency: "usd",
+        currency: "aed",
         description: description,
       });
     return balanceTransaction;
@@ -988,6 +1014,7 @@ async function createStripeCoupon(couponData, useTestMode = false) {
       expiryDate,
       maxUsage,
       name,
+      currency,
     } = couponData;
 
     console.log(`Creating Stripe coupon with original code: ${couponCode}`);
@@ -1005,7 +1032,7 @@ async function createStripeCoupon(couponData, useTestMode = false) {
       stripeCouponData.percent_off = discountValue;
     } else if (discountType === "fixed") {
       stripeCouponData.amount_off = Math.round(discountValue * 100); // Convert to cents
-      stripeCouponData.currency = "usd";
+      stripeCouponData.currency = currency || "aed";
     }
 
     // Set expiry date with 1-year maximum
@@ -1464,11 +1491,8 @@ async function hasUserMadeFirstPurchase(customerId, useTestMode = false) {
       (invoice) => invoice.amount_paid > 0
     );
 
-    
-
     // If no paid invoices at all, user hasn't made first purchase
     if (paidInvoices.length === 0) {
-    
       return false;
     }
 

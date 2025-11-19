@@ -1891,7 +1891,7 @@ const previewNewSubscription = async (req, res) => {
     }
 
     // Check that user doesn't have an active non-trialing subscription (this is for new subscriptions only)
-    const activeSubInfo = await checkSubscriptionDetails(user);
+    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
     if (activeSubInfo.hasActiveSubscription) {
       return res.status(400).json({
         success: false,
@@ -1934,7 +1934,7 @@ const previewNewSubscription = async (req, res) => {
 
     // Get Stripe credit balance for the user
     const availableCredits = Math.abs(
-      await getStripeCreditBalance(customer.id)
+      await getStripeCreditBalance(customer.id,useTestMode)
     );
     console.log(
       "Available Stripe credits for new subscription:",
@@ -1985,7 +1985,7 @@ const previewNewSubscription = async (req, res) => {
     const toFixedDollars = (cents) => Math.round(cents) / 100;
 
     // Check if first purchase to show notice on frontend
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id));
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id, useTestMode));
 
     res.json({
       success: true,
@@ -2112,27 +2112,8 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
 
     // Get or create Stripe customer
     let stripeCustomerId = user.stripeCustomerId;
-    if (!stripeCustomerId) {
-      // const customer = await stripe.customers.create({
-      //   email: user.email,
-      //   name: user.firstName
-      //     ? `${user.firstName} ${user.lastName || ""}`.trim()
-      //     : user.email,
-      //   metadata: {
-      //     userId: userId.toString(),
-      //     name: "contacts_api",
-      //   },
-      // });
-
-      const customer = await createStripeCustomer(user, useTestMode);
-
-      stripeCustomerId = customer.id;
-
-      // Update user with Stripe customer ID
-      await User.findByIdAndUpdate(userId, {
-        stripeCustomerId: stripeCustomerId,
-      });
-    }
+    const customer = await getOrCreateStripeCustomer(user, useTestMode);
+    stripeCustomerId = customer.id;
 
     // Validate coupon if provided
     let couponData = null;
@@ -2390,7 +2371,7 @@ const getBillingHistory = async (req, res) => {
             totalInvoices: 0,
             totalPaid: 0,
             totalOutstanding: 0,
-            currency: "usd",
+            currency: "aed",
           },
         },
       });
@@ -2407,7 +2388,7 @@ const getBillingHistory = async (req, res) => {
       totalInvoices: 0,
       totalPaid: 0,
       totalOutstanding: 0,
-      currency: "usd",
+      currency: "aed",
     };
 
     billingHistory.forEach((item) => {
@@ -2420,7 +2401,7 @@ const getBillingHistory = async (req, res) => {
       } else if (item.status === "open") {
         summary.totalOutstanding += item.amount;
       }
-      if (item.currency && summary.currency === "usd") {
+      if (item.currency && summary.currency === "aed") {
         summary.currency = item.currency;
       }
     });
