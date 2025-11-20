@@ -529,7 +529,6 @@ const signupWithEmail = async (req, res) => {
 
         // referrer.creditBalance = (referrer.creditBalance || 0) + 10;
         // await referrer.save();
-        console.log("calling add or upate referral");
         await addOrUpdateReferral(referredBy, newUser);
       }
       // newUser.creditBalance = (newUser.creditBalance || 0) + 10;
@@ -715,6 +714,7 @@ const signupWithPhoneNumber = async (req, res) => {
     }
 
     // OTP valid → finalize signup
+    console.log("OTP verified successfully for user:", user._id);
     const serialNumber = await User.getNextSerialNumber();
     let userDetails = user.toObject();
 
@@ -856,98 +856,34 @@ const signupWithPhoneNumber = async (req, res) => {
         previouslyReferred &&
         previouslyReferred.referredUserId?.toString() !== user._id.toString()
       ) {
+        console.log(
+          "This referral link has already been used with this phone number. Please sign up manually. first check"
+        );
         return res.status(400).json({
           status: "error",
           message:
             "This referral link has already been used with this phone number. Please sign up manually.",
         });
       }
+      // Create new ReferralLog
+      const logData = {
+        phonenumbers: [
+          { countryCode: sanitizedCountryCode, number: sanitizedNumber },
+        ],
+        referredBy: referringUser._id,
+        referredUserId: user._id,
+      };
 
-      // if (referringUser) {
-      //   user.referredBy = referringUser._id;
-      //   referringUser.myReferrals.push({
-      //     _id: user._id,
-      //     firstname: user.firstname,
-      //     lastname: user.lastname,
-      //     email: user.email,
-      //     phonenumbers: user.phonenumbers,
-      //     signupDate: new Date(),
-      //   });
+      // Only add email if user has one
+      if (user.email) {
+        logData.email = user.email;
+      }
 
-      //   referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
-      //   user.creditBalance = (user.creditBalance || 0) + 10;
-      //   await referringUser.save();
-
-      //   await ReferralLog.create({
-      //     phonenumbers: [{ countryCode: sanitizedCountryCode, number: sanitizedNumber }],
-      //     referredBy: referringUser._id,
-      //     referredUserId: user._id,
-      //   });
-      // }
-
+      await ReferralLog.create(logData);
       if (referringUser) {
         user.referredBy = referringUser._id;
 
-        // referringUser.myReferrals.push({
-        //   _id: user._id,
-        //   firstname: user.firstname || "",
-        //   lastname: user.lastname || "",
-        //   email: user.email || "",
-        //   phonenumbers: Array.isArray(user.phonenumbers)
-        //     ? user.phonenumbers.map(p => ({
-        //       countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-        //       number: (p.number || "").toString().replace(/^\+/, "")
-        //     }))
-        //     : [],
-        //   signupDate: new Date(),
-        // });
-
-        // referringUser.creditBalance = (referringUser.creditBalance || 0) + 10;
-        // user.creditBalance = (user.creditBalance || 0) + 10;
-        // await referringUser.save();
         await addOrUpdateReferral(referringUser._id, user);
-
-        // Check if this phone number already used a referral
-        const existingPhoneLog = await ReferralLog.findOne({
-          phonenumbers: {
-            $elemMatch: {
-              countryCode: sanitizedCountryCode,
-              number: sanitizedNumber,
-            },
-          },
-        });
-
-        if (existingPhoneLog) {
-          // If the log exists but for the same user (shouldn't happen but handle it)
-          if (
-            existingPhoneLog.referredUserId?.toString() === user._id.toString()
-          ) {
-            console.log("ReferralLog already exists for this user - skipping");
-          } else {
-            // Different user trying to use referral with same phone
-            return res.status(400).json({
-              status: "error",
-              message:
-                "This referral link has already been used with this phone number. Please sign up manually.",
-            });
-          }
-        } else {
-          // Create new ReferralLog
-          const logData = {
-            phonenumbers: [
-              { countryCode: sanitizedCountryCode, number: sanitizedNumber },
-            ],
-            referredBy: referringUser._id,
-            referredUserId: user._id,
-          };
-
-          // Only add email if user has one
-          if (user.email) {
-            logData.email = user.email;
-          }
-
-          await ReferralLog.create(logData);
-        }
       }
     }
     user.isActive = true; // mark as active
