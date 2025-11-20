@@ -17,6 +17,7 @@ const {
   hasUserMadeFirstPurchase,
 } = require("../../utils/stripeUtils");
 const { stripe, stripeTest } = require("../../config/stripe");
+const Contact = require("../../models/contactModel");
 
 // GET all users
 const getAllUsers = async (req, res) => {
@@ -138,12 +139,14 @@ const getAllUsers = async (req, res) => {
 // GET all plans for dropdown
 const getAllPlans = async (req, res) => {
   try {
-    console.log("Fetching all plans for dropdown");
-
-    const plans = await Plan.find({ isActive: true })
+    const plans = await Plan.find({
+      $or: [
+        { stripe_test_mode: req?.user?.stripe_test_mode || false },
+        { name: "Starter" },
+      ],
+    })
       .select("_id name price pricePeriod")
       .sort({ createdAt: -1 });
-
     res.status(200).json({
       status: "success",
       message: "Plans retrieved successfully",
@@ -198,12 +201,13 @@ const getUser = async (req, res) => {
         );
       } else {
         // Convert cache_credits from dollars to cents
-        creditBalance = Math.round(user.cache_credits || 0);
+        creditBalance = Math.round(user.cache_credits * 100 || 0);
       }
     } else {
       // No Stripe customer, get from cache_credits (convert to cents)
-      creditBalance = Math.round(user.cache_credits || 0);
+      creditBalance = Math.round(user.cache_credits * 100 || 0);
     }
+    const contactCount = await Contact.countDocuments({ createdBy: user._id });
 
     // Create plan object with current plan and subscription info
     userData.plan = {
@@ -214,8 +218,8 @@ const getUser = async (req, res) => {
       activatedAt: stripeData?.activatedAt || null,
       expiresAt: stripeData?.expiresAt || null,
       cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+      contactCount,
     };
-
     // Add credit balance to user data
     userData.creditBalance = creditBalance;
 

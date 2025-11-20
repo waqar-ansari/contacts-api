@@ -297,9 +297,40 @@ const getReferralData = async (req, res) => {
 
     const availableBalance = Math.abs(
       Math.round(
-        await getStripeCreditBalance(user.stripeCustomerId, useTestMode)/100
+        (await getStripeCreditBalance(user.stripeCustomerId, useTestMode)) / 100
       )
     ); // Placeholder for future use
+
+    // Get referredBy user information if exists
+    let referredByUser = null;
+    let welcomeBonus = 0;
+    if (user.referredBy) {
+      const referrer = await User.findById(user.referredBy, {
+        _id: 1,
+        firstname: 1,
+        lastname: 1,
+        email: 1,
+        phonenumbers: 1,
+      }).lean();
+
+      if (referrer) {
+        referredByUser = {
+          _id: referrer._id,
+          firstname: referrer.firstname || "N/A",
+          lastname: referrer.lastname || "",
+          email: referrer.email || null,
+          phonenumbers: referrer.phonenumbers || [],
+        };
+
+        // If current user is verified, they received a $10 welcome bonus
+        if (user.isVerified) {
+          welcomeBonus = 10;
+        }
+      }
+    }
+
+    // Calculate total earned including welcome bonus
+    const totalEarned = creditBalance + welcomeBonus;
 
     return res.status(200).json({
       status: "success",
@@ -310,8 +341,11 @@ const getReferralData = async (req, res) => {
         referralCount: totalReferralCount,
         verifiedReferralCount,
         referralUrl,
-        totalEarned: creditBalance, // Alias for frontend compatibility
+        totalEarned, // Now includes welcome bonus if applicable
         availableBalance,
+        referredByUser, // Information about who referred the current user
+        welcomeBonus, // $10 if user is verified and was referred
+        currentUserVerified: user.isVerified || false,
       },
     });
   } catch (err) {

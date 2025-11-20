@@ -1477,9 +1477,7 @@ async function hasUserMadeFirstPurchase(customerId, useTestMode = false) {
       limit: 100, // Should be enough for most cases
     });
 
-    console.log(
-      `Customer ${customerId} has ${invoices.data.length} total invoices`
-    );
+    
 
     // If no invoices at all, user hasn't made first purchase
     if (invoices.data.length === 0) {

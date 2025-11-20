@@ -535,8 +535,6 @@ const signupWithEmail = async (req, res) => {
       // await newUser.save(); // ✅ THIS LINE IS REQUIRED
     }
 
-    console.log(newUser.creditBalance);
-
     let referUrl = `${FRONTEND_URL}/register?ref=${newUser.referralCode}`;
 
     let verificationLink = "";
@@ -634,6 +632,7 @@ const signupWithPhoneNumber = async (req, res) => {
       }
 
       const generatedOtp = generateOtp();
+      console.log("Generated OTP:", generatedOtp);
       const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
       const tempSerialNumber = Date.now() + Math.floor(Math.random() * 1000);
 
@@ -714,7 +713,6 @@ const signupWithPhoneNumber = async (req, res) => {
     }
 
     // OTP valid → finalize signup
-    console.log("OTP verified successfully for user:", user._id);
     const serialNumber = await User.getNextSerialNumber();
     let userDetails = user.toObject();
 
@@ -1285,41 +1283,41 @@ const unifiedLogin = async (req, res) => {
               });
 
               // Add credits to referrer using Stripe billing credits
-              try {
-                const referrerCustomer = await getOrCreateStripeCustomer(
-                  referrer,
-                  referrer.stripe_test_mode || false
-                );
-                await addStripeCredits(
-                  referrerCustomer.id,
-                  1000,
-                  "Referral bonus - phone verification",
-                  referrer.stripe_test_mode || false
-                ); // $10 in cents
-              } catch (error) {
-                console.error(
-                  "Error adding Stripe credits to referrer:",
-                  error
-                );
-              }
+              // try {
+              //   const referrerCustomer = await getOrCreateStripeCustomer(
+              //     referrer,
+              //     referrer.stripe_test_mode || false
+              //   );
+              //   await addStripeCredits(
+              //     referrerCustomer.id,
+              //     1000,
+              //     "Referral bonus - phone verification",
+              //     referrer.stripe_test_mode || false
+              //   ); // $10 in cents
+              // } catch (error) {
+              //   console.error(
+              //     "Error adding Stripe credits to referrer:",
+              //     error
+              //   );
+              // }
               await referrer.save();
             }
 
             // Add credits to user using Stripe billing credits
-            try {
-              const userCustomer = await getOrCreateStripeCustomer(
-                user,
-                user.stripe_test_mode || false
-              );
-              await addStripeCredits(
-                userCustomer.id,
-                1000,
-                "Welcome bonus - phone verification",
-                user.stripe_test_mode || false
-              ); // $10 in cents
-            } catch (error) {
-              console.error("Error adding Stripe credits to user:", error);
-            }
+            // try {
+            //   const userCustomer = await getOrCreateStripeCustomer(
+            //     user,
+            //     user.stripe_test_mode || false
+            //   );
+            //   await addStripeCredits(
+            //     userCustomer.id,
+            //     1000,
+            //     "Welcome bonus - phone verification",
+            //     user.stripe_test_mode || false
+            //   ); // $10 in cents
+            // } catch (error) {
+            //   console.error("Error adding Stripe credits to user:", error);
+            // }
             await user.save();
           }
         }
