@@ -1661,13 +1661,13 @@ const googleCallback = async (req, res) => {
         signupMethod: "google",
       };
 
-      let planData = null;
-      if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(
-          tempUser,
-          tempUser.stripe_test_mode || false
-        );
-      }
+      // let planData = null;
+      // if (tempUser.role !== "superadmin") {
+      //   planData = await setupInitialPlan(
+      //     tempUser,
+      //     tempUser.stripe_test_mode || false
+      //   );
+      // }
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
@@ -2086,13 +2086,13 @@ const linkedinCallback = async (req, res) => {
         signupMethod: "linkedin",
       };
 
-      let planData = null;
-      if (tempUser.role !== "superadmin") {
-        planData = await setupInitialPlan(
-          tempUser,
-          tempUser.stripe_test_mode || false
-        );
-      }
+      // let planData = null;
+      // if (tempUser.role !== "superadmin") {
+      //   planData = await setupInitialPlan(
+      //     tempUser,
+      //     tempUser.stripe_test_mode || false
+      //   );
+      // }
 
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
