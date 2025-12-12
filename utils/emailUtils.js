@@ -2,15 +2,19 @@ const nodemailer = require("nodemailer");
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
 
 const transporter = nodemailer.createTransport({
-  service: "smtp", // Use your SMTP service
-  host: "smtp.titan.email", // SMTP server address
+  // service: "smtp", // Use your SMTP service
+  // host: "smtp.titan.email", // SMTP server address
+  // port: 465, // Port for secure connection
+  // secure: true, // Use SSL/TLS
+  service: "gmail", // Use your SMTP service
+  host: "smtp.gmail.com", // SMTP server address
   port: 465, // Port for secure connection
   secure: true, // Use SSL/TLS
   auth: {
-    user: "noreply@contacts.management",
-    pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
-    // user: "makvanayash12@gmail.com",
-    // pass: "fybb lnri tmrq otmg", // App Password, not normal password
+    // user: "noreply@contacts.management",
+    // pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+    user: "makvanayash2112@gmail.com",
+    pass: "wngq xqyd fkcf kbyl", // App Password, not normal password
   },
   // optional TLS options:
   tls: {

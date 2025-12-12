@@ -2,15 +2,23 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async (to, subject, html) => {
   const transporter = nodemailer.createTransport({
-    service: 'smtp',
-    host: "smtp.titan.email", // SMTP server address
+    // service: 'smtp',
+    // host: "smtp.titan.email", // SMTP server address
+    // port: 465, // Port for secure connection
+    // secure: true, // Use SSL/TLS
+    // auth: {
+    //   user: 'noreply@contacts.management', // your Gmail address
+    //   pass: 'bZ}JTus_PQ{qWvA'     // app password from Google
+    //   // user: "makvanayash12@gmail.com",
+    //   // pass: "fybb lnri tmrq otmg",
+    // },
+    service: "gmail", // Use your SMTP service
+    host: "smtp.gmail.com", // SMTP server address
     port: 465, // Port for secure connection
     secure: true, // Use SSL/TLS
     auth: {
-      user: 'noreply@contacts.management', // your Gmail address
-      pass: 'bZ}JTus_PQ{qWvA'     // app password from Google
-      // user: "makvanayash12@gmail.com",
-      // pass: "fybb lnri tmrq otmg",
+      user: "makvanayash2112@gmail.com",
+      pass: "wngq xqyd fkcf kbyl", // App Password, not normal password
     },
     tls: {
       rejectUnauthorized: false  // THIS LINE FIXES THE ERROR
