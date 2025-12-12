@@ -107,7 +107,7 @@ app.use(cors());
 
 // Webhook routes must be defined before JSON parsing middleware
 // because Stripe needs raw body for signature verification
-app.use("/webhooks", webhookRoutes);
+// app.use("/webhooks", webhookRoutes);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
