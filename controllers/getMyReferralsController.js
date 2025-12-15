@@ -1,7 +1,7 @@
 const User = require("../models/userModel");
 const { getStripeCreditBalance } = require("../utils/stripeUtils");
 const FRONTEND_URL =
-  process.env.FRONTEND_URL || "https://demo.contacts.management";
+  process.env.FRONTEND_URL || "https://app.contacts.management";
 
 const getMyReferrals = async (req, res) => {
   try {

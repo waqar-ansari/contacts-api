@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://app.contacts.management";
 
 const transporter = nodemailer.createTransport({
   // service: "smtp", // Use your SMTP service

@@ -4,7 +4,7 @@ const User = require('../models/userModel');
 const sendEmail = require('../utils/sendEmailResetPassword');
 const sendWhatsAppOtp = require('../utils/sendWhatsAppOtp'); // ✅ Assuming you already have this
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://app.contacts.management";
 
 // // Forgot Password - Send Reset Link
 

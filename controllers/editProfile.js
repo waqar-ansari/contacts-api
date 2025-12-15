@@ -89,7 +89,7 @@ const { sendPushNotificationToUser } = require("../utils/oneSignal");
 
 //   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 // };
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://app.contacts.management";
 
 const uploadImageToS3 = async (file) => {
   const ext = path.extname(file.originalname);

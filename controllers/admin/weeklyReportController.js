@@ -2,7 +2,7 @@ const User = require("../../models/userModel");
 const Contact = require("../../models/contactModel");
 const { sendMail } = require("../../utils/emailUtils");
 const path = require("path");
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://demo.contacts.management";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://app.contacts.management";
 
 // Helper: HTML Email Template
 function generateWeeklyReportHTML({ logo_url, login_url, unsubscribe_url, lead, scan, card, manual, userFullName }) {

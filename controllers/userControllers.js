@@ -26,7 +26,7 @@ const { setupInitialPlan } = require("../utils/planUtils");
 const BlacklistedToken = require("../models/blacklistedTokenModel");
 const jwt = require("jsonwebtoken");
 const FRONTEND_URL =
-  process.env.FRONTEND_URL || "https://demo.contacts.management";
+  process.env.FRONTEND_URL || "https://app.contacts.management";
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
