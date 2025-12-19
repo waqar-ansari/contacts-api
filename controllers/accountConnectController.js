@@ -179,24 +179,57 @@ exports.googleCallback = async (req, res) => {
 
 exports.connectMicrosoft = async (req, res) => {
   const userId = req.user._id;
+  const type = req.body.type; // 'web' or 'mobile'
+  console.log("connectMicrosoft - userId:", userId, "type:", type);
 
-  const params = querystring.stringify({
-    client_id: MICROSOFT_CLIENT_ID,
-    response_type: "code",
-    redirect_uri: MICROSOFT_REDIRECT_URI,
-    response_mode: "query",
-    scope: "User.Read Mail.Send offline_access",
-    state: userId,
-  });
+  try {
+    const user = await User.findById(userId);
 
-  const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "User not found" });
+    }
 
-  res.json({ status: "success", url: authUrl });
+    const params = querystring.stringify({
+      client_id: MICROSOFT_CLIENT_ID,
+      response_type: "code",
+      redirect_uri: MICROSOFT_REDIRECT_URI,
+      response_mode: "query",
+      scope: "User.Read Mail.Send offline_access",
+      state: JSON.stringify({ userId, type }),
+    });
+
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+
+    res.json({ status: "success", url: authUrl });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Failed to generate Microsoft OAuth URL",
+      error,
+    });
+  }
 };
 
 exports.microsoftCallback = async (req, res) => {
   const { code, state } = req.query;
-  const userId = state;
+  console.log("Microsoft OAuth Callback query:", req.query);
+  console.log("Microsoft OAuth Callback state:", state);
+
+  let userId, type;
+  try {
+    const parsedState = JSON.parse(state);
+    console.log("Microsoft OAuth Callback parsed state:", parsedState);
+
+    userId = parsedState.userId;
+    type = parsedState.type;
+    console.log("Microsoft OAuth Callback type:", type);
+  } catch (e) {
+    return res
+      .status(400)
+      .json({ status: "error", message: "Invalid state parameter" });
+  }
 
   try {
     const tokenResponse = await axios.post(
@@ -221,9 +254,16 @@ exports.microsoftCallback = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "User not found" });
+      if (type === "mobile") {
+        return res.redirect(
+          `contactsmanagement://callback?status=error&message=${encodeURIComponent(
+            "User not found"
+          )}`
+        );
+      }
+      return res.send(
+        `<script>window.opener.postMessage({ status: 'error', message: 'User not found' }, '*'); window.close();</script>`
+      );
     }
 
     user.microsoftId = userProfile.data.id;
@@ -242,7 +282,14 @@ exports.microsoftCallback = async (req, res) => {
       microsoftConnected: user.microsoftConnected,
     };
 
-    // res.json({ status: 'success', message: 'Microsoft account connected', user });
+    if (type === "mobile") {
+      const redirectUrl = `contactsmanagement://callback?status=success&microsoftId=${encodeURIComponent(
+        user.microsoftId
+      )}&microsoftEmail=${encodeURIComponent(
+        user.microsoftEmail
+      )}&message=${encodeURIComponent("Microsoft Connected Successfully")}`;
+      return res.redirect(redirectUrl);
+    }
 
     return res.send(`
     <!DOCTYPE html>
@@ -268,7 +315,13 @@ exports.microsoftCallback = async (req, res) => {
     </html>
 `);
   } catch (error) {
-    // res.status(500).json({ status: 'error', message: 'Microsoft OAuth failed', error: error.message });
+    if (type === "mobile") {
+      return res.redirect(
+        `contactsmanagement://callback?status=error&message=${encodeURIComponent(
+          error.message
+        )}`
+      );
+    }
     return res.send(`
             <script>
                 window.opener.postMessage({ status: 'error', message: 'Microsoft OAuth failed', error: '${error.message}' }, '*');
