@@ -21,6 +21,7 @@ const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 exports.connectGoogle = async (req, res) => {
   const userId = req.user._id;
   const type = req.body.type; // Default to 'default' if not specified
+  console.log("connectGoogle - userId:", userId, "type:", type);
   try {
     const user = await User.findById(userId);
 
@@ -53,13 +54,11 @@ exports.connectGoogle = async (req, res) => {
 
     res.json({ status: "success", url: authUrl });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        status: "error",
-        message: "Failed to generate Google OAuth URL",
-        error,
-      });
+    res.status(500).json({
+      status: "error",
+      message: "Failed to generate Google OAuth URL",
+      error,
+    });
   }
 };
 
@@ -67,12 +66,18 @@ exports.connectGoogle = async (req, res) => {
 exports.googleCallback = async (req, res) => {
   const { code, state } = req.query;
   // const userId = state;
+  console.log("Google OAuth Callback query:", req.query);
+  console.log("Google OAuth Callback body:", req.body);
+  console.log("Google OAuth Callback state:", state);
 
   let userId, type;
   try {
     const parsedState = JSON.parse(state);
+    console.log("Google OAuth Callback parsed state:", parsedState);
+
     userId = parsedState.userId;
     type = parsedState.type;
+    console.log("Google OAuth Callback type:", type);
   } catch (e) {
     return res
       .status(400)
@@ -325,12 +330,10 @@ exports.connectSMTP = async (req, res) => {
       },
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        status: "error",
-        message: "SMTP OAuth failed",
-        error: error.message,
-      });
+    res.status(500).json({
+      status: "error",
+      message: "SMTP OAuth failed",
+      error: error.message,
+    });
   }
 };
