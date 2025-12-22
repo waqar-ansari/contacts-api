@@ -46,9 +46,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-        number: (p.number || "").toString().replace(/^\+/, ""),
-      }))
+      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+      number: (p.number || "").toString().replace(/^\+/, ""),
+    }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -166,7 +166,6 @@ const signupWithEmail = async (req, res) => {
     } = req.body;
 
     const referralCodeParam = req.body.referralCode || req.query.ref || "";
-    // const tenantId = req.query.tenantId || req.body.tenantId || "";
 
     // === PART 1: Email Verification Flow ===
     if (verifyToken) {
@@ -230,8 +229,7 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${
-                    user.firstname || "User"
+                  `Referral bonus - ${user.firstname || "User"
                   } verified their email`,
                   referringUser.stripe_test_mode || false
                 );
@@ -319,12 +317,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-              scannedMe: {
-                $elemMatch: {
-                  $or: matchConditions,
-                },
+            scannedMe: {
+              $elemMatch: {
+                $or: matchConditions,
               },
-            })
+            },
+          })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -342,8 +340,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                  user.phonenumbers[0].countryCode +
-                    user.phonenumbers[0].number))
+                user.phonenumbers[0].countryCode +
+                user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -928,8 +926,7 @@ const signupWithPhoneNumber = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${
-                  user.firstname || "User"
+                `Referral bonus - ${user.firstname || "User"
                 } verified phone number`,
                 referringUser.stripe_test_mode || false
               );
@@ -1444,7 +1441,7 @@ const unifiedLogin = async (req, res) => {
 };
 
 const startGoogleLogin = (req, res) => {
-  const { ref = "" } = req.query;
+  const { ref = "", type = "web" } = req.query;
 
   const scopes = [
     "https://www.googleapis.com/auth/userinfo.email",
@@ -1455,7 +1452,7 @@ const startGoogleLogin = (req, res) => {
     access_type: "offline",
     prompt: "consent",
     scope: scopes,
-    state: JSON.stringify({ ref }), // Pass referral code in state
+    state: JSON.stringify({ ref, type }), // Pass referral code in state
   });
 
   return res.json({
@@ -1466,18 +1463,19 @@ const startGoogleLogin = (req, res) => {
 };
 
 const googleCallback = async (req, res) => {
-  // const { code } = req.query;
-
   const { code, state } = req.query;
   let referralCode = "";
-  // let tenantId = "";
+  let type = "web";
+
   try {
     const parsedState = JSON.parse(state || "{}");
     referralCode = parsedState.ref || "";
-    // tenantId = parsedState.tenantId || "";
+    type = parsedState.type || "web";
   } catch (err) {
     referralCode = "";
+    type = "web";
   }
+
 
   if (!code) {
     return res
@@ -1499,98 +1497,10 @@ const googleCallback = async (req, res) => {
 
     let user = await User.findOne({ email });
     let isFirstTime = false;
-
-    // if (!user) {
-    //   let referral = null;
-
-    //   if (referralCode) {
-    //     referral = await Referral.findOne({ referralCode });
-
-    //     if (!referral) {
-    //       return res.send(`
-    //         <script>
-    //           window.opener.postMessage({ status: 'error', message: 'Invalid referral code' }, '*');
-    //           window.close();
-    //         </script>
-    //       `);
-    //     }
-
-    //     // if (referral.usedOnce) {
-    //     //   return res.send(`
-    //     //     <script>
-    //     //       window.opener.postMessage({ status: 'error', message: 'Referral code already used' }, '*');
-    //     //       window.close();
-    //     //     </script>
-    //     //   `);
-    //     // }
-    //     const alreadyUsed = await hasUsedReferralBefore({ email, phonenumbers });
-    //     if (alreadyUsed) {
-    //       return res.send(`
-    //     <script>
-    //       window.opener.postMessage({ status: 'error', message: 'Referral already used with this email or phone. Please sign up manually.' }, '*');
-    //       window.close();
-    //     </script>
-    //   `);
-    //     }
-    //   }
-
-    //   isFirstTime = true;
-    //   const serialNumber = await getNextSerialNumber();
-    //   const firstname = given_name || "Google";
-    //   const lastname = family_name || "User";
-
-    //   const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-    //     firstname,
-    //     lastname,
-    //     email,
-    //     provider: "google"
-    //   });
-
-    //   const now = new Date();
-    //   const trialEnds = new Date(now);
-    //   trialEnds.setDate(trialEnds.getDate() + 14); // Set 14-day trial
-
-    //   user = await User.create({
-    //     email,
-    //     firstname,
-    //     lastname,
-    //     provider: "google",
-    //     serialNumber,
-    //     qrCode,
-    //     signupMethod: "google",
-    //     isVerified: true,
-    //     trialStart: now,
-    //     trialEnd: trialEnds,
-    //   });
-    //   if (referral) {
-    //     referral.status = "complete";
-    //     referral.referredUserId = user._id;
-    //     // referral.usedOnce = true;
-
-    //     if (user.email) referral.email = user.email;
-    //     if (user.phonenumbers?.[0]) referral.phonenumbers = user.phonenumbers[0];
-
-    //     await referral.save();
-    //   }
-    // }
     let referralUrl = "";
     if (!user) {
       isFirstTime = true;
       let referredBy = null;
-      // let referredByAdmin = null;
-      // if (tenantId) {
-      //   const referringAdmin = await User.findOne({ tenantId, role: "admin" });
-
-      //   if (!referringAdmin) {
-      //     return res.send(`
-      //   <script>
-      //     window.opener.postMessage({ status: 'error', message: 'Invalid tenant ID' }, '*');
-      //     window.close();
-      //   </script>
-      // `);
-      //   }
-      //   referredByAdmin = referringAdmin._id;
-      // } else
       if (referralCode) {
         const referringUser = await User.findOne({
           referralCode: referralCode,
@@ -1605,23 +1515,12 @@ const googleCallback = async (req, res) => {
       `);
         }
 
-        //   const previouslyReferred = await User.findOne({
-        //     myReferrals: { $elemMatch: { email } },
-        //     // email,
-        //     $or: [
-        //       { referredBy: referringUser._id },
-        //       { referralCode: referralCode }
-        //     ]
-        //   });
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+          user = existingUser;
+          isFirstTime = false;
+        }
 
-        //   if (previouslyReferred) {
-        //     return res.send(`
-        //   <script>
-        //     window.opener.postMessage({ status: 'error', message: 'Referral already used with this email. Please sign up manually.' }, '*');
-        //     window.close();
-        //   </script>
-        // `);
-        //   }
 
         const previouslyReferred = await ReferralLog.findOne({
           email: email,
@@ -1643,30 +1542,6 @@ const googleCallback = async (req, res) => {
       const firstname = given_name || "Google";
       const lastname = family_name || "User";
 
-      // const { qrCode } = await generateUserQRCode(firstname, serialNumber, {
-      //   firstname,
-      //   lastname,
-      //   email,
-      //   provider: "google"
-      // });
-
-      // Setup initial plan using utility - pass temporary user data for Stripe customer creation
-      const tempUser = {
-        _id: new (require("mongoose").Types.ObjectId)(),
-        email,
-        firstname,
-        lastname,
-        signupMethod: "google",
-      };
-
-      // let planData = null;
-      // if (tempUser.role !== "superadmin") {
-      //   planData = await setupInitialPlan(
-      //     tempUser,
-      //     tempUser.stripe_test_mode || false
-      //   );
-      // }
-
       const referralCodeRaw = email + Date.now();
       const userReferralCode = crypto
         .createHash("sha256")
@@ -1680,99 +1555,77 @@ const googleCallback = async (req, res) => {
         lastname,
         provider: "google",
         serialNumber,
-        // qrCode,
         signupMethod: "google",
         role: "user", // Default role for new users
         isVerified: true,
         isActive: true,
         referralCode: userReferralCode,
         referredBy: referredBy,
-
-        // referredByAdmin: referredByAdmin
       });
 
-      // if (referredBy) {
-      //   const referrer = await User.findById(referredBy);
-      //   if (referrer) {
-      //     referrer.myReferrals.push({
-      //       _id: user._id,
-      //       firstname: user.firstname,
-      //       lastname: user.lastname,
-      //       email: user.email,
-      //       phonenumbers: user.phonenumbers || [],
-      //       signupDate: new Date(),
-      //     });
-      //     referrer.creditBalance = (referrer.creditBalance || 0) + 10;
-      //     await referrer.save();
-      //   }
-      //   user.creditBalance = (user.creditBalance || 0) + 10;
-      //   await user.save();
-      //   await ReferralLog.create({
-      //     email: user.email,
-      //     referredBy: referrer._id,
-      //     referredUserId: user._id,
-      //   });
-      // }
+      // =======================
+      // SETUP INITIAL PLAN (same as email verification)
+      // =======================
+      if (user.role !== "superadmin") {
+        const planData = await setupInitialPlan(
+          user,
+          user.stripe_test_mode || false
+        );
+        console.log("Initial plan setup for Google signup:", planData);
+      }
 
       if (referredBy) {
-        // use helper to add/update referral + log + credits
-        await addOrUpdateReferral(referredBy, user);
+        try {
+          // $10 welcome credit for new user
+          user.cache_credits = (user.cache_credits || 0) + 10;
+          await user.save();
+
+          const referringUser = await User.findById(referredBy);
+          if (referringUser) {
+            let hasFirstPurchase = false;
+
+            if (referringUser.stripeCustomerId) {
+              hasFirstPurchase = await hasUserMadeFirstPurchase(
+                referringUser.stripeCustomerId,
+                referringUser.stripe_test_mode || false
+              );
+            }
+
+            if (hasFirstPurchase) {
+              const referrerCustomer = await getOrCreateStripeCustomer(
+                referringUser,
+                referringUser.stripe_test_mode || false
+              );
+
+              await addStripeCredits(
+                referrerCustomer.id,
+                1000,
+                `Referral bonus - ${user.firstname || "User"} joined via Google`,
+                referringUser.stripe_test_mode || false
+              );
+            } else {
+              referringUser.cache_credits =
+                (referringUser.cache_credits || 0) + 10;
+              await referringUser.save();
+            }
+          }
+
+          // Log referral
+          await ReferralLog.create({
+            email: user.email,
+            referredBy,
+            referredUserId: user._id,
+          });
+
+          // Optional helper (safe)
+          await addOrUpdateReferral(referredBy, user);
+        } catch (err) {
+          console.error("Google referral credit error:", err);
+        }
       }
     }
 
-    // ✅ Sync referral data (in case user was referred but referrer has missing details)
-    // try {
-    //   if (user.referredBy) {
-    //     const referrer = await User.findById(user.referredBy);
-
-    //     if (referrer && referrer.myReferrals?.length > 0) {
-    //       const index = referrer.myReferrals.findIndex(r => r._id.toString() === user._id.toString());
-
-    //       if (index !== -1) {
-    //         let needsUpdate = false;
-
-    //         if (!referrer.myReferrals[index].firstname && user.firstname) {
-    //           referrer.myReferrals[index].firstname = user.firstname;
-    //           needsUpdate = true;
-    //         }
-
-    //         if (!referrer.myReferrals[index].lastname && user.lastname) {
-    //           referrer.myReferrals[index].lastname = user.lastname;
-    //           needsUpdate = true;
-    //         }
-
-    //         if (!referrer.myReferrals[index].email && user.email) {
-    //           referrer.myReferrals[index].email = user.email;
-    //           needsUpdate = true;
-    //         }
-
-    //         if (
-    //           (!referrer.myReferrals[index].phonenumbers || referrer.myReferrals[index].phonenumbers.length === 0) &&
-    //           user.phonenumbers?.length > 0
-    //         ) {
-    //           referrer.myReferrals[index].phonenumbers = user.phonenumbers;
-    //           needsUpdate = true;
-    //         }
-
-    //         if (needsUpdate) {
-    //           referrer.myReferrals[index].signupDate = user.createdAt || new Date();
-    //           await referrer.save();
-    //         }
-    //       }
-    //     }
-    //   }
-    // } catch (err) {
-    //   console.error("Failed to sync referral data in Google login:", err.message);
-    // }
-
     const token = createTokenforUser(user);
-
-    // ✅ Redirect based on whether it's first time
-    // return res.json({
-    //   status: 'success',
-    //   message: 'Google login successful',
-
-    // });
     const resultData = {
       status: "success",
       message: "Google Login successfully",
@@ -1784,35 +1637,14 @@ const googleCallback = async (req, res) => {
       },
     };
 
-    // Detect if request is from mobile (simple detection by user-agent or query flag)
-    // const isMobile = /Mobile|Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
-
-    // if (isMobile) {
-    //   // Return pure JSON for mobile apps
-    //   return res.json({
-    //     status: 'success',
-    //     message: 'Google Login successfully',
-    //     data: {
-    //       token: token,
-    //       isFirstTime: isFirstTime,
-    //       referralUrl: referralUrl || "",
-    //       registeredWith: user.signupMethod,
-    //     }
-    //   });
-    // }
-
-    // console.log(resultData);
-
-    // return res.status(200).json({
-    //   status: "success",
-    //   message: "Google Login successfully",
-    //   data: {
-    //     token: token,
-    //     isFirstTime: isFirstTime,
-    //     referralUrl: referralUrl || "",
-    //     registeredWith: user.signupMethod,
-    //   }
-    // });
+    if (type === "mobile") {
+      const redirectUrl = `contactsmanagement://auth?status=success&token=${encodeURIComponent(
+        token
+      )}&isFirstTime=${isFirstTime}&message=${encodeURIComponent(
+        "Google Login Successfully"
+      )}`;
+      return res.redirect(redirectUrl);
+    }
 
     return res.send(`
         <!DOCTYPE html>
@@ -1837,25 +1669,23 @@ const googleCallback = async (req, res) => {
         </body>
         </html>
     `);
-
-    // const redirectUrl = isFirstTime
-    //   ? `https://app.contacts.management/registration-form?token=${token}&isFirstTime=true`
-    //   : `https://app.contacts.management/dashboard?token=${token}&isFirstTime=false`;
-
-    // return res.redirect(redirectUrl);
   } catch (error) {
     console.log("Google Callback Error:", error);
 
+    if (type === "mobile") {
+      return res.redirect(
+        `contactsmanagement://auth?status=error&message=${encodeURIComponent(
+          error.message
+        )}`
+      );
+    }
+
     return res.send(`
-            <script>
-                window.opener.postMessage({ status: 'error', message: 'Google login callback failed', error: '${error.message}' }, '*');
-                window.close();
-            </script>
-        `);
-    // return res.status(500).json({
-    //   status: "error",
-    //   message: "Google login callback failed",
-    // });
+  <script>
+    window.opener.postMessage({ status: 'error', message: 'Google login callback failed', error: '${error.message}' }, '*');
+    window.close();
+  </script>
+`);
   }
 };
 
@@ -1983,10 +1813,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-          ? "Email"
-          : user.signupMethod === "phoneNumber"
-          ? "Phone Number"
-          : "Other";
+            ? "Email"
+            : user.signupMethod === "phoneNumber"
+              ? "Phone Number"
+              : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
