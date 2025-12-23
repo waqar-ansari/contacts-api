@@ -100,6 +100,7 @@ const sendNotificationToAllUsers = require("./routes/admin/notificationRoutes");
 const sendEmailToAllUsers = require("./routes/admin/adminEmailSentforUsersRoutes");
 const weeklyReportRoutes = require("./routes/admin/weeklyReportRoutes");
 const invoiceCustomizationRoutes = require("./routes/invoiceCustomizationRoutes");
+const deleteUsersRoutes = require("./routes/admin/deleteUsersRoutes");
 
 console.log("Setting up Express app...");
 
@@ -267,6 +268,11 @@ app.use(
   checkForAuthentication(),
   checkRole(["superadmin"]),
   adminUserRoutes
+);
+app.use("/admin/delete-users",
+  checkForAuthentication(),
+  checkRole(["superadmin"]),
+  deleteUsersRoutes
 );
 app.use(
   "/admin/plans",
