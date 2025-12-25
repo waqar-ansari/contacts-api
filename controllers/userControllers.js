@@ -46,9 +46,9 @@ async function addOrUpdateReferral(referrerId, referredUser) {
   // Normalize phone objects from referredUser
   const phoneObjs = Array.isArray(referredUser.phonenumbers)
     ? referredUser.phonenumbers.map((p) => ({
-      countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
-      number: (p.number || "").toString().replace(/^\+/, ""),
-    }))
+        countryCode: (p.countryCode || "").toString().replace(/^\+/, ""),
+        number: (p.number || "").toString().replace(/^\+/, ""),
+      }))
     : [];
 
   const referredIdStr = referredUser._id.toString();
@@ -229,7 +229,8 @@ const signupWithEmail = async (req, res) => {
                 await addStripeCredits(
                   referrerCustomer.id,
                   1000, // $10 in cents
-                  `Referral bonus - ${user.firstname || "User"
+                  `Referral bonus - ${
+                    user.firstname || "User"
                   } verified their email`,
                   referringUser.stripe_test_mode || false
                 );
@@ -317,12 +318,12 @@ const signupWithEmail = async (req, res) => {
       const matchingUsers =
         matchConditions.length > 0
           ? await User.find({
-            scannedMe: {
-              $elemMatch: {
-                $or: matchConditions,
+              scannedMe: {
+                $elemMatch: {
+                  $or: matchConditions,
+                },
               },
-            },
-          })
+            })
           : [];
 
       for (const scanner of matchingUsers) {
@@ -340,8 +341,8 @@ const signupWithEmail = async (req, res) => {
                 user.phonenumbers[0].countryCode &&
                 user.phonenumbers[0].number &&
                 entry.phonenumber ===
-                user.phonenumbers[0].countryCode +
-                user.phonenumbers[0].number))
+                  user.phonenumbers[0].countryCode +
+                    user.phonenumbers[0].number))
           ) {
             updated = true;
             return user._id;
@@ -926,7 +927,8 @@ const signupWithPhoneNumber = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000, // $10 in cents
-                `Referral bonus - ${user.firstname || "User"
+                `Referral bonus - ${
+                  user.firstname || "User"
                 } verified phone number`,
                 referringUser.stripe_test_mode || false
               );
@@ -1476,7 +1478,6 @@ const googleCallback = async (req, res) => {
     type = "web";
   }
 
-
   if (!code) {
     return res
       .status(400)
@@ -1514,13 +1515,6 @@ const googleCallback = async (req, res) => {
         </script>
       `);
         }
-
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-          user = existingUser;
-          isFirstTime = false;
-        }
-
 
         const previouslyReferred = await ReferralLog.findOne({
           email: email,
@@ -1600,7 +1594,9 @@ const googleCallback = async (req, res) => {
               await addStripeCredits(
                 referrerCustomer.id,
                 1000,
-                `Referral bonus - ${user.firstname || "User"} joined via Google`,
+                `Referral bonus - ${
+                  user.firstname || "User"
+                } joined via Google`,
                 referringUser.stripe_test_mode || false
               );
             } else {
@@ -1813,10 +1809,10 @@ const linkedinCallback = async (req, res) => {
         user.signupMethod === "google"
           ? "Google"
           : user.signupMethod === "email"
-            ? "Email"
-            : user.signupMethod === "phoneNumber"
-              ? "Phone Number"
-              : "Other";
+          ? "Email"
+          : user.signupMethod === "phoneNumber"
+          ? "Phone Number"
+          : "Other";
 
       const conflictField = user.email === email ? "email" : "phone number";
 
