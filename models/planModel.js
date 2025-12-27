@@ -7,26 +7,30 @@ const planSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    price: {
-      ////in cents/fils
-      type: Number,
-      required: true,
-    },
-    pricePeriod: {
-      type: String,
-      enum: ["month", "year", "lifetime"],
-      default: "month",
-    },
     description: {
       type: String,
       required: true,
     },
 
     // Stripe integration fields
-    stripePriceId: {
-      type: String,
-      sparse: true, // Allow null/undefined but ensure uniqueness when present
-    },
+    stripePriceIds: [
+      {
+        priceId: {
+          type: String,
+          required: true,
+        },
+        billingPeriod: {
+          type: String,
+          enum: ["week", "month", "year"],
+          required: true,
+        },
+        // Price stored in cents/fils for reference (actual source of truth is Stripe)
+        price: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
     stripeProductId: {
       type: String,
       sparse: true,
@@ -60,5 +64,21 @@ const planSchema = new mongoose.Schema(
 
 // Compound index to allow same plan name in test and live modes
 planSchema.index({ name: 1, stripe_test_mode: 1 }, { unique: true });
+
+// Validation: Ensure at least one price ID and unique billing periods
+planSchema.pre("save", function (next) {
+  if (!this.stripePriceIds || this.stripePriceIds.length === 0) {
+    return next(new Error("At least one billing period is required"));
+  }
+
+  // Check for duplicate billing periods
+  const periods = this.stripePriceIds.map((p) => p.billingPeriod);
+  const uniquePeriods = new Set(periods);
+  if (periods.length !== uniquePeriods.size) {
+    return next(new Error("Duplicate billing periods are not allowed"));
+  }
+
+  next();
+});
 
 module.exports = mongoose.model("Plan", planSchema);

@@ -7,14 +7,16 @@ const User = require("../../models/userModel");
 // @route   GET /api/admin/plans
 // @access  Private/Admin
 const getAllPlans = async (req, res) => {
- 
   try {
     const plans = await Plan.find({
-      $or: [{ stripe_test_mode: req?.user?.stripe_test_mode || false }, { name: "Starter" }],
+      $or: [
+        { stripe_test_mode: req?.user?.stripe_test_mode || false },
+        { name: "Starter" },
+      ],
     });
     res.json({
       success: true,
-     stripe_test_mode: req?.user?.stripe_test_mode || false,
+      stripe_test_mode: req?.user?.stripe_test_mode || false,
       count: plans.length,
       data: plans,
     });
@@ -57,8 +59,7 @@ const createPlan = async (req, res) => {
   try {
     const {
       name,
-      price,
-      pricePeriod,
+      billingPeriods, // Array of { period: 'week'|'month'|'year', price: number }
       description,
       features,
       isPopular,
@@ -74,17 +75,52 @@ const createPlan = async (req, res) => {
         message: "Name is required and must be a string",
       });
     }
-    if (price === undefined || typeof price !== "number" || price < 0) {
+
+    if (
+      !billingPeriods ||
+      !Array.isArray(billingPeriods) ||
+      billingPeriods.length === 0
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Price is required and must be a non-negative number",
+        message: "At least one billing period is required",
       });
     }
-    if (pricePeriod && typeof pricePeriod !== "string") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Price period must be a string" });
+
+    // Validate billing periods
+    const validPeriods = ["week", "month", "year"];
+    const periodSet = new Set();
+
+    for (const bp of billingPeriods) {
+      if (!bp.period || !validPeriods.includes(bp.period)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid billing period. Must be one of: ${validPeriods.join(
+            ", "
+          )}`,
+        });
+      }
+
+      if (periodSet.has(bp.period)) {
+        return res.status(400).json({
+          success: false,
+          message: `Duplicate billing period: ${bp.period}`,
+        });
+      }
+      periodSet.add(bp.period);
+
+      if (
+        bp.price === undefined ||
+        typeof bp.price !== "number" ||
+        bp.price < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid price for ${bp.period} period`,
+        });
+      }
     }
+
     if (features && !Array.isArray(features)) {
       return res
         .status(400)
@@ -114,10 +150,10 @@ const createPlan = async (req, res) => {
     }
 
     let stripeProductId = null;
-    let stripePriceId = null;
+    const stripePriceIds = [];
 
-    // Create Stripe product and price for non-Starter plans
-    if (name.toLowerCase() !== "starter" && price > 0) {
+    // Create Stripe product and prices for non-Starter plans
+    if (name.toLowerCase() !== "starter") {
       try {
         // Create Stripe product
         const stripeProduct = await stripeInstance.products.create({
@@ -130,23 +166,37 @@ const createPlan = async (req, res) => {
         });
         stripeProductId = stripeProduct.id;
 
-        // Create Stripe price
-        const stripePrice = await stripeInstance.prices.create({
-          currency: "aed",
-          product: stripeProductId,
-          unit_amount: price, // Price should be in cents
-          recurring: {
-            interval: pricePeriod === "year" ? "year" : "month",
-          },
-          metadata: {
-            planName: name,
-            createdBy: "contacts-api",
-          },
-        });
-        stripePriceId = stripePrice.id;
+        // Create Stripe prices for each billing period
+        for (const bp of billingPeriods) {
+          if (bp.price > 0) {
+            const stripePrice = await stripeInstance.prices.create({
+              currency: "aed",
+              product: stripeProductId,
+              unit_amount: bp.price, // Price in cents
+              recurring: {
+                interval: bp.period,
+              },
+              metadata: {
+                planName: name,
+                billingPeriod: bp.period,
+                createdBy: "contacts-api",
+              },
+            });
+
+            stripePriceIds.push({
+              priceId: stripePrice.id,
+              billingPeriod: bp.period,
+              price: bp.price,
+            });
+
+            console.log(
+              `Created Stripe price ${stripePrice.id} for ${bp.period} billing period`
+            );
+          }
+        }
 
         console.log(
-          `Created Stripe product ${stripeProductId} and price ${stripePriceId} for plan ${name}`
+          `Created Stripe product ${stripeProductId} with ${stripePriceIds.length} price(s) for plan ${name}`
         );
       } catch (stripeError) {
         console.error("Stripe creation error:", stripeError);
@@ -156,18 +206,25 @@ const createPlan = async (req, res) => {
             "Failed to create Stripe product/price: " + stripeError.message,
         });
       }
+    } else {
+      // For Starter plan, just store the billing periods without creating Stripe resources
+      for (const bp of billingPeriods) {
+        stripePriceIds.push({
+          priceId: "starter-plan-free",
+          billingPeriod: bp.period,
+          price: bp.price,
+        });
+      }
     }
 
     const plan = await Plan.create({
       name,
-      price,
-      pricePeriod: pricePeriod || "month",
       description,
       features: processedFeatures,
       isPopular: isPopular || false,
       isActive: isActive || true,
       stripeProductId,
-      stripePriceId,
+      stripePriceIds,
       stripe_test_mode: useTestMode,
     });
 
@@ -222,20 +279,53 @@ const updatePlan = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Name must be a string" });
     }
-    if (
-      req.body.price !== undefined &&
-      (typeof req.body.price !== "number" || req.body.price < 0)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Price must be a non-negative number",
-      });
+
+    if (req.body.billingPeriods) {
+      if (
+        !Array.isArray(req.body.billingPeriods) ||
+        req.body.billingPeriods.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "At least one billing period is required",
+        });
+      }
+
+      // Validate billing periods
+      const validPeriods = ["week", "month", "year"];
+      const periodSet = new Set();
+
+      for (const bp of req.body.billingPeriods) {
+        if (!bp.period || !validPeriods.includes(bp.period)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid billing period. Must be one of: ${validPeriods.join(
+              ", "
+            )}`,
+          });
+        }
+
+        if (periodSet.has(bp.period)) {
+          return res.status(400).json({
+            success: false,
+            message: `Duplicate billing period: ${bp.period}`,
+          });
+        }
+        periodSet.add(bp.period);
+
+        if (
+          bp.price === undefined ||
+          typeof bp.price !== "number" ||
+          bp.price < 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid price for ${bp.period} period`,
+          });
+        }
+      }
     }
-    if (req.body.pricePeriod && typeof req.body.pricePeriod !== "string") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Price period must be a string" });
-    }
+
     if (req.body.features && !Array.isArray(req.body.features)) {
       return res
         .status(400)
@@ -266,55 +356,123 @@ const updatePlan = async (req, res) => {
       }
     }
 
-    // Handle Stripe updates for price/period changes
+    // Handle Stripe updates for billing periods
     let updatedFields = { ...req.body };
 
-    if (
-      (req.body.price !== undefined && req.body.price !== plan.price) ||
-      (req.body.pricePeriod && req.body.pricePeriod !== plan.pricePeriod)
-    ) {
-      // Only update Stripe for non-Starter plans with actual pricing
-      const newPrice =
-        req.body.price !== undefined ? req.body.price : plan.price;
-      const newPeriod = req.body.pricePeriod || plan.pricePeriod;
+    if (req.body.billingPeriods) {
       const planName = req.body.name || plan.name;
+      const newStripePriceIds = [];
 
-      if (planName.toLowerCase() !== "starter" && newPrice > 0) {
+      // Only update Stripe for non-Starter plans
+      if (planName.toLowerCase() !== "starter" && plan.stripeProductId) {
         try {
-          // Create new Stripe price (can't modify existing prices in Stripe)
-          const stripePrice = await stripeInstance.prices.create({
-            currency: "aed",
-            product: plan.stripeProductId,
-            unit_amount: newPrice,
-            recurring: {
-              interval: newPeriod === "year" ? "year" : "month",
-            },
-            metadata: {
-              planName: planName,
-              updatedBy: "admin-panel",
-              previousPriceId: plan.stripePriceId,
-            },
+          // Create a map of existing periods to price IDs
+          const existingPeriodsMap = new Map();
+          plan.stripePriceIds.forEach((sp) => {
+            existingPeriodsMap.set(sp.billingPeriod, sp.priceId);
           });
 
-          // Archive old price
-          if (plan.stripePriceId) {
-            await stripeInstance.prices.update(plan.stripePriceId, {
-              active: false,
-            });
+          // Process each billing period
+          for (const bp of req.body.billingPeriods) {
+            const existingPriceId = existingPeriodsMap.get(bp.period);
+
+            if (bp.price > 0) {
+              // Check if price changed or period is new
+              const existingPrice = plan.stripePriceIds.find(
+                (sp) => sp.billingPeriod === bp.period
+              );
+
+              if (!existingPrice || existingPrice.price !== bp.price) {
+                // Create new Stripe price
+                const stripePrice = await stripeInstance.prices.create({
+                  currency: "aed",
+                  product: plan.stripeProductId,
+                  unit_amount: bp.price,
+                  recurring: {
+                    interval: bp.period,
+                  },
+                  metadata: {
+                    planName: planName,
+                    billingPeriod: bp.period,
+                    updatedBy: "admin-panel",
+                    previousPriceId: existingPriceId || "none",
+                  },
+                });
+
+                newStripePriceIds.push({
+                  priceId: stripePrice.id,
+                  billingPeriod: bp.period,
+                  price: bp.price,
+                });
+
+                // Archive old price if it existed
+                if (existingPriceId) {
+                  try {
+                    await stripeInstance.prices.update(existingPriceId, {
+                      active: false,
+                    });
+                    console.log(
+                      `Archived old price ${existingPriceId} for ${bp.period}`
+                    );
+                  } catch (archiveError) {
+                    console.error("Error archiving old price:", archiveError);
+                  }
+                }
+
+                console.log(
+                  `Created new Stripe price ${stripePrice.id} for ${bp.period} period`
+                );
+              } else {
+                // Keep existing price
+                newStripePriceIds.push({
+                  priceId: existingPrice.priceId,
+                  billingPeriod: bp.period,
+                  price: bp.price,
+                });
+              }
+            }
           }
 
-          updatedFields.stripePriceId = stripePrice.id;
-          console.log(
-            `Updated Stripe price for plan ${planName}: ${stripePrice.id}`
-          );
+          // Archive any removed periods
+          plan.stripePriceIds.forEach((existingPrice) => {
+            const stillExists = req.body.billingPeriods.some(
+              (bp) => bp.period === existingPrice.billingPeriod
+            );
+            if (!stillExists && existingPrice.priceId !== "starter-plan-free") {
+              stripeInstance.prices
+                .update(existingPrice.priceId, {
+                  active: false,
+                })
+                .then(() => {
+                  console.log(
+                    `Archived removed price ${existingPrice.priceId} for ${existingPrice.billingPeriod}`
+                  );
+                })
+                .catch((err) => {
+                  console.error("Error archiving removed price:", err);
+                });
+            }
+          });
+
+          updatedFields.stripePriceIds = newStripePriceIds;
         } catch (stripeError) {
           console.error("Stripe update error:", stripeError);
           return res.status(500).json({
             success: false,
-            message: "Failed to update Stripe pricing: " + stripeError.message,
+            message: "Failed to update Stripe prices: " + stripeError.message,
           });
         }
+      } else {
+        // For Starter plan, just update the billing periods without Stripe
+        updatedFields.stripePriceIds = req.body.billingPeriods.map((bp) => ({
+          priceId: "starter-plan-free",
+          billingPeriod: bp.period,
+          price: bp.price,
+        }));
       }
+
+      // Remove billingPeriods from updatedFields as we've converted it to stripePriceIds
+      delete updatedFields.billingPeriods;
     }
 
     // Update Stripe product name if name changed
@@ -394,14 +552,30 @@ const deletePlan = async (req, res) => {
     // }
 
     // Archive Stripe resources if they exist
-    if (plan.stripePriceId || plan.stripeProductId) {
+    if (plan.stripePriceIds?.length > 0 || plan.stripeProductId) {
       try {
-        // Archive the price first
-        if (plan.stripePriceId) {
-          await stripeInstance.prices.update(plan.stripePriceId, {
-            active: false,
-          });
-          console.log(`Archived Stripe price: ${plan.stripePriceId}`);
+        // Archive all prices
+        if (plan.stripePriceIds && plan.stripePriceIds.length > 0) {
+          for (const priceInfo of plan.stripePriceIds) {
+            if (
+              priceInfo.priceId &&
+              priceInfo.priceId !== "starter-plan-free"
+            ) {
+              try {
+                await stripeInstance.prices.update(priceInfo.priceId, {
+                  active: false,
+                });
+                console.log(
+                  `Archived Stripe price: ${priceInfo.priceId} (${priceInfo.billingPeriod})`
+                );
+              } catch (priceError) {
+                console.error(
+                  `Error archiving price ${priceInfo.priceId}:`,
+                  priceError
+                );
+              }
+            }
+          }
         }
 
         // Archive the product
