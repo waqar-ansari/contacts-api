@@ -1,28 +1,51 @@
 const nodemailer = require('nodemailer');
 
 const sendEmail = async (to, subject, html) => {
+
+  // const transporter = nodemailer.createTransport({
+  //   // service: 'smtp',
+  //   // host: "smtp.titan.email", // SMTP server address
+  //   // port: 465, // Port for secure connection
+  //   // secure: true, // Use SSL/TLS
+  //   // auth: {
+  //   //   user: 'noreply@contacts.management', // your Gmail address
+  //   //   pass: 'bZ}JTus_PQ{qWvA'     // app password from Google
+  //   //   // user: "makvanayash12@gmail.com",
+  //   //   // pass: "fybb lnri tmrq otmg",
+  //   // },
+  //   service: "gmail", // Use your SMTP service
+  //   host: "smtp.gmail.com", // SMTP server address
+  //   port: 465, // Port for secure connection
+  //   secure: true, // Use SSL/TLS
+  //   auth: {
+  //     user: "makvanayash2112@gmail.com",
+  //     pass: "wngq xqyd fkcf kbyl", // App Password, not normal password
+  //   },
+  //   tls: {
+  //     rejectUnauthorized: false  // THIS LINE FIXES THE ERROR
+  //   }
+  // });
+
   const transporter = nodemailer.createTransport({
-    // service: 'smtp',
+    // service: "smtp", // Use your SMTP service
     // host: "smtp.titan.email", // SMTP server address
     // port: 465, // Port for secure connection
     // secure: true, // Use SSL/TLS
-    // auth: {
-    //   user: 'noreply@contacts.management', // your Gmail address
-    //   pass: 'bZ}JTus_PQ{qWvA'     // app password from Google
-    //   // user: "makvanayash12@gmail.com",
-    //   // pass: "fybb lnri tmrq otmg",
-    // },
-    service: "gmail", // Use your SMTP service
-    host: "smtp.gmail.com", // SMTP server address
-    port: 465, // Port for secure connection
-    secure: true, // Use SSL/TLS
+    service: "smtp", // Use your SMTP service
+    host: "email-smtp.eu-north-1.amazonaws.com", // SMTP server address
+    port: 587, // Port for secure connection
+    secure: false, // Use SSL/TLS
     auth: {
-      user: "makvanayash2112@gmail.com",
-      pass: "wngq xqyd fkcf kbyl", // App Password, not normal password
+      // user: "noreply@contacts.management",
+      // pass: "bZ}JTus_PQ{qWvA", // App Password, not normal password
+      user: "AKIAZPPGACVJJ6IDCLWH",
+      pass: "BI2f1DBxTOVGOaW04FdAEzG+aE6QBDYNF3h4+Xl65uYF", // App Password, not normal password
     },
+    // optional TLS options:
     tls: {
-      rejectUnauthorized: false  // THIS LINE FIXES THE ERROR
-    }
+      // do not fail on invalid certs in dev (remove in prod)
+      rejectUnauthorized: false,
+    },
   });
 
   // const transporter = nodemailer.createTransport({
