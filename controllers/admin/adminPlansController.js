@@ -55,7 +55,8 @@ const getPlanById = async (req, res) => {
 // @route   POST /api/admin/plans
 // @access  Private/Admin
 const createPlan = async (req, res) => {
-  const useTestMode = false;
+  const useTestMode = req?.user?.stripe_test_mode || false;
+
   try {
     const {
       name,
