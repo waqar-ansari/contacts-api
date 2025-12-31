@@ -95,8 +95,9 @@ const getAllUsers = async (req, res) => {
         userObj.plan = {
           _id: currentPlan?._id || null,
           name: currentPlan?.name || null,
-          price: currentPlan?.price || null,
-          pricePeriod: currentPlan?.pricePeriod || null,
+          price: currentPlan?.selectedPriceInfo?.price || null,
+          pricePeriod: currentPlan?.selectedPriceInfo?.billingPeriod || null,
+          priceId: currentPlan?.selectedPriceInfo?.priceId || null,
           subscriptionStatus: stripeData?.status || null,
           isTrialing: stripeData?.isTrialing || false,
           activatedAt: stripeData?.activatedAt || null,
@@ -145,7 +146,7 @@ const getAllPlans = async (req, res) => {
         { name: "Starter" },
       ],
     })
-      .select("_id name price pricePeriod")
+      .select("_id name stripePriceIds")
       .sort({ createdAt: -1 });
     res.status(200).json({
       status: "success",
@@ -213,6 +214,9 @@ const getUser = async (req, res) => {
     userData.plan = {
       _id: currentPlan?._id || null,
       name: currentPlan?.name || null,
+      price: currentPlan?.selectedPriceInfo?.price || null,
+      pricePeriod: currentPlan?.selectedPriceInfo?.billingPeriod || null,
+      priceId: currentPlan?.selectedPriceInfo?.priceId || null,
       subscriptionStatus: stripeData?.status || null,
       isTrialing: stripeData?.isTrialing || false,
       activatedAt: stripeData?.activatedAt || null,
@@ -307,6 +311,7 @@ const editProfile = async (req, res) => {
       employeeCount = "",
       companyName = "",
       planId = "", // Add planId field
+      priceId = "", // Add priceId field for billing period selection
       apiType = "web", // default to web if not provided
     } = req.body;
 
@@ -330,9 +335,90 @@ const editProfile = async (req, res) => {
     if (keys.includes("designation")) user.designation = designation;
 
     // =========================
-    // 🔄 PLAN UPDATE - STRIPE INTEGRATED
+    // 🔄 PRICE ID UPDATE - HANDLE BILLING PERIOD CHANGES
     // =========================
-    if (keys.includes("planId")) {
+    if (
+      keys.includes("priceId") &&
+      priceId &&
+      priceId !== "" &&
+      priceId !== "null"
+    ) {
+      let selectedPlan = null;
+      try {
+        // Find plan that contains this priceId
+        selectedPlan = await Plan.findOne({
+          "stripePriceIds.priceId": priceId,
+        });
+
+        if (!selectedPlan) {
+          return res.status(400).json({
+            status: "error",
+            message: "Invalid price ID selected",
+          });
+        }
+
+        if (!selectedPlan.isActive) {
+          return res.status(400).json({
+            status: "error",
+            message: "Selected plan is not active",
+          });
+        }
+
+        const selectedPriceInfo = selectedPlan.stripePriceIds.find(
+          (p) => p.priceId === priceId
+        );
+
+        if (!selectedPriceInfo) {
+          return res.status(400).json({
+            status: "error",
+            message: "Price ID not found in plan",
+          });
+        }
+
+        console.log(
+          `Admin updating user ${user._id} to plan ${selectedPlan.name} (${selectedPriceInfo.billingPeriod}) with priceId: ${priceId}`
+        );
+
+        // Cancel all existing subscriptions (including scheduled)
+        if (user.stripeCustomerId) {
+          const cancellationResults = await cancelAllCustomerSubscriptions(
+            user.stripeCustomerId,
+            null,
+            useTestMode
+          );
+          console.log(
+            `Cancelled ${cancellationResults.length} subscriptions for billing period change`
+          );
+        }
+
+        // Create Stripe customer if doesn't exist
+        const stripeCustomer = await getOrCreateStripeCustomer(
+          user,
+          useTestMode
+        );
+
+        // Create new subscription with selected priceId
+        const newSubscription = await updateSubscriptionForAdmin(
+          stripeCustomer.id,
+          priceId,
+          useTestMode
+        );
+
+        console.log(
+          `✅ Created new subscription ${newSubscription.id} for ${selectedPlan.name} - ${selectedPriceInfo.billingPeriod}`
+        );
+      } catch (stripeError) {
+        console.error("Stripe integration error:", stripeError);
+        return res.status(500).json({
+          status: "error",
+          message: "Failed to update subscription: " + stripeError.message,
+        });
+      }
+    }
+    // =========================
+    // 🔄 PLAN UPDATE - STRIPE INTEGRATED (Legacy planId handling)
+    // =========================
+    else if (keys.includes("planId")) {
       let selectedPlan = null; // Declare outside try block for catch access
       try {
         if (planId === "" || planId === "null" || planId === null) {
@@ -651,8 +737,9 @@ const editProfile = async (req, res) => {
         plan: {
           _id: currentPlan?._id || null,
           name: currentPlan?.name || null,
-          price: currentPlan?.price || null,
-          pricePeriod: currentPlan?.pricePeriod || null,
+          price: currentPlan?.selectedPriceInfo?.price || null,
+          pricePeriod: currentPlan?.selectedPriceInfo?.billingPeriod || null,
+          priceId: currentPlan?.selectedPriceInfo?.priceId || null,
         },
       },
     });

@@ -26,9 +26,18 @@ const {
  * @param {Object} newPlan - Plan user wants to upgrade/change to
  * @param {Number} currentPrice - Current plan price (in cents)
  * @param {Number} newPrice - New plan price (in cents) for selected billing period
+ * @param {String} currentPriceId - Current Stripe price ID (billing period)
+ * @param {String} newPriceId - New Stripe price ID (billing period)
  * @returns {Object} Validation result
  */
-const validatePlanUpgrade = (currentPlan, newPlan, currentPrice, newPrice) => {
+const validatePlanUpgrade = (
+  currentPlan,
+  newPlan,
+  currentPrice,
+  newPrice,
+  currentPriceId = null,
+  newPriceId = null
+) => {
   const validation = {
     isValid: true,
     isUpgrade: false,
@@ -43,24 +52,39 @@ const validatePlanUpgrade = (currentPlan, newPlan, currentPrice, newPrice) => {
     return validation;
   }
 
-  // Check if trying to subscribe to same plan
-  if (currentPlan._id.toString() === newPlan._id.toString()) {
+  // Check if trying to subscribe to same plan AND same billing period (price ID)
+  const isSamePlanId = currentPlan._id.toString() === newPlan._id.toString();
+  const isSamePriceId =
+    currentPriceId && newPriceId && currentPriceId === newPriceId;
+
+  if (isSamePlanId && isSamePriceId) {
+    // Same plan AND same billing period - not allowed
     validation.isValid = false;
     validation.isSamePlan = true;
-    validation.message = "You already have this plan active";
+    validation.message = "You already have this plan and billing period active";
     return validation;
   }
 
   if (newPrice > currentPrice) {
     // This is an upgrade
     validation.isUpgrade = true;
-    validation.message = `Upgrading from ${currentPlan.name} to ${newPlan.name}`;
+    if (isSamePlanId) {
+      // Upgrading to more expensive billing period of same plan
+      validation.message = `Upgrading ${currentPlan.name} billing period`;
+    } else {
+      validation.message = `Upgrading from ${currentPlan.name} to ${newPlan.name}`;
+    }
   } else if (newPrice < currentPrice) {
     // This is a downgrade - allow but schedule for period end
     validation.isDowngrade = true;
-    validation.message = `Downgrading from ${currentPlan.name} to ${newPlan.name}. Change will take effect at the end of current billing period.`;
+    if (isSamePlanId) {
+      // Downgrading to less expensive billing period of same plan
+      validation.message = `Downgrading ${currentPlan.name} billing period. Change will take effect at the end of current billing period.`;
+    } else {
+      validation.message = `Downgrading from ${currentPlan.name} to ${newPlan.name}. Change will take effect at the end of current billing period.`;
+    }
   } else {
-    // Same price different plan
+    // Same price different plan or billing period
     validation.message = `Changing from ${currentPlan.name} to ${newPlan.name}`;
   }
 
@@ -471,12 +495,16 @@ const previewUpgrade = async (req, res) => {
     // Get current price from currentPlan.selectedPriceInfo (attached by getUserCurrentPlan)
     const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
     const newPrice = selectedPriceInfo.price;
+    const currentPriceId = currentPlan?.selectedPriceInfo?.priceId || null;
+    const newPriceId = selectedPriceInfo.priceId;
 
     const validation = validatePlanUpgrade(
       currentPlan,
       plan,
       currentPrice,
-      newPrice
+      newPrice,
+      currentPriceId,
+      newPriceId
     );
     if (!validation.isValid) {
       return res.status(400).json({
@@ -554,9 +582,9 @@ const previewUpgrade = async (req, res) => {
 
       // === STEP 7: PARSE INVOICE LINES TO CALCULATE COSTS ===
       const invoiceLines = upcomingInvoice.lines.data;
+      // console.log("Upcoming invoice lines:", invoiceLines);
       let prorationCredit = 0; // Credit for unused time on current plan
       let newPlanCharge = 0; // Charge for new plan (current period only)
-      let couponDiscountFromStripe = 0; // Coupon discount already applied by Stripe
 
       // Get current billing period end to filter out future charges
       let currentBillingPeriodEnd =
@@ -570,8 +598,14 @@ const previewUpgrade = async (req, res) => {
         }
       }
 
+      let couponDiscountAmount =
+        invoiceLines[invoiceLines.length - 1].discount_amounts[0]?.amount || 0;
       // Process each line item in the invoice preview
+
       invoiceLines.forEach((line) => {
+        // console.log("Invoice line item:", line);
+
+        ///usually in all our cases last item has discount ammount
         // Determine if this charge is for the current billing period
         const isCurrentPeriodCharge =
           !line.period || line.period.end <= currentBillingPeriodEnd;
@@ -589,22 +623,6 @@ const previewUpgrade = async (req, res) => {
 
       // Calculate immediate charge after applying proration credit
       const immediateCharge = Math.max(0, newPlanCharge - prorationCredit);
-
-      // === STEP 8: CALCULATE COUPON DISCOUNT FROM STRIPE INVOICE ===
-      // When a coupon is applied, Stripe automatically applies the discount to the invoice
-      // newPlanCharge already has the coupon discount applied by Stripe
-      let couponDiscountAmount = 0;
-      if (couponData) {
-        if (couponData.discountType === "percentage") {
-          // Calculate discount amount based on selected plan price
-          couponDiscountAmount = Math.round(
-            (selectedPriceInfo.price * couponData.discountValue) / 100
-          );
-        } else {
-          // Fixed amount discount (convert dollars to cents)
-          couponDiscountAmount = Math.round(couponData.discountValue * 100);
-        }
-      }
 
       // === STEP 9: CALCULATE CREDIT USAGE ===
       const availableCredits = Math.abs(
@@ -647,11 +665,14 @@ const previewUpgrade = async (req, res) => {
         console.error("Date conversion error:", error);
         nextBillingDate = new Date().toISOString();
       }
-
       // === STEP 12: UTILITY FUNCTION FOR PRECISE DOLLAR CONVERSION ===
       // Prevents floating-point precision errors in financial calculations
       const toFixedDollars = (cents) => Math.round(cents) / 100;
 
+      let creditsWithoutProration = Math.min(
+        availableCredits,
+        selectedPriceInfo.price - couponDiscountAmount - prorationCredit
+      );
       // === STEP 13: SEND PREVIEW RESPONSE ===
       res.json({
         success: true,
@@ -680,6 +701,9 @@ const previewUpgrade = async (req, res) => {
           credits: {
             availableCredits: toFixedDollars(availableCredits),
             creditsToUse: toFixedDollars(creditsToUse),
+            creditsUsedWithoutProration: toFixedDollars(
+              creditsWithoutProration
+            ),
             finalChargeAfterCredits: toFixedDollars(finalChargeAfterCredits),
             remainingCreditsAfterPurchase: toFixedDollars(
               remainingCreditsAfterPurchase
@@ -692,7 +716,7 @@ const previewUpgrade = async (req, res) => {
                 name: couponData.name,
                 discountType: couponData.discountType,
                 discountValue: couponData.discountValue,
-                discountAmount: toFixedDollars(couponDiscountAmount),
+                discountAmount: toFixedDollars(couponDiscountAmount || 0),
               }
             : {
                 isApplied: false,
@@ -804,12 +828,16 @@ const upgradeSubscription = async (req, res) => {
     // Validate plan upgrade/change
     const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
     const newPrice = selectedPriceInfo.price;
+    const currentPriceId = currentPlan?.selectedPriceInfo?.priceId || null;
+    const newPriceId = selectedPriceInfo.priceId;
 
     const validation = validatePlanUpgrade(
       currentPlan,
       plan,
       currentPrice,
-      newPrice
+      newPrice,
+      currentPriceId,
+      newPriceId
     );
     if (!validation.isValid) {
       return res.status(400).json({
@@ -1448,12 +1476,16 @@ const downgradeSubscription = async (req, res) => {
     // Validate plan change
     const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
     const newPrice = selectedPriceInfo.price;
+    const currentPriceId = currentPlan?.selectedPriceInfo?.priceId || null;
+    const newPriceId = selectedPriceInfo.priceId;
 
     const validation = validatePlanUpgrade(
       currentPlan,
       plan,
       currentPrice,
-      newPrice
+      newPrice,
+      currentPriceId,
+      newPriceId
     );
     if (!validation.isValid) {
       return res.status(400).json({
@@ -1473,7 +1505,6 @@ const downgradeSubscription = async (req, res) => {
     const existingSubscription = await stripeInstance.subscriptions.retrieve(
       activeSubInfo.subscriptionId
     );
-    console.log("Existing subscription:", existingSubscription);
     if (!existingSubscription || existingSubscription.status !== "active") {
       return res.status(400).json({
         success: false,
@@ -1744,6 +1775,7 @@ const previewNewSubscription = async (req, res) => {
           price: toFixedDollars(planPriceInCents),
           originalPrice: toFixedDollars(planPriceInCents),
           finalPrice: toFixedDollars(finalPriceAfterCoupon),
+          billingPeriod: selectedPriceInfo.billingPeriod,
         },
         coupon: couponData
           ? {
