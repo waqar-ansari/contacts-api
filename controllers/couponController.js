@@ -68,76 +68,76 @@ const validateCouponCode = async (req, res) => {
  * @route POST /api/user/payment/preview-coupon-discount
  * @access Private
  */
-const previewCouponDiscount = async (req, res) => {
-  try {
-    const { couponCode, amount } = req.body;
-    const useTestMode = req.user.stripe_test_mode || false;
-    if (!couponCode || typeof couponCode !== "string") {
-      return res.status(400).json({
-        success: false,
-        message: "Coupon code is required",
-      });
-    }
+// const previewCouponDiscount = async (req, res) => {
+//   try {
+//     const { couponCode, amount } = req.body;
+//     const useTestMode = req.user.stripe_test_mode || false;
+//     if (!couponCode || typeof couponCode !== "string") {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Coupon code is required",
+//       });
+//     }
 
-    if (!amount || typeof amount !== "number" || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid amount is required",
-      });
-    }
+//     if (!amount || typeof amount !== "number" || amount <= 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Valid amount is required",
+//       });
+//     }
 
-    // Pass user ID and Stripe customer ID to check if they've already used the coupon
-    const validation = await validateCoupon(
-      couponCode.trim(),
-      req.user._id,
-      req.user.stripeCustomerId,
-      useTestMode
-    );
+//     // Pass user ID and Stripe customer ID to check if they've already used the coupon
+//     const validation = await validateCoupon(
+//       couponCode.trim(),
+//       req.user._id,
+//       req.user.stripeCustomerId,
+//       useTestMode
+//     );
 
-    if (!validation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: validation.error,
-        isValid: false,
-      });
-    }
+//     if (!validation.isValid) {
+//       return res.status(400).json({
+//         success: false,
+//         message: validation.error,
+//         isValid: false,
+//       });
+//     }
 
-    // Calculate discount (amount should be in cents)
-    const amountInCents = Math.round(amount * 100);
-    const discountCalculation = calculateCouponDiscount(
-      amountInCents,
-      validation.coupon
-    );
+//     // Calculate discount (amount should be in cents)
+//     const amountInCents = Math.round(amount * 100);
+//     const discountCalculation = calculateCouponDiscount(
+//       amountInCents,
+//       validation.coupon
+//     );
 
-    res.json({
-      success: true,
-      message: "Discount Calculated",
-      isValid: true,
-      coupon: {
-        name: validation.coupon.name,
-        couponCode: validation.coupon.couponCode,
-        discountType: validation.coupon.discountType,
-        discountValue: validation.coupon.discountValue,
-      },
-      discount: {
-        subtotal: discountCalculation.subtotal / 100, // Convert back to dollars
-        discountAmount: discountCalculation.discountAmount / 100,
-        finalAmount: discountCalculation.finalAmount / 100,
-        discountPercentage: discountCalculation.discountPercentage,
-        savings: discountCalculation.discountAmount / 100,
-      },
-    });
-  } catch (error) {
-    console.error("Error calculating coupon discount:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to calculate discount",
-      error: error.message,
-    });
-  }
-};
+//     res.json({
+//       success: true,
+//       message: "Discount Calculated",
+//       isValid: true,
+//       coupon: {
+//         name: validation.coupon.name,
+//         couponCode: validation.coupon.couponCode,
+//         discountType: validation.coupon.discountType,
+//         discountValue: validation.coupon.discountValue,
+//       },
+//       discount: {
+//         subtotal: discountCalculation.subtotal / 100, // Convert back to dollars
+//         discountAmount: discountCalculation.discountAmount / 100,
+//         finalAmount: discountCalculation.finalAmount / 100,
+//         discountPercentage: discountCalculation.discountPercentage,
+//         savings: discountCalculation.discountAmount / 100,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error calculating coupon discount:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to calculate discount",
+//       error: error.message,
+//     });
+//   }
+// };
 
 module.exports = {
   validateCouponCode,
-  previewCouponDiscount,
+  // previewCouponDiscount,
 };

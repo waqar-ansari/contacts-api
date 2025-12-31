@@ -1,9 +1,7 @@
 const { stripe, stripeTest } = require("../config/stripe");
 const Plan = require("../models/planModel");
 const User = require("../models/userModel");
-const {
-  processSubscriptionCompletion,
-} = require("../utils/subscriptionProcessor");
+
 const {
   getOrCreateStripeCustomer,
   getStripeCreditBalance,
@@ -973,354 +971,6 @@ const upgradeSubscription = async (req, res) => {
   }
 };
 
-/**
- * Create checkout session for NEW subscription purchase only
- * @route POST /api/user/payment/create-checkout-session
- * @access Private
- */
-const createCheckoutSession = async (req, res) => {
-  try {
-    const { planId, autoRenewal = true } = req.body;
-    const userId = req.user._id;
-    const useTestMode = req.user.stripe_test_mode || false;
-    const stripeInstance = useTestMode ? stripeTest : stripe;
-
-    // Validate plan
-    const plan = await Plan.findById(planId);
-    if (!plan || !plan.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: "Plan not found or inactive",
-      });
-    }
-
-    // Check if plan has a Stripe price ID
-    if (!plan.stripePriceId) {
-      return res.status(400).json({
-        success: false,
-        message: "Plan is not properly configured with Stripe",
-      });
-    }
-
-    // Get user and current plan from subscription
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Check for active subscription - redirect to upgrade endpoint if exists
-    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
-    if (activeSubInfo.hasActiveSubscription) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "You already have an active subscription. Use the upgrade endpoint instead.",
-        redirectToUpgrade: true,
-      });
-    }
-
-    // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user, useTestMode);
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
-      customer.id,
-      useTestMode
-    ));
-    // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
-    const session = await stripeInstance.checkout.sessions.create({
-      ui_mode: "embedded",
-      customer: customer.id,
-      line_items: [
-        {
-          price: plan.stripePriceId,
-          quantity: 1,
-        },
-      ],
-      mode: "subscription",
-      allow_promotion_codes: true,
-
-      return_url: `${
-        process.env.FRONTEND_URL || "http://localhost:3000"
-      }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: {
-        userId: userId.toString(),
-        planId: plan._id.toString(),
-        autoRenewal: autoRenewal.toString(),
-        type: "new_subscription",
-        isFirstPurchase: isFirstPurchase.toString(),
-      },
-    });
-
-    console.log("Created checkout session for new subscription:", {
-      id: session.id,
-      status: session.status,
-      client_secret: session.client_secret ? "present" : "missing",
-    });
-
-    res.json({
-      success: true,
-      clientSecret: session.client_secret,
-      sessionId: session.id,
-      planDetails: {
-        planId: plan._id,
-        planName: plan.name,
-        planPrice: plan.price,
-        autoRenewal: autoRenewal,
-      },
-      isNewSubscription: true,
-    });
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create checkout session",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Create hosted checkout session for NEW subscription purchase only
- * @route POST /api/user/payment/create-hosted-checkout-session
- * @access Private
- */
-const createHostedCheckoutSession = async (req, res) => {
-  try {
-    const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
-    const userId = req.user._id;
-    const useTestMode = req.user.stripe_test_mode || false;
-    const stripeInstance = useTestMode ? stripeTest : stripe;
-
-    // Validate plan
-    const plan = await Plan.findById(planId);
-    if (!plan || !plan.isActive) {
-      return res.status(404).json({
-        success: false,
-        message: "Plan not found or inactive",
-      });
-    }
-
-    // Check if plan has a Stripe price ID
-    if (!plan.stripePriceId) {
-      return res.status(400).json({
-        success: false,
-        message: "Plan is not properly configured with Stripe",
-      });
-    }
-
-    // Get user and current plan from subscription
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Check for active subscription - redirect to upgrade endpoint if exists
-    const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
-    if (activeSubInfo.hasActiveSubscription) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "You already have an active subscription. Use the upgrade endpoint instead.",
-        redirectToUpgrade: true,
-      });
-    }
-
-    // Get or create Stripe customer
-    const customer = await getOrCreateStripeCustomer(user, useTestMode);
-
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
-      customer.id,
-      useTestMode
-    ));
-
-    // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
-    const sessionParams = {
-      customer: customer.id,
-      line_items: [
-        {
-          price: plan.stripePriceId,
-          quantity: 1,
-        },
-      ],
-      mode: "subscription",
-      success_url:
-        successUrl ||
-        `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
-        }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:
-        cancelUrl ||
-        `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
-        }/payment-unsuccessful?error=Payment cancelled`,
-      // Enable coupon entry on Stripe's hosted page
-      allow_promotion_codes: true,
-      metadata: {
-        userId: userId.toString(),
-        planId: plan._id.toString(),
-        autoRenewal: autoRenewal.toString(),
-        type: "new_subscription",
-        isFirstPurchase: isFirstPurchase.toString(),
-      },
-    };
-
-    const session = await stripeInstance.checkout.sessions.create(
-      sessionParams
-    );
-
-    console.log("Created hosted checkout session for new subscription:", {
-      id: session.id,
-      status: session.status,
-      url: session.url ? "present" : "missing",
-    });
-
-    res.json({
-      success: true,
-      url: session.url,
-      sessionId: session.id,
-      planDetails: {
-        planId: plan._id,
-        planName: plan.name,
-        planPrice: plan.price,
-        autoRenewal: autoRenewal,
-      },
-      isNewSubscription: true,
-    });
-  } catch (error) {
-    console.error("Error creating hosted checkout session:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create hosted checkout session",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Get checkout session details by session ID
- * @route GET /api/user/payment/checkout-session/:sessionId
- * @access Private
- */
-const getCheckoutSessionDetails = async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const userId = req.user._id;
-    const useTestMode = req.user.stripe_test_mode || false;
-    const stripeInstance = useTestMode ? stripeTest : stripe;
-
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        message: "Session ID is required",
-      });
-    }
-
-    // Retrieve the checkout session from Stripe
-    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
-
-    // Verify the session belongs to this user
-    if (session.metadata.userId !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access to this session",
-      });
-    }
-
-    // Get plan details if available
-    let planDetails = null;
-    if (session.metadata.planId) {
-      const plan = await Plan.findById(session.metadata.planId);
-      if (plan) {
-        planDetails = {
-          planId: plan._id,
-          planName: plan.name,
-          planPrice: plan.price,
-          autoRenewal: session.metadata.autoRenewal === "true",
-        };
-      }
-    }
-
-    // Get user and check if this is their first purchase
-    const user = await User.findById(userId);
-    let isFirstPurchase = true;
-
-    if (user && user.stripeCustomerId) {
-      isFirstPurchase = !(await hasUserMadeFirstPurchase(
-        user.stripeCustomerId,
-        useTestMode
-      ));
-    }
-
-    res.json({
-      success: true,
-      sessionId: session.id,
-      clientSecret: session.client_secret,
-      status: session.status,
-      planDetails: planDetails,
-      isNewSubscription: session.metadata.type === "new_subscription",
-      isFirstPurchase: isFirstPurchase,
-    });
-  } catch (error) {
-    console.error("Error retrieving checkout session:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to retrieve checkout session",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Complete subscription after successful Stripe checkout (NEW SUBSCRIPTIONS ONLY)
- * @route POST /api/user/payment/complete-subscription
- * @access Private
- */
-const completeSubscription = async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    const userId = req.user._id;
-    const useTestMode = req.user.stripe_test_mode || false;
-
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        message: "Session ID is required",
-      });
-    }
-
-    // Use the centralized subscription processing function
-    const result = await processSubscriptionCompletion(sessionId, {
-      fromWebhook: false,
-      userId: userId.toString(),
-      useTestMode,
-    });
-
-    if (result.alreadyProcessed) {
-      // Session was already processed by webhook
-      return res.json({
-        success: true,
-        message: "Subscription already processed successfully",
-        alreadyProcessed: true,
-        subscription: result.subscription,
-        plan: result.plan,
-      });
-    }
-
-    res.json(result);
-  } catch (error) {
-    console.error("Error completing subscription:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to complete subscription",
-      error: error.message,
-    });
-  }
-};
 
 /**
  * Get user's payment methods
@@ -2595,15 +2245,370 @@ const getInvoiceDetails = async (req, res) => {
   }
 };
 
+
+
+
+
+
+/**
+ * Create checkout session for NEW subscription purchase only
+ * @route POST /api/user/payment/create-checkout-session
+ * @access Private
+ */
+// const createCheckoutSession = async (req, res) => {
+//   try {
+//     const { planId, autoRenewal = true } = req.body;
+//     const userId = req.user._id;
+//     const useTestMode = req.user.stripe_test_mode || false;
+//     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+//     // Validate plan
+//     const plan = await Plan.findById(planId);
+//     if (!plan || !plan.isActive) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Plan not found or inactive",
+//       });
+//     }
+
+//     // Check if plan has a Stripe price ID
+//     if (!plan.stripePriceId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Plan is not properly configured with Stripe",
+//       });
+//     }
+
+//     // Get user and current plan from subscription
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     // Check for active subscription - redirect to upgrade endpoint if exists
+//     const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
+//     if (activeSubInfo.hasActiveSubscription) {
+//       return res.status(400).json({
+//         success: false,
+//         message:
+//           "You already have an active subscription. Use the upgrade endpoint instead.",
+//         redirectToUpgrade: true,
+//       });
+//     }
+
+//     // Get or create Stripe customer
+//     const customer = await getOrCreateStripeCustomer(user, useTestMode);
+//     const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+//       customer.id,
+//       useTestMode
+//     ));
+//     // Create Stripe Checkout Session for embedded form (NEW SUBSCRIPTIONS ONLY)
+//     const session = await stripeInstance.checkout.sessions.create({
+//       ui_mode: "embedded",
+//       customer: customer.id,
+//       line_items: [
+//         {
+//           price: plan.stripePriceId,
+//           quantity: 1,
+//         },
+//       ],
+//       mode: "subscription",
+//       allow_promotion_codes: true,
+
+//       return_url: `${
+//         process.env.FRONTEND_URL || "http://localhost:3000"
+//       }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//       metadata: {
+//         userId: userId.toString(),
+//         planId: plan._id.toString(),
+//         autoRenewal: autoRenewal.toString(),
+//         type: "new_subscription",
+//         isFirstPurchase: isFirstPurchase.toString(),
+//       },
+//     });
+
+//     console.log("Created checkout session for new subscription:", {
+//       id: session.id,
+//       status: session.status,
+//       client_secret: session.client_secret ? "present" : "missing",
+//     });
+
+//     res.json({
+//       success: true,
+//       clientSecret: session.client_secret,
+//       sessionId: session.id,
+//       planDetails: {
+//         planId: plan._id,
+//         planName: plan.name,
+//         planPrice: plan.price,
+//         autoRenewal: autoRenewal,
+//       },
+//       isNewSubscription: true,
+//     });
+//   } catch (error) {
+//     console.error("Error creating checkout session:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to create checkout session",
+//       error: error.message,
+//     });
+//   }
+// };
+
+/**
+ * Create hosted checkout session for NEW subscription purchase only
+ * @route POST /api/user/payment/create-hosted-checkout-session
+ * @access Private
+ */
+// const createHostedCheckoutSession = async (req, res) => {
+//   try {
+//     const { planId, autoRenewal = true, successUrl, cancelUrl } = req.body;
+//     const userId = req.user._id;
+//     const useTestMode = req.user.stripe_test_mode || false;
+//     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+//     // Validate plan
+//     const plan = await Plan.findById(planId);
+//     if (!plan || !plan.isActive) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Plan not found or inactive",
+//       });
+//     }
+
+//     // Check if plan has a Stripe price ID
+//     if (!plan.stripePriceId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Plan is not properly configured with Stripe",
+//       });
+//     }
+
+//     // Get user and current plan from subscription
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     // Check for active subscription - redirect to upgrade endpoint if exists
+//     const activeSubInfo = await checkSubscriptionDetails(user, useTestMode);
+//     if (activeSubInfo.hasActiveSubscription) {
+//       return res.status(400).json({
+//         success: false,
+//         message:
+//           "You already have an active subscription. Use the upgrade endpoint instead.",
+//         redirectToUpgrade: true,
+//       });
+//     }
+
+//     // Get or create Stripe customer
+//     const customer = await getOrCreateStripeCustomer(user, useTestMode);
+
+//     const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+//       customer.id,
+//       useTestMode
+//     ));
+
+//     // Create Stripe Hosted Checkout Session (NEW SUBSCRIPTIONS ONLY)
+//     const sessionParams = {
+//       customer: customer.id,
+//       line_items: [
+//         {
+//           price: plan.stripePriceId,
+//           quantity: 1,
+//         },
+//       ],
+//       mode: "subscription",
+//       success_url:
+//         successUrl ||
+//         `${
+//           process.env.FRONTEND_URL || "http://localhost:3000"
+//         }/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//       cancel_url:
+//         cancelUrl ||
+//         `${
+//           process.env.FRONTEND_URL || "http://localhost:3000"
+//         }/payment-unsuccessful?error=Payment cancelled`,
+//       // Enable coupon entry on Stripe's hosted page
+//       allow_promotion_codes: true,
+//       metadata: {
+//         userId: userId.toString(),
+//         planId: plan._id.toString(),
+//         autoRenewal: autoRenewal.toString(),
+//         type: "new_subscription",
+//         isFirstPurchase: isFirstPurchase.toString(),
+//       },
+//     };
+
+//     const session = await stripeInstance.checkout.sessions.create(
+//       sessionParams
+//     );
+
+//     console.log("Created hosted checkout session for new subscription:", {
+//       id: session.id,
+//       status: session.status,
+//       url: session.url ? "present" : "missing",
+//     });
+
+//     res.json({
+//       success: true,
+//       url: session.url,
+//       sessionId: session.id,
+//       planDetails: {
+//         planId: plan._id,
+//         planName: plan.name,
+//         planPrice: plan.price,
+//         autoRenewal: autoRenewal,
+//       },
+//       isNewSubscription: true,
+//     });
+//   } catch (error) {
+//     console.error("Error creating hosted checkout session:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to create hosted checkout session",
+//       error: error.message,
+//     });
+//   }
+// };
+
+/**
+ * Get checkout session details by session ID
+ * @route GET /api/user/payment/checkout-session/:sessionId
+ * @access Private
+ */
+// const getCheckoutSessionDetails = async (req, res) => {
+//   try {
+//     const { sessionId } = req.params;
+//     const userId = req.user._id;
+//     const useTestMode = req.user.stripe_test_mode || false;
+//     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+//     if (!sessionId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Session ID is required",
+//       });
+//     }
+
+//     // Retrieve the checkout session from Stripe
+//     const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
+
+//     // Verify the session belongs to this user
+//     if (session.metadata.userId !== userId.toString()) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Unauthorized access to this session",
+//       });
+//     }
+
+//     // Get plan details if available
+//     let planDetails = null;
+//     if (session.metadata.planId) {
+//       const plan = await Plan.findById(session.metadata.planId);
+//       if (plan) {
+//         planDetails = {
+//           planId: plan._id,
+//           planName: plan.name,
+//           planPrice: plan.price,
+//           autoRenewal: session.metadata.autoRenewal === "true",
+//         };
+//       }
+//     }
+
+//     // Get user and check if this is their first purchase
+//     const user = await User.findById(userId);
+//     let isFirstPurchase = true;
+
+//     if (user && user.stripeCustomerId) {
+//       isFirstPurchase = !(await hasUserMadeFirstPurchase(
+//         user.stripeCustomerId,
+//         useTestMode
+//       ));
+//     }
+
+//     res.json({
+//       success: true,
+//       sessionId: session.id,
+//       clientSecret: session.client_secret,
+//       status: session.status,
+//       planDetails: planDetails,
+//       isNewSubscription: session.metadata.type === "new_subscription",
+//       isFirstPurchase: isFirstPurchase,
+//     });
+//   } catch (error) {
+//     console.error("Error retrieving checkout session:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to retrieve checkout session",
+//       error: error.message,
+//     });
+//   }
+// };
+
+/**
+ * Complete subscription after successful Stripe checkout (NEW SUBSCRIPTIONS ONLY)
+ * @route POST /api/user/payment/complete-subscription
+ * @access Private
+ */
+// const completeSubscription = async (req, res) => {
+//   try {
+//     const { sessionId } = req.body;
+//     const userId = req.user._id;
+//     const useTestMode = req.user.stripe_test_mode || false;
+
+//     if (!sessionId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Session ID is required",
+//       });
+//     }
+
+//     // Use the centralized subscription processing function
+//     const result = await processSubscriptionCompletion(sessionId, {
+//       fromWebhook: false,
+//       userId: userId.toString(),
+//       useTestMode,
+//     });
+
+//     if (result.alreadyProcessed) {
+//       // Session was already processed by webhook
+//       return res.json({
+//         success: true,
+//         message: "Subscription already processed successfully",
+//         alreadyProcessed: true,
+//         subscription: result.subscription,
+//         plan: result.plan,
+//       });
+//     }
+
+//     res.json(result);
+//   } catch (error) {
+//     console.error("Error completing subscription:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to complete subscription",
+//       error: error.message,
+//     });
+//   }
+// };
+
+
 module.exports = {
   getCreditBalance,
 
   toggleAutoRenewal,
   getPaymentStatus,
-  createCheckoutSession,
-  createHostedCheckoutSession,
-  getCheckoutSessionDetails,
-  completeSubscription,
+  // createCheckoutSession,
+  // createHostedCheckoutSession,
+  // getCheckoutSessionDetails,
+  // completeSubscription,
   upgradeSubscription,
   previewUpgrade,
   previewNewSubscription,

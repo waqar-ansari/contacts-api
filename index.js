@@ -339,12 +339,12 @@ app.use(
   sendEmailToAllUsers
 );
 
-app.use(
-  "/admin/invoice-customization",
-  checkForAuthentication(),
-  checkRole(["superadmin"]),
-  invoiceCustomizationRoutes
-);
+// app.use(
+//   "/admin/invoice-customization",
+//   checkForAuthentication(),
+//   checkRole(["superadmin"]),
+//   invoiceCustomizationRoutes
+// );
 
 app.use("/admin/user-weekly-report", weeklyReportRoutes);
 
