@@ -81,7 +81,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const apiKeyRoutes = require("./routes/apiKeyRoutes");
 const { error } = require("console");
 const PORT = process.env.PORT;
-
+const sendBulkEmailRoutes = require("./routes/admin/sendBulkEmailRoutes");
 //for admin routes
 const adminLoginRoutes = require("./routes/admin/adminLoginRoute");
 const adminUserRoutes = require("./routes/admin/adminUserRoutes");
@@ -213,6 +213,10 @@ app.use(
 app.use("/plans", checkForAuthentication(), planRoutes); // Public route for getting plans
 app.use("/user/payment", checkForAuthentication(), paymentRoutes);
 app.use("/api-key", checkForAuthentication(), apiKeyRoutes);
+
+app.use("/send-bulk-email", checkForAuthentication(),
+  checkRole(["superadmin"]),
+  sendBulkEmailRoutes);
 app.use("/quote", publicQuoteRoutes); // Public route for getting quotes
 app.use(
   "/fetch-google-contacts",
