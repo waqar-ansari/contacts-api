@@ -105,9 +105,13 @@ async function setupInitialPlan(user, useTestMode = false) {
     // Get Pro plan for trial
     const proPlan = await getProPlan(useTestMode);
 
-    if (!proPlan || !proPlan.stripePriceId) {
+    if (
+      !proPlan ||
+      !proPlan.stripePriceIds ||
+      proPlan.stripePriceIds.length === 0
+    ) {
       console.warn(
-        "No Pro plan with Stripe price found, falling back to Starter plan"
+        "No Pro plan with Stripe prices found, falling back to Starter plan"
       );
       const starterPlan = await getStarterPlan();
 
@@ -117,6 +121,11 @@ async function setupInitialPlan(user, useTestMode = false) {
         // No need to track hasUsedProTrial anymore
       };
     }
+
+    // Use monthly price for trial, or first available price
+    const trialPriceInfo =
+      proPlan.stripePriceIds.find((p) => p.billingPeriod === "month") ||
+      proPlan.stripePriceIds[0];
 
     // Import Stripe utilities
     const {
@@ -136,6 +145,8 @@ async function setupInitialPlan(user, useTestMode = false) {
           userId: user._id.toString(),
           planId: proPlan._id.toString(),
           planName: proPlan.name,
+          priceId: trialPriceInfo.priceId,
+          billingPeriod: trialPriceInfo.billingPeriod,
           isInitialTrial: "true",
           signupMethod: user.signupMethod || "unknown",
         },
@@ -143,13 +154,13 @@ async function setupInitialPlan(user, useTestMode = false) {
 
       const subscription = await createStripeSubscription(
         customer.id,
-        proPlan.stripePriceId,
+        trialPriceInfo.priceId,
         subscriptionOptions,
         useTestMode
       );
 
       console.log(
-        `Created 14-day Pro trial for user ${user._id}: ${subscription.id} (will cancel at trial end)`
+        `Created 14-day Pro trial for user ${user._id}: ${subscription.id} (will cancel at trial end) with ${trialPriceInfo.billingPeriod} billing`
       );
 
       return {

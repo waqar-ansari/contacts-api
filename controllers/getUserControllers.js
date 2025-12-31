@@ -3,8 +3,8 @@ const User = require("../models/userModel");
 const { route } = require("../routes/userRoutes");
 const QRCode = require("qrcode");
 const AdminQuote = require("../models/QuoteModel");
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://app.contacts.management";
-
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://app.contacts.management";
 
 // const LZString = require("lz-string");
 const zlib = require("zlib");
@@ -488,7 +488,7 @@ const getUserData = async (req, res) => {
       plan: {
         _id: currentPlan?._id || null,
         name: currentPlan?.name || null,
-        price: currentPlan?.price || 0,
+        price: currentPlan?.selectedPriceInfo?.price || 0,
         subscriptionStatus: stripeData?.status || null,
         isTrialing: stripeData?.isTrialing || false,
         activatedAt: stripeData?.activatedAt || null,

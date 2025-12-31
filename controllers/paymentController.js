@@ -23,10 +23,12 @@ const {
 /**
  * Validate plan upgrade based on price hierarchy
  * @param {Object} currentPlan - User's current plan
- * @param {Object} newPlan - Plan user wants to upgrade to
+ * @param {Object} newPlan - Plan user wants to upgrade/change to
+ * @param {Number} currentPrice - Current plan price (in cents)
+ * @param {Number} newPrice - New plan price (in cents) for selected billing period
  * @returns {Object} Validation result
  */
-const validatePlanUpgrade = (currentPlan, newPlan) => {
+const validatePlanUpgrade = (currentPlan, newPlan, currentPrice, newPrice) => {
   const validation = {
     isValid: true,
     isUpgrade: false,
@@ -48,9 +50,6 @@ const validatePlanUpgrade = (currentPlan, newPlan) => {
     validation.message = "You already have this plan active";
     return validation;
   }
-
-  const currentPrice = currentPlan.price;
-  const newPrice = newPlan.price;
 
   if (newPrice > currentPrice) {
     // This is an upgrade
@@ -331,13 +330,20 @@ const getPaymentStatus = async (req, res) => {
                   const priceId = firstPhase.items[0].price;
                   // Find the plan that matches this price ID
                   const matchedPlan = await Plan.findOne({
-                    stripePriceId: priceId,
+                    "stripePriceIds.priceId": priceId,
                   });
                   if (matchedPlan) {
+                    // Find the specific price info
+                    const scheduledPriceInfo = matchedPlan.stripePriceIds.find(
+                      (p) => p.priceId === priceId
+                    );
                     scheduledPlan = {
                       id: matchedPlan._id,
                       name: matchedPlan.name,
-                      price: matchedPlan.price,
+                      price: scheduledPriceInfo?.price || 0,
+                      billingPeriod:
+                        scheduledPriceInfo?.billingPeriod || "month",
+                      priceId: priceId,
                       scheduleId: firstSchedule.id,
                       startDate: firstSchedule.phases[0].start_date, // Add the start date
                     };
@@ -407,12 +413,19 @@ const getPaymentStatus = async (req, res) => {
  */
 const previewUpgrade = async (req, res) => {
   try {
-    const { planId, couponCode } = req.body;
+    const { planId, priceId, couponCode } = req.body;
     const userId = req.user._id;
     const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
-    // === STEP 1: VALIDATE PLAN AND USER ===
+    // === STEP 1: VALIDATE PRICE ID AND PLAN ===
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Price ID is required. Please select a billing period.",
+      });
+    }
+
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
       return res.status(404).json({
@@ -421,10 +434,14 @@ const previewUpgrade = async (req, res) => {
       });
     }
 
-    if (!plan.stripePriceId) {
+    // Verify the price ID belongs to this plan
+    const selectedPriceInfo = plan.stripePriceIds?.find(
+      (sp) => sp.priceId === priceId
+    );
+    if (!selectedPriceInfo) {
       return res.status(400).json({
         success: false,
-        message: "Plan is not properly configured with Stripe",
+        message: "Selected price ID does not belong to this plan",
       });
     }
 
@@ -451,7 +468,16 @@ const previewUpgrade = async (req, res) => {
     }
 
     // === STEP 3: VALIDATE UPGRADE/DOWNGRADE ELIGIBILITY ===
-    const validation = validatePlanUpgrade(currentPlan, plan);
+    // Get current price from currentPlan.selectedPriceInfo (attached by getUserCurrentPlan)
+    const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
+    const newPrice = selectedPriceInfo.price;
+
+    const validation = validatePlanUpgrade(
+      currentPlan,
+      plan,
+      currentPrice,
+      newPrice
+    );
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -505,7 +531,7 @@ const previewUpgrade = async (req, res) => {
           items: [
             {
               id: subscriptionItem.id,
-              price: plan.stripePriceId, // Change to new plan's price
+              price: priceId, // Use selected price ID
             },
           ],
           proration_behavior: "create_prorations", // Enable proration calculations
@@ -570,9 +596,9 @@ const previewUpgrade = async (req, res) => {
       let couponDiscountAmount = 0;
       if (couponData) {
         if (couponData.discountType === "percentage") {
-          // Calculate discount amount based on plan price
+          // Calculate discount amount based on selected plan price
           couponDiscountAmount = Math.round(
-            (plan.price * couponData.discountValue) / 100
+            (selectedPriceInfo.price * couponData.discountValue) / 100
           );
         } else {
           // Fixed amount discount (convert dollars to cents)
@@ -640,14 +666,16 @@ const previewUpgrade = async (req, res) => {
           newPlan: {
             id: plan._id,
             name: plan.name,
-            price: toFixedDollars(plan.price),
+            price: toFixedDollars(selectedPriceInfo.price),
+            billingPeriod: selectedPriceInfo.billingPeriod,
+            priceId: selectedPriceInfo.priceId,
             immediateCharge: toFixedDollars(newPlanCharge),
           },
           billing: {
             immediateCharge: toFixedDollars(immediateCharge),
             creditApplied: toFixedDollars(prorationCredit),
             nextBillingDate: nextBillingDate,
-            nextBillingAmount: toFixedDollars(plan.price),
+            nextBillingAmount: toFixedDollars(selectedPriceInfo.price),
           },
           credits: {
             availableCredits: toFixedDollars(availableCredits),
@@ -685,9 +713,9 @@ const previewUpgrade = async (req, res) => {
         error: stripeError.message,
         fallback: {
           currentPlanPrice: toFixedDollars(currentPrice.unit_amount),
-          newPlanPrice: toFixedDollars(plan.price),
+          newPlanPrice: toFixedDollars(selectedPriceInfo.price),
           estimatedChange: toFixedDollars(
-            plan.price - currentPrice.unit_amount
+            selectedPriceInfo.price - currentPrice.unit_amount
           ),
         },
       });
@@ -711,6 +739,7 @@ const upgradeSubscription = async (req, res) => {
   try {
     const {
       planId,
+      priceId,
       autoRenewal = true,
       paymentMethodId,
       couponCode,
@@ -718,6 +747,14 @@ const upgradeSubscription = async (req, res) => {
     const userId = req.user._id;
     const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+    // Validate price ID
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Price ID is required. Please select a billing period.",
+      });
+    }
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -728,11 +765,14 @@ const upgradeSubscription = async (req, res) => {
       });
     }
 
-    // Check if plan has a Stripe price ID
-    if (!plan.stripePriceId) {
+    // Verify the price ID belongs to this plan
+    const selectedPriceInfo = plan.stripePriceIds?.find(
+      (sp) => sp.priceId === priceId
+    );
+    if (!selectedPriceInfo) {
       return res.status(400).json({
         success: false,
-        message: "Plan is not properly configured with Stripe",
+        message: "Selected price ID does not belong to this plan",
       });
     }
 
@@ -762,7 +802,15 @@ const upgradeSubscription = async (req, res) => {
     }
 
     // Validate plan upgrade/change
-    const validation = validatePlanUpgrade(currentPlan, plan);
+    const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
+    const newPrice = selectedPriceInfo.price;
+
+    const validation = validatePlanUpgrade(
+      currentPlan,
+      plan,
+      currentPrice,
+      newPrice
+    );
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -837,6 +885,8 @@ const upgradeSubscription = async (req, res) => {
       currentSubscriptionId: existingSubscription.id,
       currentPlan: currentPlan?.name,
       newPlan: plan.name,
+      selectedPriceId: priceId,
+      selectedBillingPeriod: selectedPriceInfo.billingPeriod,
       hasScheduledSubscriptions,
       scheduledCount: scheduledSubscriptions.length,
       currentCancelAtPeriodEnd: existingSubscription.cancel_at_period_end,
@@ -847,7 +897,7 @@ const upgradeSubscription = async (req, res) => {
       items: [
         {
           id: existingSubscription.items.data[0].id,
-          price: plan.stripePriceId,
+          price: priceId, // Use selected price ID
         },
       ],
       proration_behavior: "always_invoice", // Create invoice immediately for proration
@@ -858,6 +908,8 @@ const upgradeSubscription = async (req, res) => {
         upgradedFrom: currentPlan?._id?.toString() || "unknown",
         newPlanId: planId,
         newPlanName: plan.name,
+        newPriceId: priceId,
+        newBillingPeriod: selectedPriceInfo.billingPeriod,
         ...(couponData && {
           appliedCoupon: couponData.couponCode,
           couponId: couponData._id.toString(),
@@ -949,7 +1001,9 @@ const upgradeSubscription = async (req, res) => {
       plan: {
         id: plan._id,
         name: plan.name,
-        price: plan.price,
+        price: selectedPriceInfo.price,
+        billingPeriod: selectedPriceInfo.billingPeriod,
+        priceId: selectedPriceInfo.priceId,
       },
       billing: {
         prorationAmount: latestInvoice.amount_paid / 100, // Convert to dollars
@@ -970,7 +1024,6 @@ const upgradeSubscription = async (req, res) => {
     });
   }
 };
-
 
 /**
  * Get user's payment methods
@@ -1336,10 +1389,18 @@ const deletePaymentMethod = async (req, res) => {
  */
 const downgradeSubscription = async (req, res) => {
   try {
-    const { planId } = req.body;
+    const { planId, priceId } = req.body;
     const userId = req.user._id;
     const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
+
+    // Validate price ID
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Price ID is required. Please select a billing period.",
+      });
+    }
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -1347,6 +1408,18 @@ const downgradeSubscription = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Plan not found or inactive",
+      });
+    }
+
+    // Validate that the priceId belongs to this plan
+    const selectedPriceInfo = plan.stripePriceIds.find(
+      (p) => p.priceId === priceId
+    );
+    if (!selectedPriceInfo) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid price ID for this plan. Please select a valid billing period.",
       });
     }
 
@@ -1373,7 +1446,15 @@ const downgradeSubscription = async (req, res) => {
     }
 
     // Validate plan change
-    const validation = validatePlanUpgrade(currentPlan, plan);
+    const currentPrice = currentPlan?.selectedPriceInfo?.price || 0;
+    const newPrice = selectedPriceInfo.price;
+
+    const validation = validatePlanUpgrade(
+      currentPlan,
+      plan,
+      currentPrice,
+      newPrice
+    );
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -1429,7 +1510,7 @@ const downgradeSubscription = async (req, res) => {
             {
               items: [
                 {
-                  price: plan.stripePriceId,
+                  price: priceId, // Use selected price ID
                   quantity: 1,
                 },
               ],
@@ -1437,6 +1518,8 @@ const downgradeSubscription = async (req, res) => {
                 userId: userId.toString(),
                 planId: planId.toString(),
                 planName: plan.name,
+                priceId: priceId,
+                billingPeriod: selectedPriceInfo.billingPeriod,
                 downgradedFrom: currentPlan?._id?.toString() || "unknown",
                 downgradedAt: new Date().toISOString(),
               },
@@ -1509,10 +1592,18 @@ const downgradeSubscription = async (req, res) => {
  */
 const previewNewSubscription = async (req, res) => {
   try {
-    const { planId, couponCode } = req.body;
+    const { planId, priceId, couponCode } = req.body;
     const userId = req.user._id;
 
     const useTestMode = req.user.stripe_test_mode || false;
+
+    // Validate price ID
+    if (!priceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Price ID is required. Please select a billing period.",
+      });
+    }
 
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -1523,11 +1614,14 @@ const previewNewSubscription = async (req, res) => {
       });
     }
 
-    // Check if plan has a Stripe price ID
-    if (!plan.stripePriceId) {
+    // Verify the price ID belongs to this plan
+    const selectedPriceInfo = plan.stripePriceIds?.find(
+      (sp) => sp.priceId === priceId
+    );
+    if (!selectedPriceInfo) {
       return res.status(400).json({
         success: false,
-        message: "Plan is not properly configured with Stripe",
+        message: "Selected price ID does not belong to this plan",
       });
     }
 
@@ -1584,15 +1678,15 @@ const previewNewSubscription = async (req, res) => {
 
     // Get Stripe credit balance for the user
     const availableCredits = Math.abs(
-      await getStripeCreditBalance(customer.id,useTestMode)
+      await getStripeCreditBalance(customer.id, useTestMode)
     );
     console.log(
       "Available Stripe credits for new subscription:",
       availableCredits
     );
 
-    // Convert plan price from cents to cents (it should already be in cents from DB)
-    const planPriceInCents = plan.price;
+    // Use the price from the selected price info (already in cents)
+    const planPriceInCents = selectedPriceInfo.price;
     let finalPriceAfterCoupon = planPriceInCents;
 
     // Apply coupon discount if valid
@@ -1635,7 +1729,10 @@ const previewNewSubscription = async (req, res) => {
     const toFixedDollars = (cents) => Math.round(cents) / 100;
 
     // Check if first purchase to show notice on frontend
-    const isFirstPurchase = !(await hasUserMadeFirstPurchase(customer.id, useTestMode));
+    const isFirstPurchase = !(await hasUserMadeFirstPurchase(
+      customer.id,
+      useTestMode
+    ));
 
     res.json({
       success: true,
@@ -1705,6 +1802,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
   try {
     const {
       planId,
+      priceId,
       paymentMethodId,
       autoRenewal = true,
       couponCode,
@@ -1714,14 +1812,15 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
     const useTestMode = req.user.stripe_test_mode || false;
     const stripeInstance = useTestMode ? stripeTest : stripe;
 
-    if (!planId || !paymentMethodId) {
+    if (!planId || !priceId || !paymentMethodId) {
       return res.status(400).json({
         success: false,
-        message: "Plan ID and payment method ID are required",
+        message: "Plan ID, price ID, and payment method ID are required",
       });
     }
     console.log("Creating subscription with payment method:", {
       paymentMethodId,
+      priceId,
     });
     // Validate plan
     const plan = await Plan.findById(planId);
@@ -1732,11 +1831,14 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       });
     }
 
-    // Check if plan has a Stripe price ID
-    if (!plan.stripePriceId) {
+    // Verify the price ID belongs to this plan
+    const selectedPriceInfo = plan.stripePriceIds?.find(
+      (sp) => sp.priceId === priceId
+    );
+    if (!selectedPriceInfo) {
       return res.status(400).json({
         success: false,
-        message: "Plan is not properly configured with Stripe",
+        message: "Selected price ID does not belong to this plan",
       });
     }
 
@@ -1767,7 +1869,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
 
     // Validate coupon if provided
     let couponData = null;
-    let originalPlanPrice = plan.price;
+    let originalPlanPrice = selectedPriceInfo.price; // Use selected price
     let finalPlanPrice = originalPlanPrice;
 
     if (couponCode) {
@@ -1822,7 +1924,7 @@ const createSubscriptionWithPaymentMethod = async (req, res) => {
       customer: stripeCustomerId,
       items: [
         {
-          price: plan.stripePriceId,
+          price: priceId, // Use selected price ID
         },
       ],
       payment_behavior: "allow_incomplete",
@@ -2245,11 +2347,6 @@ const getInvoiceDetails = async (req, res) => {
   }
 };
 
-
-
-
-
-
 /**
  * Create checkout session for NEW subscription purchase only
  * @route POST /api/user/payment/create-checkout-session
@@ -2598,7 +2695,6 @@ const getInvoiceDetails = async (req, res) => {
 //     });
 //   }
 // };
-
 
 module.exports = {
   getCreditBalance,

@@ -392,23 +392,33 @@ const editProfile = async (req, res) => {
               useTestMode
             );
 
-            if (!selectedPlan.stripePriceId) {
+            // Select price ID - prefer monthly, otherwise use first available
+            if (
+              !selectedPlan.stripePriceIds ||
+              selectedPlan.stripePriceIds.length === 0
+            ) {
               return res.status(400).json({
                 status: "error",
                 message: "Selected plan is not configured with Stripe pricing",
               });
             }
 
+            // Find monthly price, or fall back to first price
+            let selectedPriceInfo =
+              selectedPlan.stripePriceIds.find(
+                (p) => p.billingPeriod === "month"
+              ) || selectedPlan.stripePriceIds[0];
+
             // Create/update subscription using the admin function
             // This will automatically check for payment methods and handle errors
             const newSubscription = await updateSubscriptionForAdmin(
               stripeCustomer.id,
-              selectedPlan.stripePriceId,
+              selectedPriceInfo.priceId,
               useTestMode
             );
 
             console.log(
-              `Created subscription ${newSubscription.id} for user ${user._id}. Status: ${newSubscription.status}`
+              `Created subscription ${newSubscription.id} for user ${user._id}. Status: ${newSubscription.status} with billing period: ${selectedPriceInfo.billingPeriod}`
             );
 
             // No need to update user plan in DB - it will be derived from subscription

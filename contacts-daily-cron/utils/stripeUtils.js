@@ -46,16 +46,23 @@ async function getCustomerPrimarySubscription(customerId) {
 /**
  * Get plan from Stripe price ID
  * @param {String} priceId - Stripe price ID
- * @returns {Object|null} Plan object or null if not found
+ * @returns {Object|null} Plan object with selectedPriceInfo attached, or null if not found
  */
 async function getPlanFromPriceId(priceId) {
   try {
     if (!priceId) return null;
 
     const plan = await Plan.findOne({
-      stripePriceId: priceId,
+      "stripePriceIds.priceId": priceId,
       isActive: true,
     });
+
+    if (plan) {
+      // Attach the selected price info for convenience
+      plan.selectedPriceInfo = plan.stripePriceIds.find(
+        (p) => p.priceId === priceId
+      );
+    }
 
     return plan;
   } catch (error) {

@@ -299,18 +299,30 @@ async function useStripeCredits(
 /**
  * Get plan from Stripe price ID
  * @param {String} priceId - Stripe price ID
- * @returns {Object|null} Plan object or null if not found
+ * @returns {Object|null} Plan object with selected price info or null if not found
  */
 async function getPlanFromPriceId(priceId) {
   try {
     if (!priceId) return null;
 
+    // Search for plan containing this price ID in stripePriceIds array
     const plan = await Plan.findOne({
-      stripePriceId: priceId,
+      "stripePriceIds.priceId": priceId,
       isActive: true,
     });
 
-    return plan;
+    if (!plan) return null;
+
+    // Attach the selected price info to the plan object
+    const selectedPriceInfo = plan.stripePriceIds.find(
+      (sp) => sp.priceId === priceId
+    );
+
+    // Return plan with additional selectedPriceInfo for convenience
+    const planObj = plan.toObject();
+    planObj.selectedPriceInfo = selectedPriceInfo;
+
+    return planObj;
   } catch (error) {
     console.error("Error getting plan from price ID:", error);
     return null;
@@ -1291,9 +1303,9 @@ async function validateCoupon(
 ) {
   try {
     const Coupon = require("../models/couponModel");
-
     // Check MongoDB first
     const mongoCoupon = await Coupon.findOne({
+      stripe_test_mode: useTestMode,
       couponCode: couponCode,
     });
 
@@ -1476,8 +1488,6 @@ async function hasUserMadeFirstPurchase(customerId, useTestMode = false) {
       customer: customerId,
       limit: 100, // Should be enough for most cases
     });
-
-    
 
     // If no invoices at all, user hasn't made first purchase
     if (invoices.data.length === 0) {
