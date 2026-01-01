@@ -345,68 +345,114 @@ const editProfile = async (req, res) => {
     ) {
       let selectedPlan = null;
       try {
-        // Find plan that contains this priceId
+        // First try to find plan that contains this Stripe priceId (paid plans)
         selectedPlan = await Plan.findOne({
           "stripePriceIds.priceId": priceId,
         });
 
-        if (!selectedPlan) {
-          return res.status(400).json({
-            status: "error",
-            message: "Invalid price ID selected",
-          });
-        }
+        if (selectedPlan) {
+          // This is a Stripe price ID for a paid plan
+          if (!selectedPlan.isActive) {
+            return res.status(400).json({
+              status: "error",
+              message: "Selected plan is not active",
+            });
+          }
 
-        if (!selectedPlan.isActive) {
-          return res.status(400).json({
-            status: "error",
-            message: "Selected plan is not active",
-          });
-        }
+          const selectedPriceInfo = selectedPlan.stripePriceIds.find(
+            (p) => p.priceId === priceId
+          );
 
-        const selectedPriceInfo = selectedPlan.stripePriceIds.find(
-          (p) => p.priceId === priceId
-        );
+          if (!selectedPriceInfo) {
+            return res.status(400).json({
+              status: "error",
+              message: "Price ID not found in plan",
+            });
+          }
 
-        if (!selectedPriceInfo) {
-          return res.status(400).json({
-            status: "error",
-            message: "Price ID not found in plan",
-          });
-        }
+          console.log(
+            `Admin updating user ${user._id} to plan ${selectedPlan.name} (${selectedPriceInfo.billingPeriod}) with priceId: ${priceId}`
+          );
 
-        console.log(
-          `Admin updating user ${user._id} to plan ${selectedPlan.name} (${selectedPriceInfo.billingPeriod}) with priceId: ${priceId}`
-        );
+          // Cancel all existing subscriptions (including scheduled)
+          if (user.stripeCustomerId) {
+            const cancellationResults = await cancelAllCustomerSubscriptions(
+              user.stripeCustomerId,
+              null,
+              useTestMode
+            );
+            console.log(
+              `Cancelled ${cancellationResults.length} subscriptions for billing period change`
+            );
+          }
 
-        // Cancel all existing subscriptions (including scheduled)
-        if (user.stripeCustomerId) {
-          const cancellationResults = await cancelAllCustomerSubscriptions(
-            user.stripeCustomerId,
-            null,
+          // Create Stripe customer if doesn't exist
+          const stripeCustomer = await getOrCreateStripeCustomer(
+            user,
             useTestMode
           );
-          console.log(
-            `Cancelled ${cancellationResults.length} subscriptions for billing period change`
+
+          // Create new subscription with selected priceId
+          const newSubscription = await updateSubscriptionForAdmin(
+            stripeCustomer.id,
+            priceId,
+            useTestMode
           );
+
+          console.log(
+            `✅ Created new subscription ${newSubscription.id} for ${selectedPlan.name} - ${selectedPriceInfo.billingPeriod}`
+          );
+        } else {
+          // Not a Stripe price ID, check if it's a plan ID (for Starter/free plans)
+          try {
+            selectedPlan = await Plan.findById(priceId);
+          } catch (castError) {
+            // Invalid ObjectId format, not a plan ID either
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid price ID or plan ID selected",
+            });
+          }
+
+          if (!selectedPlan) {
+            return res.status(400).json({
+              status: "error",
+              message: "Invalid plan selected",
+            });
+          }
+
+          if (!selectedPlan.isActive) {
+            return res.status(400).json({
+              status: "error",
+              message: "Selected plan is not active",
+            });
+          }
+
+          // If it's a free plan (no stripePriceIds), just cancel all subscriptions
+          if (
+            !selectedPlan.stripePriceIds ||
+            selectedPlan.stripePriceIds.length === 0
+          ) {
+            console.log(
+              `Admin downgrading user ${user._id} to free plan (${selectedPlan.name})`
+            );
+
+            if (user.stripeCustomerId) {
+              const cancellationResults = await cancelAllCustomerSubscriptions(
+                user.stripeCustomerId,
+                null,
+                useTestMode
+              );
+              console.log(
+                `Cancelled ${cancellationResults.length} subscriptions for downgrade to free plan`
+              );
+            }
+
+            console.log(
+              `✅ User downgraded to ${selectedPlan.name} (free plan)`
+            );
+          }
         }
-
-        // Create Stripe customer if doesn't exist
-        const stripeCustomer = await getOrCreateStripeCustomer(
-          user,
-          useTestMode
-        );
-
-        // Create new subscription with selected priceId
-        const newSubscription = await updateSubscriptionForAdmin(
-          stripeCustomer.id,
-          priceId,
-          useTestMode
-        );
-
-        console.log(
-          `✅ Created new subscription ${newSubscription.id} for ${selectedPlan.name} - ${selectedPriceInfo.billingPeriod}`
-        );
       } catch (stripeError) {
         console.error("Stripe integration error:", stripeError);
         return res.status(500).json({
@@ -702,6 +748,9 @@ const editProfile = async (req, res) => {
     // Fetch Stripe subscription data dynamically
     const stripeData = await getUserStripeSubscriptionData(user, useTestMode);
 
+    // Get contact count
+    const contactCount = await Contact.countDocuments({ createdBy: user._id });
+
     return res.status(200).json({
       status: "success",
       message: "Profile updated successfully",
@@ -740,6 +789,12 @@ const editProfile = async (req, res) => {
           price: currentPlan?.selectedPriceInfo?.price || null,
           pricePeriod: currentPlan?.selectedPriceInfo?.billingPeriod || null,
           priceId: currentPlan?.selectedPriceInfo?.priceId || null,
+          subscriptionStatus: stripeData?.status || null,
+          isTrialing: stripeData?.isTrialing || false,
+          activatedAt: stripeData?.activatedAt || null,
+          expiresAt: stripeData?.expiresAt || null,
+          cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
+          contactCount,
         },
       },
     });
