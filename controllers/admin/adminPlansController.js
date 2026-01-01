@@ -91,6 +91,7 @@ const createPlan = async (req, res) => {
     // Validate billing periods
     const validPeriods = ["week", "month", "year"];
     const periodSet = new Set();
+    const periodPrices = {};
 
     for (const bp of billingPeriods) {
       if (!bp.period || !validPeriods.includes(bp.period)) {
@@ -119,6 +120,56 @@ const createPlan = async (req, res) => {
           success: false,
           message: `Invalid price for ${bp.period} period`,
         });
+      }
+
+      periodPrices[bp.period] = bp.price;
+    }
+
+    // Validate price relationships using priority scores
+    // Higher score = longer/more valuable period
+    const periodPriorityMap = {
+      day: 1,
+      week: 2,
+      month: 3,
+      year: 4,
+      annual: 4, // alias for year
+    };
+
+    // Check that shorter periods (lower priority) don't cost more than longer periods (higher priority)
+    const periodsWithPrices = billingPeriods.map((bp) => ({
+      period: bp.period,
+      price: bp.price,
+      priority: periodPriorityMap[bp.period] || 0,
+    }));
+
+    for (let i = 0; i < periodsWithPrices.length; i++) {
+      for (let j = 0; j < periodsWithPrices.length; j++) {
+        if (i !== j) {
+          const period1 = periodsWithPrices[i];
+          const period2 = periodsWithPrices[j];
+
+          // If period1 has lower priority (shorter) but higher price than period2 (longer)
+          if (
+            period1.priority < period2.priority &&
+            period1.price > period2.price
+          ) {
+            const periodLabels = {
+              day: "Daily",
+              week: "Weekly",
+              month: "Monthly",
+              year: "Yearly",
+              annual: "Yearly",
+            };
+            return res.status(400).json({
+              success: false,
+              message: `${
+                periodLabels[period1.period] || period1.period
+              } price cannot be greater than ${
+                periodLabels[period2.period] || period2.period
+              } price`,
+            });
+          }
+        }
       }
     }
 
@@ -295,6 +346,7 @@ const updatePlan = async (req, res) => {
       // Validate billing periods
       const validPeriods = ["week", "month", "year"];
       const periodSet = new Set();
+      const periodPrices = {};
 
       for (const bp of req.body.billingPeriods) {
         if (!bp.period || !validPeriods.includes(bp.period)) {
@@ -323,6 +375,56 @@ const updatePlan = async (req, res) => {
             success: false,
             message: `Invalid price for ${bp.period} period`,
           });
+        }
+
+        periodPrices[bp.period] = bp.price;
+      }
+
+      // Validate price relationships using priority scores
+      // Higher score = longer/more valuable period
+      const periodPriorityMap = {
+        day: 1,
+        week: 2,
+        month: 3,
+        year: 4,
+        annual: 4, // alias for year
+      };
+
+      // Check that shorter periods (lower priority) don't cost more than longer periods (higher priority)
+      const periodsWithPrices = req.body.billingPeriods.map((bp) => ({
+        period: bp.period,
+        price: bp.price,
+        priority: periodPriorityMap[bp.period] || 0,
+      }));
+
+      for (let i = 0; i < periodsWithPrices.length; i++) {
+        for (let j = 0; j < periodsWithPrices.length; j++) {
+          if (i !== j) {
+            const period1 = periodsWithPrices[i];
+            const period2 = periodsWithPrices[j];
+
+            // If period1 has lower priority (shorter) but higher price than period2 (longer)
+            if (
+              period1.priority < period2.priority &&
+              period1.price > period2.price
+            ) {
+              const periodLabels = {
+                day: "Daily",
+                week: "Weekly",
+                month: "Monthly",
+                year: "Yearly",
+                annual: "Yearly",
+              };
+              return res.status(400).json({
+                success: false,
+                message: `${
+                  periodLabels[period1.period] || period1.period
+                } price cannot be greater than ${
+                  periodLabels[period2.period] || period2.period
+                } price`,
+              });
+            }
+          }
         }
       }
     }
