@@ -2,6 +2,7 @@
 const { stripe, stripeTest } = require("../../config/stripe");
 const Plan = require("../../models/planModel");
 const User = require("../../models/userModel");
+const { cancelAllSubscriptionsForPriceId } = require("../../utils/stripeUtils");
 
 // @desc    Get all plans
 // @route   GET /api/admin/plans
@@ -517,6 +518,17 @@ const updatePlan = async (req, res) => {
                     console.log(
                       `Archived old price ${existingPriceId} for ${bp.period}`
                     );
+
+                    // Cancel all subscriptions using this archived price
+                    
+                    const cancellationResults =
+                      await cancelAllSubscriptionsForPriceId(
+                        existingPriceId,
+                        useTestMode
+                      );
+                    console.log(
+                      `Canceled ${cancellationResults.length} subscription(s) for archived price ${existingPriceId}`
+                    );
                   } catch (archiveError) {
                     console.error("Error archiving old price:", archiveError);
                   }
@@ -537,6 +549,7 @@ const updatePlan = async (req, res) => {
           }
 
           // Archive any removed periods
+        
           plan.stripePriceIds.forEach((existingPrice) => {
             const stillExists = req.body.billingPeriods.some(
               (bp) => bp.period === existingPrice.billingPeriod
@@ -546,10 +559,27 @@ const updatePlan = async (req, res) => {
                 .update(existingPrice.priceId, {
                   active: false,
                 })
-                .then(() => {
+                .then(async () => {
                   console.log(
                     `Archived removed price ${existingPrice.priceId} for ${existingPrice.billingPeriod}`
                   );
+
+                  // Cancel all subscriptions using this archived price
+                  try {
+                    const cancellationResults =
+                      await cancelAllSubscriptionsForPriceId(
+                        existingPrice.priceId,
+                        useTestMode
+                      );
+                    console.log(
+                      `Canceled ${cancellationResults.length} subscription(s) for archived price ${existingPrice.priceId}`
+                    );
+                  } catch (cancelError) {
+                    console.error(
+                      `Error canceling subscriptions for price ${existingPrice.priceId}:`,
+                      cancelError
+                    );
+                  }
                 })
                 .catch((err) => {
                   console.error("Error archiving removed price:", err);
@@ -657,7 +687,9 @@ const deletePlan = async (req, res) => {
     // Archive Stripe resources if they exist
     if (plan.stripePriceIds?.length > 0 || plan.stripeProductId) {
       try {
-        // Archive all prices
+      
+
+        // Archive all prices and cancel their subscriptions
         if (plan.stripePriceIds && plan.stripePriceIds.length > 0) {
           for (const priceInfo of plan.stripePriceIds) {
             if (
@@ -665,6 +697,17 @@ const deletePlan = async (req, res) => {
               priceInfo.priceId !== "starter-plan-free"
             ) {
               try {
+                // First, cancel all subscriptions using this price
+                const cancellationResults =
+                  await cancelAllSubscriptionsForPriceId(
+                    priceInfo.priceId,
+                    useTestMode
+                  );
+                console.log(
+                  `Canceled ${cancellationResults.length} subscription(s) for price ${priceInfo.priceId}`
+                );
+
+                // Then archive the price
                 await stripeInstance.prices.update(priceInfo.priceId, {
                   active: false,
                 });

@@ -529,6 +529,144 @@ async function cancelAllCustomerSubscriptions(
 }
 
 /**
+ * Cancel ALL subscriptions using a specific price ID (regardless of status)
+ * @param {String} priceId - Stripe price ID
+ * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
+ * @returns {Array} Array of cancellation results
+ */
+async function cancelAllSubscriptionsForPriceId(priceId, useTestMode = false) {
+  try {
+    const stripeInstance = useTestMode ? stripeTest : stripe;
+
+    // Get ALL subscriptions using this price ID
+    const allSubscriptions = await stripeInstance.subscriptions.list({
+      price: priceId,
+      status: "all", // This gets all statuses: active, incomplete, trialing, past_due, canceled, etc.
+      limit: 100, // Increase limit to handle more subscriptions
+    });
+
+    const cancellationResults = [];
+
+    console.log(
+      `Found ${allSubscriptions.data.length} subscription(s) using price ${priceId}`
+    );
+
+    // Handle regular subscriptions
+    for (const subscription of allSubscriptions.data) {
+      // Skip if already canceled
+      if (subscription.status === "canceled") {
+        console.log(
+          `Subscription ${subscription.id} already canceled, skipping`
+        );
+        continue;
+      }
+
+      try {
+        // Cancel immediately (not at period end)
+        const canceledSubscription = await stripeInstance.subscriptions.cancel(
+          subscription.id
+        );
+        console.log(
+          `Successfully canceled subscription: ${subscription.id} (was ${subscription.status}) for price ${priceId}`
+        );
+        cancellationResults.push({
+          id: subscription.id,
+          priceId: priceId,
+          customerId: subscription.customer,
+          status: "success",
+          previousStatus: subscription.status,
+          action: "canceled",
+        });
+      } catch (cancelError) {
+        console.error(
+          `Failed to cancel subscription ${subscription.id} for price ${priceId}:`,
+          cancelError
+        );
+        cancellationResults.push({
+          id: subscription.id,
+          priceId: priceId,
+          status: "error",
+          error: cancelError.message,
+          previousStatus: subscription.status,
+        });
+      }
+    }
+
+    // Also check subscription schedules that might use this price
+    try {
+      // List all subscription schedules (we need to filter manually)
+      const allSchedules = await stripeInstance.subscriptionSchedules.list({
+        limit: 100,
+      });
+
+      for (const schedule of allSchedules.data) {
+        // Skip if already canceled or completed
+        if (schedule.status === "canceled" || schedule.status === "completed") {
+          continue;
+        }
+
+        // Check if any phase of the schedule uses this price
+        let usesPriceId = false;
+        for (const phase of schedule.phases || []) {
+          for (const item of phase.items || []) {
+            if (item.price === priceId) {
+              usesPriceId = true;
+              break;
+            }
+          }
+          if (usesPriceId) break;
+        }
+
+        if (usesPriceId) {
+          try {
+            // Cancel the subscription schedule
+            const canceledSchedule =
+              await stripeInstance.subscriptionSchedules.cancel(schedule.id);
+            console.log(
+              `Successfully canceled subscription schedule: ${schedule.id} (was ${schedule.status}) for price ${priceId}`
+            );
+            cancellationResults.push({
+              id: schedule.id,
+              priceId: priceId,
+              customerId: schedule.customer,
+              status: "success",
+              previousStatus: schedule.status,
+              action: "schedule_canceled",
+            });
+          } catch (cancelError) {
+            console.error(
+              `Failed to cancel subscription schedule ${schedule.id} for price ${priceId}:`,
+              cancelError
+            );
+            cancellationResults.push({
+              id: schedule.id,
+              priceId: priceId,
+              status: "error",
+              error: cancelError.message,
+              previousStatus: schedule.status,
+            });
+          }
+        }
+      }
+    } catch (scheduleError) {
+      console.error(
+        `Error checking subscription schedules for price ${priceId}:`,
+        scheduleError
+      );
+    }
+
+    console.log(
+      `Canceled ${cancellationResults.length} subscription(s)/schedule(s) for price ${priceId}`
+    );
+
+    return cancellationResults;
+  } catch (error) {
+    console.error(`Error canceling subscriptions for price ${priceId}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Get user's Stripe subscription data using customer ID only
  * @param {Object} user - User object with stripeCustomerId
  * @param {Boolean} useTestMode - Whether to use test mode Stripe instance
@@ -1619,6 +1757,7 @@ module.exports = {
   getUserBillingHistory,
   getFormattedBillingHistory,
   cancelAllCustomerSubscriptions,
+  cancelAllSubscriptionsForPriceId,
   // Coupon functions
   createStripeCoupon,
   updateStripeCoupon,
