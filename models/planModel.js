@@ -63,7 +63,8 @@ const planSchema = new mongoose.Schema(
 );
 
 // Compound index to allow same plan name in test and live modes
-planSchema.index({ name: 1, stripe_test_mode: 1 }, { unique: true });
+//no need, checking in applicaiton logic
+// planSchema.index({ name: 1, stripe_test_mode: 1 }, { unique: true });
 
 // Validation: Ensure at least one price ID and unique billing periods
 planSchema.pre("save", function (next) {
