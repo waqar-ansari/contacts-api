@@ -203,7 +203,7 @@ const createCoupon = async (req, res) => {
           discountType,
           discountValue,
           expiryDate,
-          currency: "aed",
+          currency: "usd",
           maxUsage,
           name,
         },

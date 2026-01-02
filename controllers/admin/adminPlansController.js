@@ -223,7 +223,7 @@ const createPlan = async (req, res) => {
         for (const bp of billingPeriods) {
           if (bp.price > 0) {
             const stripePrice = await stripeInstance.prices.create({
-              currency: "aed",
+              currency: "usd",
               product: stripeProductId,
               unit_amount: bp.price, // Price in cents
               recurring: {
@@ -489,7 +489,7 @@ const updatePlan = async (req, res) => {
               if (!existingPrice || existingPrice.price !== bp.price) {
                 // Create new Stripe price
                 const stripePrice = await stripeInstance.prices.create({
-                  currency: "aed",
+                  currency: "usd",
                   product: plan.stripeProductId,
                   unit_amount: bp.price,
                   recurring: {

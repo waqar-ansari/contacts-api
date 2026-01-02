@@ -257,7 +257,7 @@ async function addStripeCredits(
     const balanceTransaction =
       await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: -Math.abs(amount), // Negative amount for credits
-        currency: "aed",
+        currency: "usd",
         description: description,
       });
     return balanceTransaction;
@@ -286,7 +286,7 @@ async function useStripeCredits(
     const balanceTransaction =
       await stripeInstance.customers.createBalanceTransaction(customerId, {
         amount: Math.abs(amount), // Positive amount to deduct credits
-        currency: "aed",
+        currency: "usd",
         description: description,
       });
     return balanceTransaction;
@@ -1182,7 +1182,7 @@ async function createStripeCoupon(couponData, useTestMode = false) {
       stripeCouponData.percent_off = discountValue;
     } else if (discountType === "fixed") {
       stripeCouponData.amount_off = Math.round(discountValue * 100); // Convert to cents
-      stripeCouponData.currency = currency || "aed";
+      stripeCouponData.currency = currency || "usd";
     }
 
     // Set expiry date with 1-year maximum

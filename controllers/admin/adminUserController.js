@@ -913,7 +913,7 @@ const getUserBillingHistory = async (req, res) => {
             totalInvoices: 0,
             totalPaid: 0,
             totalOutstanding: 0,
-            currency: "aed",
+            currency: "usd",
           },
         },
       });
@@ -930,7 +930,7 @@ const getUserBillingHistory = async (req, res) => {
       totalInvoices: 0,
       totalPaid: 0,
       totalOutstanding: 0,
-      currency: "aed",
+      currency: "usd",
     };
 
     billingHistory.forEach((item) => {
@@ -942,7 +942,7 @@ const getUserBillingHistory = async (req, res) => {
       } else if (item.status === "open") {
         summary.totalOutstanding += item.amount;
       }
-      if (item.currency && summary.currency === "aed") {
+      if (item.currency && summary.currency === "usd") {
         summary.currency = item.currency;
       }
     });

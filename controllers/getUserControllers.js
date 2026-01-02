@@ -494,7 +494,7 @@ const getUserData = async (req, res) => {
         activatedAt: stripeData?.activatedAt || null,
         expiresAt: stripeData?.expiresAt || null,
         cancelAtPeriodEnd: stripeData?.cancelAtPeriodEnd || false,
-        selectedPriceInfo: currentPlan?.selectedPriceInfo || null,
+        selectedPriceInfo: currentPlan?.selectedPriceInfo || null,  ///null in case of starter plans
       },
       tagCount,
       templates: {},
