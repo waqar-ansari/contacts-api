@@ -121,6 +121,7 @@ exports.scanUser = async (req, res) => {
             planName === "pro"
               ? "You have reached your scan limit. Please contact support."
               : "You have reached the maximum number of scans allowed for your plan. Upgrade to Pro for unlimited scans.",
+          action: "Upgrade Plan",
         });
       }
 
@@ -275,7 +276,7 @@ exports.scanUser = async (req, res) => {
         } catch (err) {
           return res
             .status(403)
-            .json({ status: "error", message: err.message });
+            .json({ status: "error", message: err.message, action: "Upgrade Plan", });
         }
 
         // if (!contactExistsForUser) {
@@ -408,6 +409,7 @@ exports.scanUser = async (req, res) => {
               planName === "pro"
                 ? "You have reached your scan limit. Please contact support."
                 : "You have reached the maximum number of scans allowed for your plan. Upgrade to Pro for unlimited scans.",
+            action: "Upgrade Plan",
           });
         }
 
@@ -564,7 +566,7 @@ exports.scanUser = async (req, res) => {
           } catch (err) {
             return res
               .status(403)
-              .json({ status: "error", message: err.message });
+              .json({ status: "error", message: err.message, action: "Upgrade Plan", });
           }
           // if (!contactExistsForUser) {
           //   const newContact = new Contact({
@@ -700,6 +702,7 @@ exports.scanUser = async (req, res) => {
             status: "error",
             message:
               "You have reached the maximum number of scans allowed for unregistered users on the Free plan. Please register or upgrade.",
+            action: "Upgrade Plan",
           });
         }
 
@@ -810,7 +813,7 @@ exports.scanUser = async (req, res) => {
           } catch (err) {
             return res
               .status(403)
-              .json({ status: "error", message: err.message });
+              .json({ status: "error", message: err.message, action: "Upgrade Plan", });
           }
           if (!contactExists) {
             const newContact = new Contact({

@@ -149,6 +149,7 @@ exports.incrementBusinessCardScan = async (req, res) => {
       return res.status(403).json({
         status: "error",
         message: quotaError.message || "Quota exceeded for business card scans",
+        action: "Upgrade Plan"
       });
     }
 

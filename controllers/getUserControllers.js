@@ -213,6 +213,11 @@ const getUserData = async (req, res) => {
           referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
           creditBalance: creditBalance,
           company: user.userInfo?.companyName || "",
+          businessCardScanContactCount: user.businessCardScanContactCount,
+          leadContactCount: user.leadContactCount,
+          qrScanContactCount: user.qrScanContactCount,
+          manualContactCount: user.manualContactCount,
+          totalContactCount: user.totalContactCount,
           accounts: [
             {
               type: "google",
@@ -368,6 +373,11 @@ const getUserData = async (req, res) => {
           creditBalance: user.creditBalance || 0,
           qrCode: qrCodeDataURL,
           company: user.userInfo?.companyName || "",
+          businessCardScanContactCount: user.businessCardScanContactCount,
+          leadContactCount: user.leadContactCount,
+          qrScanContactCount: user.qrScanContactCount,
+          manualContactCount: user.manualContactCount,
+          totalContactCount: user.totalContactCount,
           accounts: [
             {
               type: "google",
@@ -451,6 +461,11 @@ const getUserData = async (req, res) => {
       referralUrl: `${FRONTEND_URL}/register?ref=${user.referralCode}`,
       creditBalance: user.creditBalance || 0,
       company: user.userInfo?.companyName || "",
+      businessCardScanContactCount: user.businessCardScanContactCount,
+      leadContactCount: user.leadContactCount,
+      qrScanContactCount: user.qrScanContactCount,
+      manualContactCount: user.manualContactCount,
+      totalContactCount: user.totalContactCount,
       accounts: [
         {
           type: "google",
