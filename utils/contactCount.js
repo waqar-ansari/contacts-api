@@ -4,7 +4,7 @@ const { getUserCurrentPlan } = require("./stripeUtils");
 
 async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = null, useTestMode = false) {
     const owner = await User.findById(ownerId);
-    if (!owner) throw new Error("Owner not found for quota check");
+    if (!owner) throw new Error("We couldn’t find your account. Please try again or contact support");
 
     const plan = await getUserCurrentPlan(owner, useTestMode);
     const planName = (plan?.name || "starter").toLowerCase();
@@ -50,32 +50,32 @@ async function ensureScanQuotaForOwner(ownerId, category, excludeContactId = nul
     // Enforce total limit for Starter
     if (!isPro && totalCount >= STARTER_TOTAL_LIMIT) {
         throw new Error(
-            `Total contact limit reached for Starter plan (${totalCount}/${STARTER_TOTAL_LIMIT}). Upgrade to Pro for unlimited contacts.`
+            `You’ve reached the maximum number of contacts on the Starter plan. Upgrade to Pro to add more.`
         );
     }
 
     if (category === "lead") {
         if (!isPro && leadContactCount >= STARTER_LEAD_LIMIT) {
             throw new Error(
-                `Plan limit reached for ${category} (${leadContactCount}/${STARTER_LEAD_LIMIT}). Upgrade to Pro for more.`
+                `You’ve reached your Lead contact limit. Upgrade to Pro to add more leads.`
             );
         }
     } else if (category === "businessCardScan") {
         if (!isPro && businessCardScanContactCount >= STARTER_BUSINESS_LIMIT) {
             throw new Error(
-                `Plan limit reached for ${category} (${businessCardScanContactCount}/${STARTER_BUSINESS_LIMIT}). Upgrade to Pro for more.`
+                `You’ve reached your Business Card scan limit. Upgrade to Pro to continue scanning.`
             );
         }
     } else if (category === "qrScan") {
         if (!isPro && qrScanContactCount >= STARTER_QR_LIMIT) {
             throw new Error(
-                `Plan limit reached for ${category} (${qrScanContactCount}/${STARTER_QR_LIMIT}). Upgrade to Pro for more.`
+                `You’ve reached your QR scan limit. Upgrade to Pro to scan more QR codes.`
             );
         }
     } else if (category === "manual") {
         if (!isPro && manualContactCount >= Infinity) {
             throw new Error(
-                `Plan limit reached for ${category} (${manualContactCount}/∞). Upgrade to Pro for more.`
+                `You’ve reached your Manual contact limit. Upgrade to Pro to add more contacts.`
             );
         }
     }
